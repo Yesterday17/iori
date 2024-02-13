@@ -31,8 +31,7 @@ use tokio::sync::mpsc;
 pub trait StreamingDownloader {
     type Segment;
 
-    // TODO: is this Vec necessary here?
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>>;
+    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment>;
 
     async fn fetch_segment(&self, segment: Self::Segment);
 }
@@ -40,11 +39,9 @@ pub trait StreamingDownloader {
 pub trait StreamingDownloaderExt: StreamingDownloader {
     async fn download(&mut self) {
         let mut info = self.fetch_info().await;
-        while let Some(segments) = info.recv().await {
-            for segment in segments {
-                // FIXME: concurrency is limited to 1 here
-                self.fetch_segment(segment).await;
-            }
+        while let Some(segment) = info.recv().await {
+            // FIXME: concurrency is limited to 1 here
+            self.fetch_segment(segment).await;
         }
     }
 }
@@ -109,19 +106,19 @@ impl CommonM3u8ArchiveDownloader {
 impl StreamingDownloader for CommonM3u8ArchiveDownloader {
     type Segment = M3u8Segment;
 
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>> {
+    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let (playlist_url, playlist) = self.load_m3u8(None).await;
-        let _ = sender.send(
-            playlist
-                .segments
-                .into_iter()
-                .map(|s| M3u8Segment {
-                    url: playlist_url.join(&s.uri).unwrap(),
-                })
-                .collect(),
-        );
+
+        for segment in playlist.segments {
+            let segment = M3u8Segment {
+                url: playlist_url.join(&segment.uri).unwrap(),
+            };
+            if let Err(_) = sender.send(segment) {
+                break;
+            }
+        }
         receiver
     }
 
