@@ -29,7 +29,7 @@ use tokio::sync::mpsc;
 /// │                       ├────────────────►                    │
 /// └───────────────────────┘                └────────────────────┘
 pub trait StreamingDownloader {
-    type Segment: Clone;
+    type Segment;
 
     // TODO: is this Vec necessary here?
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>>;
@@ -144,7 +144,6 @@ impl StreamingDownloader for CommonM3u8ArchiveDownloader {
 
 impl StreamingDownloaderExt for CommonM3u8ArchiveDownloader {}
 
-#[derive(Clone)]
 pub struct M3u8Segment {
     url: Url,
     // pub byte_range: Option<ByteRange>,
