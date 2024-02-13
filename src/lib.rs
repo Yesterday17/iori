@@ -156,7 +156,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_download() {
-        let mut downloader = CommonM3u8ArchiveDownloader::new("".to_string());
+        let mut downloader = CommonM3u8ArchiveDownloader::new(
+            "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
+        );
         downloader.download().await;
     }
 }
