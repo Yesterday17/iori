@@ -15,8 +15,8 @@ use self::decrypt::M3u8Key;
 pub struct M3u8Segment {
     url: reqwest::Url,
     filename: String,
-    key: Option<M3u8Key>,
 
+    key: Option<Arc<M3u8Key>>,
     initial_segment: Option<Arc<Vec<u8>>>,
 
     /// Sequence id allocated by the downloader

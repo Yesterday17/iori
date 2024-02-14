@@ -56,7 +56,8 @@ impl CommonM3u8ArchiveSource {
                     playlist.media_sequence,
                     self.key.clone(),
                 )
-                .await;
+                .await
+                .map(Arc::new);
             }
 
             if let Some(m) = &segment.map {
