@@ -7,7 +7,6 @@ use std::{
     },
 };
 
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use m3u8_rs::KeyMethod;
 use reqwest::{Client, Url};
 use tokio::{fs::File, io::AsyncWriteExt, sync::mpsc};
@@ -50,34 +49,15 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
             if let Some(k) = segment.key {
                 let new_key = match k.method {
                     KeyMethod::None => None,
-                    KeyMethod::AES128 => {
-                        let key = self
-                            .client
-                            .get(playlist_url.join(&k.uri.unwrap()).unwrap())
-                            .send()
-                            .await
-                            .unwrap()
-                            .bytes()
-                            .await
-                            .unwrap();
-                        Some(M3u8Aes128Key {
-                            key: key.to_vec().try_into().unwrap(),
-                            iv: k
-                                .iv
-                                .and_then(|iv| {
-                                    let iv = if iv.starts_with("0x") {
-                                        &iv[2..]
-                                    } else {
-                                        iv.as_str()
-                                    };
-                                    u128::from_str_radix(iv, 16).ok()
-                                })
-                                .unwrap_or_else(|| playlist.media_sequence as u128)
-                                .to_be_bytes(),
-                            keyformat: k.keyformat,
-                            keyformatversions: k.keyformatversions,
-                        })
-                    }
+                    KeyMethod::AES128 => Some(
+                        M3u8Aes128Key::from_key(
+                            &self.client,
+                            k,
+                            &playlist_url,
+                            playlist.media_sequence,
+                        )
+                        .await,
+                    ),
                     KeyMethod::SampleAES => todo!(),
                     KeyMethod::Other(_) => unimplemented!(),
                 };
@@ -127,11 +107,9 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
             .unwrap();
         // TODO: use bytes_stream to improve performance
         // .bytes_stream();
-        let decryptor = segment
-            .key
-            .map(|key| cbc::Decryptor::<aes::Aes128>::new(&key.key.into(), &key.iv.into()));
+        let decryptor = segment.key.map(|key| key.to_decryptor());
         if let Some(decryptor) = decryptor {
-            let bytes = decryptor.decrypt_padded_vec_mut::<Pkcs7>(&bytes).unwrap();
+            let bytes = decryptor.decrypt(&bytes);
             tmp_file.write_all(&bytes).await.unwrap();
         } else {
             tmp_file.write_all(&bytes).await.unwrap();

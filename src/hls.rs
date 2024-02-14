@@ -1,7 +1,11 @@
 mod archive;
+mod decrypt;
+mod live;
 mod utils;
 
 pub use archive::CommonM3u8ArchiveDownloader;
+
+use self::decrypt::M3u8Aes128Key;
 
 pub struct M3u8Segment {
     url: reqwest::Url,
@@ -11,14 +15,6 @@ pub struct M3u8Segment {
     /// Sequence id allocated by the downloader
     sequence: u64,
     // pub byte_range: Option<ByteRange>,
-}
-
-#[derive(Clone, Debug)]
-pub struct M3u8Aes128Key {
-    pub key: [u8; 16],
-    pub iv: [u8; 16],
-    pub keyformat: Option<String>,
-    pub keyformatversions: Option<String>,
 }
 
 #[cfg(test)]
