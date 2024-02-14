@@ -9,7 +9,7 @@ use std::{
 };
 
 use futures_util::StreamExt;
-use m3u8_rs::{MediaPlaylist, Playlist};
+use m3u8_rs::{KeyMethod, MediaPlaylist, Playlist};
 use reqwest::{Client, Url};
 use tokio::{fs::File, sync::mpsc};
 
@@ -128,7 +128,45 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
 
         let (playlist_url, playlist) = self.load_m3u8(None).await;
 
+        let mut key = None;
         for segment in playlist.segments {
+            if let Some(k) = segment.key {
+                let new_key = match k.method {
+                    KeyMethod::None => None,
+                    KeyMethod::AES128 => {
+                        let key = self
+                            .client
+                            .get(playlist_url.join(&k.uri.unwrap()).unwrap())
+                            .send()
+                            .await
+                            .unwrap()
+                            .bytes()
+                            .await
+                            .unwrap();
+                        Some(M3u8Aes128Key {
+                            key: key.to_vec().try_into().unwrap(),
+                            iv: k
+                                .iv
+                                .and_then(|iv| {
+                                    let iv = if iv.starts_with("0x") {
+                                        &iv[2..]
+                                    } else {
+                                        iv.as_str()
+                                    };
+                                    u128::from_str_radix(iv, 16).ok()
+                                })
+                                .unwrap_or_else(|| playlist.media_sequence as u128)
+                                .to_be_bytes(),
+                            keyformat: k.keyformat,
+                            keyformatversions: k.keyformatversions,
+                        })
+                    }
+                    KeyMethod::SampleAES => todo!(),
+                    KeyMethod::Other(_) => unimplemented!(),
+                };
+                key = new_key;
+            }
+
             let url = playlist_url.join(&segment.uri).unwrap();
             // FIXME: filename may be too long
             let filename = url
@@ -136,9 +174,11 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
                 .and_then(|c| c.last())
                 .unwrap_or("output.ts")
                 .to_string();
+
             let segment = M3u8Segment {
                 url,
                 filename,
+                key: key.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
             };
             if let Err(_) = sender.send(segment) {
@@ -179,9 +219,20 @@ impl StreamingDownloaderExt for CommonM3u8ArchiveDownloader {}
 pub struct M3u8Segment {
     url: Url,
     filename: String,
+    key: Option<M3u8Aes128Key>,
+
+    /// Sequence id allocated by the downloader
     sequence: u64,
     // pub byte_range: Option<ByteRange>,
     // headers: HeaderMap,
+}
+
+#[derive(Clone, Debug)]
+pub struct M3u8Aes128Key {
+    pub key: [u8; 16],
+    pub iv: [u8; 16],
+    pub keyformat: Option<String>,
+    pub keyformatversions: Option<String>,
 }
 
 #[cfg(test)]
@@ -191,7 +242,7 @@ mod tests {
     #[tokio::test]
     async fn test_download() {
         let mut downloader = CommonM3u8ArchiveDownloader::new(
-            "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
+            "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
             "/tmp/test".into(),
         );
         downloader.download().await;
