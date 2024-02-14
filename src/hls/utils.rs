@@ -22,17 +22,17 @@ pub(crate) async fn load_m3u8(client: &Client, url: Url) -> (Url, MediaPlaylist)
             let mut variants = pl.variants;
             variants.sort_by(|a, b| {
                 if let (Some(a), Some(b)) = (a.resolution, b.resolution) {
-                    let resolution_cmp_result = a.width.cmp(&b.width);
+                    let resolution_cmp_result = b.width.cmp(&a.width);
                     if resolution_cmp_result != std::cmp::Ordering::Equal {
                         return resolution_cmp_result;
                     }
                 }
-                a.bandwidth.cmp(&b.bandwidth)
+                b.bandwidth.cmp(&a.bandwidth)
             });
             let variant = variants.get(0).expect("No variant found");
             let url = url.join(&variant.uri).expect("Invalid variant uri");
 
-            log::debug!(
+            log::info!(
                 "Best stream: {url}; Bandwidth: {bandwidth}",
                 bandwidth = variant.bandwidth
             );

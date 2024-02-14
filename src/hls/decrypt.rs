@@ -4,7 +4,6 @@ use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use data_url::DataUrl;
 use m3u8_rs::KeyMethod;
 
-#[derive(Clone, Debug)]
 pub enum M3u8Key {
     Aes128 {
         key: [u8; 16],
