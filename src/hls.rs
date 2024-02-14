@@ -1,16 +1,16 @@
 mod archive;
-pub use archive::*;
-use reqwest::Url;
+mod utils;
+
+pub use archive::CommonM3u8ArchiveDownloader;
 
 pub struct M3u8Segment {
-    url: Url,
+    url: reqwest::Url,
     filename: String,
     key: Option<M3u8Aes128Key>,
 
     /// Sequence id allocated by the downloader
     sequence: u64,
     // pub byte_range: Option<ByteRange>,
-    // headers: HeaderMap,
 }
 
 #[derive(Clone, Debug)]

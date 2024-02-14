@@ -8,11 +8,11 @@ use std::{
 };
 
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
-use m3u8_rs::{KeyMethod, MediaPlaylist, Playlist};
+use m3u8_rs::KeyMethod;
 use reqwest::{Client, Url};
 use tokio::{fs::File, io::AsyncWriteExt, sync::mpsc};
 
-use super::{M3u8Aes128Key, M3u8Segment};
+use super::{utils::load_m3u8, M3u8Aes128Key, M3u8Segment};
 use crate::{StreamingDownloaderExt, StreamingSource};
 
 pub struct CommonM3u8ArchiveDownloader {
@@ -34,50 +34,6 @@ impl CommonM3u8ArchiveDownloader {
             client,
         }
     }
-
-    #[async_recursion::async_recursion]
-    async fn load_m3u8(&self, url: Option<String>) -> (Url, MediaPlaylist) {
-        log::info!("Start fetching M3U8 file.");
-
-        let url = Url::from_str(&url.unwrap_or(self.m3u8_url.clone())).expect("Invalid URL");
-        let m3u8_bytes = self
-            .client
-            .get(url.clone())
-            .send()
-            .await
-            .expect("http error")
-            .bytes()
-            .await
-            .expect("Failed to get body bytes");
-        log::info!("M3U8 file fetched.");
-
-        let parsed = m3u8_rs::parse_playlist_res(m3u8_bytes.as_ref());
-        match parsed {
-            Ok(Playlist::MasterPlaylist(pl)) => {
-                log::info!("Master playlist input detected. Auto selecting best quality streams.");
-                let mut variants = pl.variants;
-                variants.sort_by(|a, b| {
-                    if let (Some(a), Some(b)) = (a.resolution, b.resolution) {
-                        let resolution_cmp_result = a.width.cmp(&b.width);
-                        if resolution_cmp_result != std::cmp::Ordering::Equal {
-                            return resolution_cmp_result;
-                        }
-                    }
-                    a.bandwidth.cmp(&b.bandwidth)
-                });
-                let variant = variants.get(0).expect("No variant found");
-                let url = url.join(&variant.uri).expect("Invalid variant uri");
-
-                log::debug!(
-                    "Best stream: ${url}; Bandwidth: ${bandwidth}",
-                    bandwidth = variant.bandwidth
-                );
-                self.load_m3u8(Some(url.to_string())).await
-            }
-            Ok(Playlist::MediaPlaylist(pl)) => (url, pl),
-            Err(e) => panic!("Error: {:?}", e),
-        }
-    }
 }
 
 impl StreamingSource for CommonM3u8ArchiveDownloader {
@@ -86,7 +42,8 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (playlist_url, playlist) = self.load_m3u8(None).await;
+        let (playlist_url, playlist) =
+            load_m3u8(&self.client, Url::from_str(&self.m3u8_url).unwrap()).await;
 
         let mut key = None;
         for segment in playlist.segments {
