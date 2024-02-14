@@ -26,7 +26,7 @@ pub struct M3u8Segment {
 }
 
 impl StreamingSegment for M3u8Segment {
-    fn filename(&self) -> &str {
+    fn file_name(&self) -> &str {
         self.filename.as_str()
     }
 }

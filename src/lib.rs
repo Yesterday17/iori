@@ -36,5 +36,5 @@ pub trait StreamingSource {
 }
 
 pub trait StreamingSegment {
-    fn filename(&self) -> &str;
+    fn file_name(&self) -> &str;
 }

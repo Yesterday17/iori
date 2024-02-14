@@ -1,4 +1,11 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ffi::OsString,
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+    process::Command,
+};
 
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use data_url::DataUrl;
@@ -92,16 +99,21 @@ impl M3u8Key {
             M3u8Key::Aes128 { key, iv } => {
                 M3u8Decryptor::Aes128(cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into()))
             }
-            M3u8Key::Mp4Decrypt { keys, pssh: _ } => {
-                M3u8Decryptor::Mp4Decrypt { keys: keys.clone() }
-            }
+            M3u8Key::Mp4Decrypt { keys, pssh: _ } => M3u8Decryptor::Mp4Decrypt {
+                keys: keys.clone(),
+                // TODO: allow user to use shaka-packager
+                shaka_packager_command: None,
+            },
         }
     }
 }
 
 pub enum M3u8Decryptor {
     Aes128(cbc::Decryptor<aes::Aes128>),
-    Mp4Decrypt { keys: HashMap<String, String> },
+    Mp4Decrypt {
+        keys: HashMap<String, String>,
+        shaka_packager_command: Option<PathBuf>,
+    },
 }
 
 impl M3u8Decryptor {
@@ -110,7 +122,48 @@ impl M3u8Decryptor {
             M3u8Decryptor::Aes128(decryptor) => {
                 decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data).unwrap()
             }
-            M3u8Decryptor::Mp4Decrypt { keys } => mp4decrypt::mp4decrypt(data, keys, None).unwrap(),
+            M3u8Decryptor::Mp4Decrypt {
+                keys,
+                shaka_packager_command,
+            } => {
+                if let Some(shaka_packager_command) = shaka_packager_command {
+                    let temp_dir = tempfile::tempdir().unwrap();
+                    let rand_suffix = rand::random::<u64>();
+                    let temp_input_file = temp_dir.path().join(format!("input_{rand_suffix}.mp4"));
+                    let temp_output_file =
+                        temp_dir.path().join(format!("output_{rand_suffix}.mp4"));
+
+                    let mut input = File::create(&temp_input_file).unwrap();
+                    input.write_all(data).unwrap();
+
+                    let mut command = Command::new(shaka_packager_command);
+                    command
+                        .arg("--quiet")
+                        .arg("--enable_raw_key_decryption")
+                        .arg({
+                            let mut str = OsString::new();
+                            str.push("input=");
+                            str.push(temp_input_file.as_os_str());
+                            str.push(",stream=0,output=");
+                            str.push(temp_output_file.as_os_str());
+                            str
+                        });
+
+                    for (kid, key) in keys {
+                        command
+                            .arg("--keys")
+                            .arg(format!("key_id={},key={}", kid, key));
+                    }
+                    command.spawn().unwrap().wait().unwrap();
+
+                    let mut file = File::open(temp_output_file).unwrap();
+                    let mut data = Vec::new();
+                    file.read_to_end(&mut data).unwrap();
+                    data
+                } else {
+                    mp4decrypt::mp4decrypt(data, keys, None).unwrap()
+                }
+            }
         }
     }
 }
