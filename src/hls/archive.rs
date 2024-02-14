@@ -23,8 +23,8 @@ pub struct CommonM3u8ArchiveSource {
 }
 
 impl CommonM3u8ArchiveSource {
-    pub fn new(m3u8: String, output_dir: PathBuf) -> Self {
-        let client = Arc::new(Client::new());
+    pub fn new(client: Client, m3u8: String, output_dir: PathBuf) -> Self {
+        let client = Arc::new(client);
         Self {
             m3u8_url: m3u8,
             output_dir,
@@ -153,6 +153,7 @@ mod tests {
     #[tokio::test]
     async fn test_download_archive() {
         let source = CommonM3u8ArchiveSource::new(
+            Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
             "/tmp/test".into(),
         );
