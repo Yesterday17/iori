@@ -35,13 +35,16 @@ impl CommonM3u8ArchiveDownloader {
     }
 
     // TODO: return an iterator instead of a Vec
-    pub(crate) async fn load_segments(&self) -> (Vec<M3u8Segment>, Url, MediaPlaylist) {
+    pub(crate) async fn load_segments(
+        &self,
+        latest_media_sequence: Option<u64>,
+    ) -> (Vec<M3u8Segment>, Url, MediaPlaylist) {
         let (playlist_url, playlist) =
             load_m3u8(&self.client, Url::from_str(&self.m3u8_url).unwrap()).await;
 
         let mut key = None;
         let mut segments = Vec::with_capacity(playlist.segments.len());
-        for segment in &playlist.segments {
+        for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
                 key = M3u8Key::from_key(&self.client, k, &playlist_url, playlist.media_sequence)
                     .await;
@@ -55,11 +58,19 @@ impl CommonM3u8ArchiveDownloader {
                 .unwrap_or("output.ts")
                 .to_string();
 
+            let media_sequence = playlist.media_sequence + i as u64;
+            if let Some(latest_media_sequence) = latest_media_sequence {
+                if media_sequence <= latest_media_sequence as u64 {
+                    continue;
+                }
+            }
+
             let segment = M3u8Segment {
                 url,
                 filename,
                 key: key.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+                media_sequence,
             };
             segments.push(segment);
         }
@@ -74,7 +85,7 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (segments, _, _) = self.load_segments().await;
+        let (segments, _, _) = self.load_segments(None).await;
         for segment in segments {
             if let Err(_) = sender.send(segment) {
                 break;

@@ -25,15 +25,22 @@ impl StreamingSource for CommonM3u8LiveDownloader {
 
         let inner: Arc<CommonM3u8ArchiveDownloader> = self.inner.clone();
         tokio::spawn(async move {
+            let mut latest_media_sequence = 0;
             loop {
-                let (segments, _, playlist) = inner.load_segments().await;
+                let (segments, _, playlist) =
+                    inner.load_segments(Some(latest_media_sequence)).await;
+                let new_latest_media_sequence = segments
+                    .last()
+                    .map(|r| r.media_sequence)
+                    .unwrap_or(latest_media_sequence);
+
                 for segment in segments {
                     eprintln!("LIVE SEGMENT #{:06}: {}", segment.sequence, segment.url);
-                    // TODO: dedupe segments for live playlists
                     if let Err(_) = sender.send(segment) {
                         break;
                     }
                 }
+                latest_media_sequence = new_latest_media_sequence;
 
                 if playlist.end_list {
                     break;
