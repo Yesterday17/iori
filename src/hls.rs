@@ -3,7 +3,7 @@ mod decrypt;
 mod live;
 mod utils;
 
-use std::{hash::Hash, sync::Arc};
+use std::sync::Arc;
 
 pub use archive::CommonM3u8ArchiveSource;
 pub use live::CommonM3u8LiveSource;
@@ -21,6 +21,7 @@ pub struct M3u8Segment {
 
     /// Sequence id allocated by the downloader
     sequence: u64,
+    /// Media sequence id from the m3u8 file
     media_sequence: u64,
     // pub byte_range: Option<ByteRange>,
 }
@@ -28,12 +29,5 @@ pub struct M3u8Segment {
 impl StreamingSegment for M3u8Segment {
     fn file_name(&self) -> &str {
         self.filename.as_str()
-    }
-}
-
-impl Hash for M3u8Segment {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        // TODO: add byte range to hash
-        self.url.hash(state);
     }
 }

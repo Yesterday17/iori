@@ -157,7 +157,7 @@ impl M3u8Decryptor {
                     for (kid, key) in keys {
                         command
                             .arg("--keys")
-                            .arg(format!("key_id={},key={}", kid, key));
+                            .arg(format!("key_id={}:key={}", kid, key));
                     }
                     command.spawn()?.wait()?;
 
