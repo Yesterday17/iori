@@ -16,7 +16,9 @@ use crate::StreamingSource;
 
 pub struct CommonM3u8ArchiveSource {
     m3u8_url: String,
+
     key: Option<String>,
+    shaka_packager_command: Option<PathBuf>,
 
     output_dir: PathBuf,
     sequence: AtomicU64,
@@ -24,11 +26,18 @@ pub struct CommonM3u8ArchiveSource {
 }
 
 impl CommonM3u8ArchiveSource {
-    pub fn new(client: Client, m3u8: String, key: Option<String>, output_dir: PathBuf) -> Self {
+    pub fn new(
+        client: Client,
+        m3u8: String,
+        key: Option<String>,
+        output_dir: PathBuf,
+        shaka_packager_command: Option<PathBuf>,
+    ) -> Self {
         let client = Arc::new(client);
         Self {
             m3u8_url: m3u8,
             key,
+            shaka_packager_command,
             output_dir,
 
             sequence: AtomicU64::new(0),
@@ -55,6 +64,7 @@ impl CommonM3u8ArchiveSource {
                     &playlist_url,
                     playlist.media_sequence,
                     self.key.clone(),
+                    self.shaka_packager_command.clone(),
                 )
                 .await
                 .map(Arc::new);
@@ -188,6 +198,7 @@ mod tests {
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
             None,
             "/tmp/test".into(),
+            None,
         );
         SequencialDownloader::new(source).download().await;
     }

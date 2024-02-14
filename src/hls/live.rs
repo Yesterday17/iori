@@ -11,9 +11,21 @@ pub struct CommonM3u8LiveSource {
 }
 
 impl CommonM3u8LiveSource {
-    pub fn new(client: Client, m3u8: String, key: Option<String>, output_dir: PathBuf) -> Self {
+    pub fn new(
+        client: Client,
+        m3u8: String,
+        key: Option<String>,
+        output_dir: PathBuf,
+        shaka_packager_command: Option<PathBuf>,
+    ) -> Self {
         Self {
-            inner: Arc::new(CommonM3u8ArchiveSource::new(client, m3u8, key, output_dir)),
+            inner: Arc::new(CommonM3u8ArchiveSource::new(
+                client,
+                m3u8,
+                key,
+                output_dir,
+                shaka_packager_command,
+            )),
         }
     }
 }
@@ -80,6 +92,7 @@ mod tests {
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
             None,
             "/tmp/test_live".into(),
+            None,
         );
         SequencialDownloader::new(source).download().await;
     }

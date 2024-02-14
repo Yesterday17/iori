@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::{mpsc, RwLock, Semaphore};
 
 use crate::{StreamingSegment, StreamingSource};
 
@@ -83,7 +83,7 @@ where
             .unwrap();
     }
 
-    async fn get_receiver(&mut self) -> tokio::sync::mpsc::UnboundedReceiver<Vec<S::Segment>> {
+    async fn get_receiver(&mut self) -> mpsc::UnboundedReceiver<Vec<S::Segment>> {
         self.source.write().await.fetch_info().await
     }
 }

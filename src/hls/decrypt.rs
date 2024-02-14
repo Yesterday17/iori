@@ -19,6 +19,7 @@ pub enum M3u8Key {
     Mp4Decrypt {
         keys: HashMap<String, String>,
         pssh: Vec<u8>,
+        shaka_packager_command: Option<PathBuf>,
     },
 }
 
@@ -29,6 +30,7 @@ impl M3u8Key {
         playlist_url: &reqwest::Url,
         media_sequence: u64,
         manual_key: Option<String>,
+        shaka_packager_command: Option<PathBuf>,
     ) -> Option<Self> {
         match &key.method {
             KeyMethod::None => None,
@@ -87,7 +89,11 @@ impl M3u8Key {
                     // https://github.com/shaka-project/shaka-player/blob/140079d1094effa5f8471bc0c47806ff5e351e97/lib/hls/hls_parser.js
                     let url = DataUrl::process(key.uri.as_deref().unwrap()).unwrap();
                     let (pssh, _) = url.decode_to_vec().unwrap();
-                    Some(Self::Mp4Decrypt { keys, pssh })
+                    Some(Self::Mp4Decrypt {
+                        keys,
+                        pssh,
+                        shaka_packager_command,
+                    })
                 }
                 _ => unimplemented!("Unknown key method: {name}"),
             },
@@ -99,10 +105,13 @@ impl M3u8Key {
             M3u8Key::Aes128 { key, iv } => {
                 M3u8Decryptor::Aes128(cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into()))
             }
-            M3u8Key::Mp4Decrypt { keys, pssh: _ } => M3u8Decryptor::Mp4Decrypt {
+            M3u8Key::Mp4Decrypt {
+                keys,
+                pssh: _,
+                shaka_packager_command,
+            } => M3u8Decryptor::Mp4Decrypt {
                 keys: keys.clone(),
-                // TODO: allow user to use shaka-packager
-                shaka_packager_command: None,
+                shaka_packager_command: shaka_packager_command.clone(),
             },
         }
     }
