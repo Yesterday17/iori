@@ -5,8 +5,8 @@ mod utils;
 
 use std::hash::Hash;
 
-pub use archive::CommonM3u8ArchiveDownloader;
-pub use live::CommonM3u8LiveDownloader;
+pub use archive::CommonM3u8ArchiveSource;
+pub use live::CommonM3u8LiveSource;
 
 use self::decrypt::M3u8Key;
 

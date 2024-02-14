@@ -2,31 +2,35 @@ use std::{path::PathBuf, sync::Arc};
 
 use tokio::sync::mpsc;
 
-use super::{CommonM3u8ArchiveDownloader, M3u8Segment};
-use crate::{StreamingDownloaderExt, StreamingSource};
+use super::{CommonM3u8ArchiveSource, M3u8Segment};
+use crate::StreamingSource;
 
-pub struct CommonM3u8LiveDownloader {
-    inner: Arc<CommonM3u8ArchiveDownloader>,
+pub struct CommonM3u8LiveSource {
+    inner: Arc<CommonM3u8ArchiveSource>,
 }
 
-impl CommonM3u8LiveDownloader {
+impl CommonM3u8LiveSource {
     pub fn new(m3u8: String, output_dir: PathBuf) -> Self {
         Self {
-            inner: Arc::new(CommonM3u8ArchiveDownloader::new(m3u8, output_dir)),
+            inner: Arc::new(CommonM3u8ArchiveSource::new(m3u8, output_dir)),
         }
     }
 }
 
-impl StreamingSource for CommonM3u8LiveDownloader {
+impl StreamingSource for CommonM3u8LiveSource {
     type Segment = M3u8Segment;
 
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let inner: Arc<CommonM3u8ArchiveDownloader> = self.inner.clone();
+        let inner: Arc<CommonM3u8ArchiveSource> = self.inner.clone();
         tokio::spawn(async move {
             let mut latest_media_sequence = 0;
             loop {
+                if sender.is_closed() {
+                    break;
+                }
+
                 let (segments, _, playlist) =
                     inner.load_segments(Some(latest_media_sequence)).await;
                 let new_latest_media_sequence = segments
@@ -66,20 +70,17 @@ impl StreamingSource for CommonM3u8LiveDownloader {
     }
 }
 
-impl StreamingDownloaderExt for CommonM3u8LiveDownloader {}
-
 #[cfg(test)]
 mod tests {
-    use crate::StreamingDownloaderExt;
-
     use super::*;
+    use crate::downloader::SequencialDownloader;
 
     #[tokio::test]
     async fn test_download_live() {
-        let mut downloader = CommonM3u8LiveDownloader::new(
+        let source = CommonM3u8LiveSource::new(
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
             "/tmp/test_live".into(),
         );
-        downloader.download().await;
+        SequencialDownloader::new(source).download().await;
     }
 }

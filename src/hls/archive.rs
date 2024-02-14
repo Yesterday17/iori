@@ -12,9 +12,9 @@ use reqwest::{Client, Url};
 use tokio::{fs::File, io::AsyncWriteExt, sync::mpsc};
 
 use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment};
-use crate::{StreamingDownloaderExt, StreamingSource};
+use crate::StreamingSource;
 
-pub struct CommonM3u8ArchiveDownloader {
+pub struct CommonM3u8ArchiveSource {
     pub(crate) m3u8_url: String,
 
     pub(crate) output_dir: PathBuf,
@@ -22,7 +22,7 @@ pub struct CommonM3u8ArchiveDownloader {
     pub(crate) client: Arc<Client>,
 }
 
-impl CommonM3u8ArchiveDownloader {
+impl CommonM3u8ArchiveSource {
     pub fn new(m3u8: String, output_dir: PathBuf) -> Self {
         let client = Arc::new(Client::new());
         Self {
@@ -79,7 +79,7 @@ impl CommonM3u8ArchiveDownloader {
     }
 }
 
-impl StreamingSource for CommonM3u8ArchiveDownloader {
+impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
 
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
@@ -144,20 +144,17 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
     }
 }
 
-impl StreamingDownloaderExt for CommonM3u8ArchiveDownloader {}
-
 #[cfg(test)]
 mod tests {
-    use crate::StreamingDownloaderExt;
-
     use super::*;
+    use crate::downloader::SequencialDownloader;
 
     #[tokio::test]
     async fn test_download_archive() {
-        let mut downloader = CommonM3u8ArchiveDownloader::new(
+        let source = CommonM3u8ArchiveSource::new(
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
             "/tmp/test".into(),
         );
-        downloader.download().await;
+        SequencialDownloader::new(source).download().await;
     }
 }
