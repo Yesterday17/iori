@@ -87,6 +87,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 
         let (segments, _, _) = self.load_segments(None).await;
         for segment in segments {
+            eprintln!("SEGMENT #{:06}: {}", segment.sequence, segment.url);
             if let Err(_) = sender.send(segment) {
                 break;
             }

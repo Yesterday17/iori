@@ -1,5 +1,3 @@
-#![allow(async_fn_in_trait)]
-
 pub mod downloader;
 pub mod hls;
 
@@ -26,10 +24,13 @@ pub mod hls;
 /// │                       ├────────────────►                    │
 /// └───────────────────────┘                └────────────────────┘
 pub trait StreamingSource {
-    type Segment;
+    type Segment: Send + 'static;
 
     // TODO: maybe this method can be sync?
-    async fn fetch_info(&mut self) -> tokio::sync::mpsc::UnboundedReceiver<Self::Segment>;
+    fn fetch_info(
+        &mut self,
+    ) -> impl std::future::Future<Output = tokio::sync::mpsc::UnboundedReceiver<Self::Segment>> + Send;
 
-    async fn fetch_segment(&self, segment: Self::Segment);
+    fn fetch_segment(&self, segment: Self::Segment)
+        -> impl std::future::Future<Output = ()> + Send;
 }
