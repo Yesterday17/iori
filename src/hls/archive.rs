@@ -45,6 +45,7 @@ impl CommonM3u8ArchiveSource {
             load_m3u8(&self.client, Url::from_str(&self.m3u8_url).unwrap()).await;
 
         let mut key = None;
+        let mut initial_block = None;
         let mut segments = Vec::with_capacity(playlist.segments.len());
         for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
@@ -56,6 +57,21 @@ impl CommonM3u8ArchiveSource {
                     self.key.clone(),
                 )
                 .await;
+            }
+
+            if let Some(m) = &segment.map {
+                let url = playlist_url.join(&m.uri).unwrap();
+                let bytes = self
+                    .client
+                    .get(url)
+                    .send()
+                    .await
+                    .expect("http error")
+                    .bytes()
+                    .await
+                    .unwrap()
+                    .to_vec();
+                initial_block = Some(Arc::new(bytes));
             }
 
             let url = playlist_url.join(&segment.uri).unwrap();
@@ -77,6 +93,7 @@ impl CommonM3u8ArchiveSource {
                 url,
                 filename,
                 key: key.clone(),
+                initial_segment: initial_block.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                 media_sequence,
             };
@@ -122,9 +139,19 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         // .bytes_stream();
         let decryptor = segment.key.map(|key| key.to_decryptor());
         if let Some(decryptor) = decryptor {
+            let bytes = if let Some(initial_segment) = &segment.initial_segment {
+                let mut result = initial_segment.to_vec();
+                result.extend_from_slice(&bytes);
+                result
+            } else {
+                bytes.to_vec()
+            };
             let bytes = decryptor.decrypt(&bytes);
             tmp_file.write_all(&bytes).await.unwrap();
         } else {
+            if let Some(initial_segment) = &segment.initial_segment {
+                tmp_file.write_all(initial_segment).await.unwrap();
+            }
             tmp_file.write_all(&bytes).await.unwrap();
         }
 

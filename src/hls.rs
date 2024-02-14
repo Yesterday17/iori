@@ -3,7 +3,7 @@ mod decrypt;
 mod live;
 mod utils;
 
-use std::hash::Hash;
+use std::{hash::Hash, sync::Arc};
 
 pub use archive::CommonM3u8ArchiveSource;
 pub use live::CommonM3u8LiveSource;
@@ -16,6 +16,8 @@ pub struct M3u8Segment {
     url: reqwest::Url,
     filename: String,
     key: Option<M3u8Key>,
+
+    initial_segment: Option<Arc<Vec<u8>>>,
 
     /// Sequence id allocated by the downloader
     sequence: u64,
