@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{num::NonZeroU32, sync::Arc};
 
 use tokio::sync::{Mutex, Semaphore};
 
@@ -32,6 +32,7 @@ where
     S: StreamingSource,
 {
     source: Arc<Mutex<S>>,
+    concurrency: NonZeroU32,
     permits: Arc<Semaphore>,
 }
 
@@ -39,11 +40,12 @@ impl<S> ParallelDownloader<S>
 where
     S: StreamingSource + Send + Sync + 'static,
 {
-    pub fn new(source: S, concurrency: NonZeroUsize) -> Self {
-        let permits = Arc::new(Semaphore::new(concurrency.get()));
+    pub fn new(source: S, concurrency: NonZeroU32) -> Self {
+        let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
             source: Arc::new(Mutex::new(source)),
+            concurrency,
             permits,
         }
     }
@@ -58,5 +60,12 @@ where
                 drop(permit);
             });
         }
+
+        // wait for all tasks to finish
+        let _ = self
+            .permits
+            .acquire_many(self.concurrency.get() as u32)
+            .await
+            .unwrap();
     }
 }
