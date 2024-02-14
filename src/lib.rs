@@ -24,13 +24,17 @@ pub mod hls;
 /// │                       ├────────────────►                    │
 /// └───────────────────────┘                └────────────────────┘
 pub trait StreamingSource {
-    type Segment: Send + 'static;
+    type Segment: StreamingSegment + Send + 'static;
 
     // TODO: maybe this method can be sync?
     fn fetch_info(
         &mut self,
-    ) -> impl std::future::Future<Output = tokio::sync::mpsc::UnboundedReceiver<Self::Segment>> + Send;
+    ) -> impl std::future::Future<Output = tokio::sync::mpsc::UnboundedReceiver<Vec<Self::Segment>>> + Send;
 
     fn fetch_segment(&self, segment: Self::Segment)
         -> impl std::future::Future<Output = ()> + Send;
+}
+
+pub trait StreamingSegment {
+    fn filename(&self) -> &str;
 }

@@ -8,6 +8,8 @@ use std::hash::Hash;
 pub use archive::CommonM3u8ArchiveSource;
 pub use live::CommonM3u8LiveSource;
 
+use crate::StreamingSegment;
+
 use self::decrypt::M3u8Key;
 
 pub struct M3u8Segment {
@@ -19,6 +21,12 @@ pub struct M3u8Segment {
     sequence: u64,
     media_sequence: u64,
     // pub byte_range: Option<ByteRange>,
+}
+
+impl StreamingSegment for M3u8Segment {
+    fn filename(&self) -> &str {
+        self.filename.as_str()
+    }
 }
 
 impl Hash for M3u8Segment {

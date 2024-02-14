@@ -33,7 +33,7 @@ pub(crate) async fn load_m3u8(client: &Client, url: Url) -> (Url, MediaPlaylist)
             let url = url.join(&variant.uri).expect("Invalid variant uri");
 
             log::debug!(
-                "Best stream: ${url}; Bandwidth: ${bandwidth}",
+                "Best stream: {url}; Bandwidth: {bandwidth}",
                 bandwidth = variant.bandwidth
             );
             load_m3u8(client, url).await

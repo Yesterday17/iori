@@ -82,16 +82,11 @@ impl CommonM3u8ArchiveSource {
 impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
 
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
+    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let (segments, _, _) = self.load_segments(None).await;
-        for segment in segments {
-            eprintln!("SEGMENT #{:06}: {}", segment.sequence, segment.url);
-            if let Err(_) = sender.send(segment) {
-                break;
-            }
-        }
+        let _ = sender.send(segments);
         receiver
     }
 
@@ -142,7 +137,6 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         //         tmp_file.write_all(&mut input).await.unwrap();
         //     }
         // }
-        log::info!("Processing {filename} finished.")
     }
 }
 

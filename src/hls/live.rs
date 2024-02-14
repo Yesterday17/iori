@@ -21,7 +21,7 @@ impl CommonM3u8LiveSource {
 impl StreamingSource for CommonM3u8LiveSource {
     type Segment = M3u8Segment;
 
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
+    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let inner: Arc<CommonM3u8ArchiveSource> = self.inner.clone();
@@ -39,11 +39,8 @@ impl StreamingSource for CommonM3u8LiveSource {
                     .map(|r| r.media_sequence)
                     .unwrap_or(latest_media_sequence);
 
-                for segment in segments {
-                    eprintln!("LIVE SEGMENT #{:06}: {}", segment.sequence, segment.url);
-                    if let Err(_) = sender.send(segment) {
-                        break;
-                    }
+                if let Err(_) = sender.send(segments) {
+                    break;
                 }
                 latest_media_sequence = new_latest_media_sequence;
 
