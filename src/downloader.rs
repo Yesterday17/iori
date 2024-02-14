@@ -1,6 +1,6 @@
 use std::{num::NonZeroU32, sync::Arc};
 
-use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::{RwLock, Semaphore};
 
 use crate::StreamingSource;
 
@@ -31,7 +31,7 @@ pub struct ParallelDownloader<S>
 where
     S: StreamingSource,
 {
-    source: Arc<Mutex<S>>,
+    source: Arc<RwLock<S>>,
     concurrency: NonZeroU32,
     permits: Arc<Semaphore>,
 }
@@ -44,19 +44,19 @@ where
         let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
-            source: Arc::new(Mutex::new(source)),
+            source: Arc::new(RwLock::new(source)),
             concurrency,
             permits,
         }
     }
 
     pub async fn download(&mut self) {
-        let mut receiver = self.source.lock().await.fetch_info().await;
+        let mut receiver = self.get_receiver().await;
         while let Some(segment) = receiver.recv().await {
             let permit = self.permits.clone().acquire_owned().await.unwrap();
             let source = self.source.clone();
             tokio::spawn(async move {
-                source.lock().await.fetch_segment(segment).await;
+                source.read().await.fetch_segment(segment).await;
                 drop(permit);
             });
         }
@@ -67,5 +67,9 @@ where
             .acquire_many(self.concurrency.get() as u32)
             .await
             .unwrap();
+    }
+
+    async fn get_receiver(&mut self) -> tokio::sync::mpsc::UnboundedReceiver<S::Segment> {
+        self.source.write().await.fetch_info().await
     }
 }
