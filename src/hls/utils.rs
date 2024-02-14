@@ -21,12 +21,23 @@ pub(crate) async fn load_m3u8(client: &Client, url: Url) -> (Url, MediaPlaylist)
             log::info!("Master playlist input detected. Auto selecting best quality streams.");
             let mut variants = pl.variants;
             variants.sort_by(|a, b| {
+                // compare resolution first
                 if let (Some(a), Some(b)) = (a.resolution, b.resolution) {
-                    let resolution_cmp_result = b.width.cmp(&a.width);
-                    if resolution_cmp_result != std::cmp::Ordering::Equal {
-                        return resolution_cmp_result;
+                    if a.width != b.width {
+                        return b.width.cmp(&a.width);
                     }
                 }
+
+                // compare framerate then
+                if let (Some(a), Some(b)) = (a.frame_rate, b.frame_rate) {
+                    let a = a as u64;
+                    let b = b as u64;
+                    if a != b {
+                        return b.cmp(&a);
+                    }
+                }
+
+                // compare bandwidth finally
                 b.bandwidth.cmp(&a.bandwidth)
             });
             let variant = variants.get(0).expect("No variant found");
