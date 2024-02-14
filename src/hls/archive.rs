@@ -142,6 +142,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         //         tmp_file.write_all(&mut input).await.unwrap();
         //     }
         // }
+        log::info!("Processing {filename} finished.")
     }
 }
 
