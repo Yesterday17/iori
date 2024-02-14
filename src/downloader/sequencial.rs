@@ -1,4 +1,4 @@
-use crate::StreamingSource;
+use crate::{error::IoriResult, StreamingSource};
 
 pub struct SequencialDownloader<S>
 where
@@ -15,12 +15,15 @@ where
         Self { source }
     }
 
-    pub async fn download(&mut self) {
-        let mut receiver = self.source.fetch_info().await;
+    pub async fn download(&mut self) -> IoriResult<()> {
+        let mut receiver = self.source.fetch_info().await?;
+
         while let Some(segment) = receiver.recv().await {
             for segment in segment {
-                self.source.fetch_segment(segment).await;
+                self.source.fetch_segment(segment).await?;
             }
         }
+
+        Ok(())
     }
 }

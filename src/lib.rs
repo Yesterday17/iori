@@ -1,4 +1,5 @@
 pub mod downloader;
+pub mod error;
 pub mod hls;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
@@ -29,12 +30,14 @@ pub trait StreamingSource {
     // TODO: maybe this method can be sync?
     fn fetch_info(
         &mut self,
-    ) -> impl std::future::Future<Output = tokio::sync::mpsc::UnboundedReceiver<Vec<Self::Segment>>> + Send;
+    ) -> impl std::future::Future<
+        Output = error::IoriResult<tokio::sync::mpsc::UnboundedReceiver<Vec<Self::Segment>>>,
+    > + Send;
 
     fn fetch_segment(
         &self,
         segment: Self::Segment,
-    ) -> impl std::future::Future<Output = Self::Segment> + Send;
+    ) -> impl std::future::Future<Output = error::IoriResult<Self::Segment>> + Send;
 }
 
 pub trait StreamingSegment {

@@ -4,7 +4,7 @@ use reqwest::Client;
 use tokio::sync::mpsc;
 
 use super::{CommonM3u8ArchiveSource, M3u8Segment};
-use crate::StreamingSource;
+use crate::{error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8LiveSource {
     inner: Arc<CommonM3u8ArchiveSource>,
@@ -33,7 +33,7 @@ impl CommonM3u8LiveSource {
 impl StreamingSource for CommonM3u8LiveSource {
     type Segment = M3u8Segment;
 
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>> {
+    async fn fetch_info(&mut self) -> IoriResult<mpsc::UnboundedReceiver<Vec<Self::Segment>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let inner: Arc<CommonM3u8ArchiveSource> = self.inner.clone();
@@ -44,8 +44,10 @@ impl StreamingSource for CommonM3u8LiveSource {
                     break;
                 }
 
-                let (segments, _, playlist) =
-                    inner.load_segments(Some(latest_media_sequence)).await;
+                let (segments, _, playlist) = inner
+                    .load_segments(Some(latest_media_sequence))
+                    .await
+                    .unwrap();
                 let new_latest_media_sequence = segments
                     .last()
                     .map(|r| r.media_sequence)
@@ -72,10 +74,10 @@ impl StreamingSource for CommonM3u8LiveSource {
             }
         });
 
-        receiver
+        Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: Self::Segment) -> Self::Segment {
+    async fn fetch_segment(&self, segment: Self::Segment) -> IoriResult<Self::Segment> {
         self.inner.fetch_segment(segment).await
     }
 }
@@ -86,7 +88,7 @@ mod tests {
     use crate::downloader::SequencialDownloader;
 
     #[tokio::test]
-    async fn test_download_live() {
+    async fn test_download_live() -> IoriResult<()> {
         let source = CommonM3u8LiveSource::new(
             Default::default(),
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
@@ -94,6 +96,8 @@ mod tests {
             "/tmp/test_live".into(),
             None,
         );
-        SequencialDownloader::new(source).download().await;
+        SequencialDownloader::new(source).download().await?;
+
+        Ok(())
     }
 }

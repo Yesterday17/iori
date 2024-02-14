@@ -1,23 +1,19 @@
 use m3u8_rs::{MediaPlaylist, Playlist};
 use reqwest::{Client, Url};
 
+use crate::error::{IoriError, IoriResult};
+
 #[async_recursion::async_recursion]
-pub(crate) async fn load_m3u8(client: &Client, url: Url) -> (Url, MediaPlaylist) {
+pub(crate) async fn load_m3u8(client: &Client, url: Url) -> IoriResult<(Url, MediaPlaylist)> {
     log::info!("Start fetching M3U8 file.");
 
-    let m3u8_bytes = client
-        .get(url.clone())
-        .send()
-        .await
-        .expect("http error")
-        .bytes()
-        .await
-        .expect("Failed to get body bytes");
+    let m3u8_bytes = client.get(url.clone()).send().await?.bytes().await?;
     log::info!("M3U8 file fetched.");
 
-    let parsed = m3u8_rs::parse_playlist_res(m3u8_bytes.as_ref());
+    let parsed = m3u8_rs::parse_playlist_res(&m3u8_bytes)
+        .map_err(|_| IoriError::M3u8ParseError(String::from_utf8_lossy(&m3u8_bytes).to_string()))?;
     match parsed {
-        Ok(Playlist::MasterPlaylist(pl)) => {
+        Playlist::MasterPlaylist(pl) => {
             log::info!("Master playlist input detected. Auto selecting best quality streams.");
             let mut variants = pl.variants;
             variants.sort_by(|a, b| {
@@ -49,7 +45,6 @@ pub(crate) async fn load_m3u8(client: &Client, url: Url) -> (Url, MediaPlaylist)
             );
             load_m3u8(client, url).await
         }
-        Ok(Playlist::MediaPlaylist(pl)) => (url, pl),
-        Err(e) => panic!("Error: {:?}", e),
+        Playlist::MediaPlaylist(pl) => Ok((url, pl)),
     }
 }

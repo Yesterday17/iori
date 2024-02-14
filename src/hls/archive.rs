@@ -12,7 +12,7 @@ use reqwest::{Client, Url};
 use tokio::{fs::File, io::AsyncWriteExt, sync::mpsc};
 
 use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment};
-use crate::StreamingSource;
+use crate::{error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8ArchiveSource {
     m3u8_url: String,
@@ -49,9 +49,9 @@ impl CommonM3u8ArchiveSource {
     pub(crate) async fn load_segments(
         &self,
         latest_media_sequence: Option<u64>,
-    ) -> (Vec<M3u8Segment>, Url, MediaPlaylist) {
+    ) -> IoriResult<(Vec<M3u8Segment>, Url, MediaPlaylist)> {
         let (playlist_url, playlist) =
-            load_m3u8(&self.client, Url::from_str(&self.m3u8_url).unwrap()).await;
+            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?).await?;
 
         let mut key = None;
         let mut initial_block = None;
@@ -66,26 +66,17 @@ impl CommonM3u8ArchiveSource {
                     self.key.clone(),
                     self.shaka_packager_command.clone(),
                 )
-                .await
+                .await?
                 .map(Arc::new);
             }
 
             if let Some(m) = &segment.map {
-                let url = playlist_url.join(&m.uri).unwrap();
-                let bytes = self
-                    .client
-                    .get(url)
-                    .send()
-                    .await
-                    .expect("http error")
-                    .bytes()
-                    .await
-                    .unwrap()
-                    .to_vec();
+                let url = playlist_url.join(&m.uri)?;
+                let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
                 initial_block = Some(Arc::new(bytes));
             }
 
-            let url = playlist_url.join(&segment.uri).unwrap();
+            let url = playlist_url.join(&segment.uri)?;
             // FIXME: filename may be too long
             let filename = url
                 .path_segments()
@@ -111,41 +102,39 @@ impl CommonM3u8ArchiveSource {
             segments.push(segment);
         }
 
-        (segments, playlist_url, playlist)
+        Ok((segments, playlist_url, playlist))
     }
 }
 
 impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
 
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Vec<Self::Segment>> {
+    async fn fetch_info(&mut self) -> IoriResult<mpsc::UnboundedReceiver<Vec<Self::Segment>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (segments, _, _) = self.load_segments(None).await;
+        let (segments, _, _) = self.load_segments(None).await?;
         let _ = sender.send(segments);
-        receiver
+
+        Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: Self::Segment) -> Self::Segment {
+    async fn fetch_segment(&self, segment: Self::Segment) -> IoriResult<Self::Segment> {
         if !self.output_dir.exists() {
-            tokio::fs::create_dir_all(&self.output_dir).await.unwrap();
+            tokio::fs::create_dir_all(&self.output_dir).await?;
         }
 
         let filename = &segment.filename;
         let sequence = segment.sequence;
-        let mut tmp_file = File::create(self.output_dir.join(format!("{sequence:06}_{filename}")))
-            .await
-            .unwrap();
+        let mut tmp_file =
+            File::create(self.output_dir.join(format!("{sequence:06}_{filename}"))).await?;
 
         let bytes = self
             .client
             .get(segment.url.clone())
             .send()
-            .await
-            .expect("http error")
+            .await?
             .bytes()
-            .await
-            .unwrap();
+            .await?;
         // TODO: use bytes_stream to improve performance
         // .bytes_stream();
         let decryptor = segment.key.clone().map(|key| key.to_decryptor());
@@ -157,16 +146,16 @@ impl StreamingSource for CommonM3u8ArchiveSource {
             } else {
                 bytes.to_vec()
             };
-            let bytes = decryptor.decrypt(&bytes);
-            tmp_file.write_all(&bytes).await.unwrap();
+            let bytes = decryptor.decrypt(&bytes)?;
+            tmp_file.write_all(&bytes).await?;
         } else {
             if let Some(initial_segment) = &segment.initial_segment {
-                tmp_file.write_all(initial_segment).await.unwrap();
+                tmp_file.write_all(initial_segment).await?;
             }
-            tmp_file.write_all(&bytes).await.unwrap();
+            tmp_file.write_all(&bytes).await?;
         }
 
-        segment
+        Ok(segment)
     }
 }
 
@@ -176,7 +165,7 @@ mod tests {
     use crate::downloader::SequencialDownloader;
 
     #[tokio::test]
-    async fn test_download_archive() {
+    async fn test_download_archive() -> IoriResult<()> {
         let source = CommonM3u8ArchiveSource::new(
             Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
@@ -184,6 +173,8 @@ mod tests {
             "/tmp/test".into(),
             None,
         );
-        SequencialDownloader::new(source).download().await;
+        SequencialDownloader::new(source).download().await?;
+
+        Ok(())
     }
 }
