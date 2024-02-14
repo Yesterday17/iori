@@ -1,1 +1,78 @@
+use std::{path::PathBuf, sync::Arc};
 
+use tokio::sync::mpsc;
+
+use super::{CommonM3u8ArchiveDownloader, M3u8Segment};
+use crate::{StreamingDownloaderExt, StreamingSource};
+
+pub struct CommonM3u8LiveDownloader {
+    inner: Arc<CommonM3u8ArchiveDownloader>,
+}
+
+impl CommonM3u8LiveDownloader {
+    pub fn new(m3u8: String, output_dir: PathBuf) -> Self {
+        Self {
+            inner: Arc::new(CommonM3u8ArchiveDownloader::new(m3u8, output_dir)),
+        }
+    }
+}
+
+impl StreamingSource for CommonM3u8LiveDownloader {
+    type Segment = M3u8Segment;
+
+    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+
+        let inner: Arc<CommonM3u8ArchiveDownloader> = self.inner.clone();
+        tokio::spawn(async move {
+            loop {
+                let (segments, _, playlist) = inner.load_segments().await;
+                for segment in segments {
+                    eprintln!("LIVE SEGMENT #{:06}: {}", segment.sequence, segment.url);
+                    // TODO: dedupe segments for live playlists
+                    if let Err(_) = sender.send(segment) {
+                        break;
+                    }
+                }
+
+                if playlist.end_list {
+                    break;
+                }
+
+                let segment_average_duration =
+                    (playlist.segments.iter().map(|s| s.duration).sum::<f32>()
+                        / playlist.segments.len() as f32) as u64;
+
+                // playlist does not end, wait for a while and fetch again
+                tokio::time::sleep(std::time::Duration::from_secs(
+                    segment_average_duration.min(5),
+                ))
+                .await;
+            }
+        });
+
+        receiver
+    }
+
+    async fn fetch_segment(&self, segment: Self::Segment) {
+        self.inner.fetch_segment(segment).await
+    }
+}
+
+impl StreamingDownloaderExt for CommonM3u8LiveDownloader {}
+
+#[cfg(test)]
+mod tests {
+    use crate::StreamingDownloaderExt;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_download_live() {
+        let mut downloader = CommonM3u8LiveDownloader::new(
+            "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
+            "/tmp/test_live".into(),
+        );
+        downloader.download().await;
+    }
+}

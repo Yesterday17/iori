@@ -7,19 +7,19 @@ use std::{
     },
 };
 
-use m3u8_rs::KeyMethod;
+use m3u8_rs::MediaPlaylist;
 use reqwest::{Client, Url};
 use tokio::{fs::File, io::AsyncWriteExt, sync::mpsc};
 
-use super::{utils::load_m3u8, M3u8Aes128Key, M3u8Segment};
+use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment};
 use crate::{StreamingDownloaderExt, StreamingSource};
 
 pub struct CommonM3u8ArchiveDownloader {
-    m3u8_url: String,
+    pub(crate) m3u8_url: String,
 
-    output_dir: PathBuf,
-    sequence: AtomicU64,
-    client: Arc<Client>,
+    pub(crate) output_dir: PathBuf,
+    pub(crate) sequence: AtomicU64,
+    pub(crate) client: Arc<Client>,
 }
 
 impl CommonM3u8ArchiveDownloader {
@@ -33,35 +33,18 @@ impl CommonM3u8ArchiveDownloader {
             client,
         }
     }
-}
 
-impl StreamingSource for CommonM3u8ArchiveDownloader {
-    type Segment = M3u8Segment;
-
-    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
-        let (sender, receiver) = mpsc::unbounded_channel();
-
+    // TODO: return an iterator instead of a Vec
+    pub(crate) async fn load_segments(&self) -> (Vec<M3u8Segment>, Url, MediaPlaylist) {
         let (playlist_url, playlist) =
             load_m3u8(&self.client, Url::from_str(&self.m3u8_url).unwrap()).await;
 
         let mut key = None;
-        for segment in playlist.segments {
-            if let Some(k) = segment.key {
-                let new_key = match k.method {
-                    KeyMethod::None => None,
-                    KeyMethod::AES128 => Some(
-                        M3u8Aes128Key::from_key(
-                            &self.client,
-                            k,
-                            &playlist_url,
-                            playlist.media_sequence,
-                        )
-                        .await,
-                    ),
-                    KeyMethod::SampleAES => todo!(),
-                    KeyMethod::Other(_) => unimplemented!(),
-                };
-                key = new_key;
+        let mut segments = Vec::with_capacity(playlist.segments.len());
+        for segment in &playlist.segments {
+            if let Some(k) = &segment.key {
+                key = M3u8Key::from_key(&self.client, k, &playlist_url, playlist.media_sequence)
+                    .await;
             }
 
             let url = playlist_url.join(&segment.uri).unwrap();
@@ -78,6 +61,21 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
                 key: key.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
             };
+            segments.push(segment);
+        }
+
+        (segments, playlist_url, playlist)
+    }
+}
+
+impl StreamingSource for CommonM3u8ArchiveDownloader {
+    type Segment = M3u8Segment;
+
+    async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+
+        let (segments, _, _) = self.load_segments().await;
+        for segment in segments {
             if let Err(_) = sender.send(segment) {
                 break;
             }
@@ -136,3 +134,19 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
 }
 
 impl StreamingDownloaderExt for CommonM3u8ArchiveDownloader {}
+
+#[cfg(test)]
+mod tests {
+    use crate::StreamingDownloaderExt;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_download_archive() {
+        let mut downloader = CommonM3u8ArchiveDownloader::new(
+            "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
+            "/tmp/test".into(),
+        );
+        downloader.download().await;
+    }
+}
