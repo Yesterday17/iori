@@ -15,18 +15,20 @@ use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment};
 use crate::StreamingSource;
 
 pub struct CommonM3u8ArchiveSource {
-    pub(crate) m3u8_url: String,
+    m3u8_url: String,
+    key: Option<String>,
 
-    pub(crate) output_dir: PathBuf,
-    pub(crate) sequence: AtomicU64,
-    pub(crate) client: Arc<Client>,
+    output_dir: PathBuf,
+    sequence: AtomicU64,
+    client: Arc<Client>,
 }
 
 impl CommonM3u8ArchiveSource {
-    pub fn new(client: Client, m3u8: String, output_dir: PathBuf) -> Self {
+    pub fn new(client: Client, m3u8: String, key: Option<String>, output_dir: PathBuf) -> Self {
         let client = Arc::new(client);
         Self {
             m3u8_url: m3u8,
+            key,
             output_dir,
 
             sequence: AtomicU64::new(0),
@@ -46,8 +48,14 @@ impl CommonM3u8ArchiveSource {
         let mut segments = Vec::with_capacity(playlist.segments.len());
         for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
-                key = M3u8Key::from_key(&self.client, k, &playlist_url, playlist.media_sequence)
-                    .await;
+                key = M3u8Key::from_key(
+                    &self.client,
+                    k,
+                    &playlist_url,
+                    playlist.media_sequence,
+                    self.key.clone(),
+                )
+                .await;
             }
 
             let url = playlist_url.join(&segment.uri).unwrap();
@@ -150,6 +158,7 @@ mod tests {
         let source = CommonM3u8ArchiveSource::new(
             Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
+            None,
             "/tmp/test".into(),
         );
         SequencialDownloader::new(source).download().await;

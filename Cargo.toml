@@ -14,3 +14,6 @@ tokio = { version = "1.36.0", features = ["full"] }
 aes = "0.8.2"
 cbc = { version = "0.1.2", features = ["std"] }
 block-buffer = "0.10.4"
+data-url = "0.3.1"
+hex = "0.4.3"
+mp4decrypt = "0.4.2"
