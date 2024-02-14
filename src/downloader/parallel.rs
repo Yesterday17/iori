@@ -56,8 +56,8 @@ where
                 let segments_total = self.total.clone();
                 let source: Arc<RwLock<S>> = self.source.clone();
                 tokio::spawn(async move {
-                    let filename = segment.file_name().to_string();
-                    source.read().await.fetch_segment(segment).await;
+                    let segment = source.read().await.fetch_segment(segment).await;
+                    let filename = segment.file_name();
 
                     let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed) + 1;
                     let total = segments_total.load(Ordering::Relaxed);

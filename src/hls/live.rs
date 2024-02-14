@@ -75,7 +75,7 @@ impl StreamingSource for CommonM3u8LiveSource {
         receiver
     }
 
-    async fn fetch_segment(&self, segment: Self::Segment) {
+    async fn fetch_segment(&self, segment: Self::Segment) -> Self::Segment {
         self.inner.fetch_segment(segment).await
     }
 }

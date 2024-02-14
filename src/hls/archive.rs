@@ -126,12 +126,12 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         receiver
     }
 
-    async fn fetch_segment(&self, segment: Self::Segment) {
+    async fn fetch_segment(&self, segment: Self::Segment) -> Self::Segment {
         if !self.output_dir.exists() {
             tokio::fs::create_dir_all(&self.output_dir).await.unwrap();
         }
 
-        let filename = segment.filename;
+        let filename = &segment.filename;
         let sequence = segment.sequence;
         let mut tmp_file = File::create(self.output_dir.join(format!("{sequence:06}_{filename}")))
             .await
@@ -139,7 +139,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 
         let bytes = self
             .client
-            .get(segment.url)
+            .get(segment.url.clone())
             .send()
             .await
             .expect("http error")
@@ -148,7 +148,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
             .unwrap();
         // TODO: use bytes_stream to improve performance
         // .bytes_stream();
-        let decryptor = segment.key.map(|key| key.to_decryptor());
+        let decryptor = segment.key.clone().map(|key| key.to_decryptor());
         if let Some(decryptor) = decryptor {
             let bytes = if let Some(initial_segment) = &segment.initial_segment {
                 let mut result = initial_segment.to_vec();
@@ -165,6 +165,8 @@ impl StreamingSource for CommonM3u8ArchiveSource {
             }
             tmp_file.write_all(&bytes).await.unwrap();
         }
+
+        segment
 
         // let mut buf = EagerBuffer::<block_buffer::generic_array::typenum::consts::U16>::default();
         // while let Some(item) = byte_stream.next().await {

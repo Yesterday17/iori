@@ -31,8 +31,10 @@ pub trait StreamingSource {
         &mut self,
     ) -> impl std::future::Future<Output = tokio::sync::mpsc::UnboundedReceiver<Vec<Self::Segment>>> + Send;
 
-    fn fetch_segment(&self, segment: Self::Segment)
-        -> impl std::future::Future<Output = ()> + Send;
+    fn fetch_segment(
+        &self,
+        segment: Self::Segment,
+    ) -> impl std::future::Future<Output = Self::Segment> + Send;
 }
 
 pub trait StreamingSegment {
