@@ -57,6 +57,9 @@ where
                 let source: Arc<RwLock<S>> = self.source.clone();
                 tokio::spawn(async move {
                     let segment = source.read().await.fetch_segment(segment).await;
+                    // semaphore is only used to limit download concurrency, so drop it directly after fetching
+                    drop(permit);
+
                     let filename = segment.file_name();
 
                     let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed) + 1;
@@ -70,7 +73,6 @@ where
                     log::info!(
                         "Processing {filename} finished. ({downloaded} / {total} or {percentage:.2}%)"
                     );
-                    drop(permit);
                 });
             }
         }

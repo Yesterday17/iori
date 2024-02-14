@@ -167,24 +167,6 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         }
 
         segment
-
-        // let mut buf = EagerBuffer::<block_buffer::generic_array::typenum::consts::U16>::default();
-        // while let Some(item) = byte_stream.next().await {
-        //     let input = item.unwrap();
-        //     let mut input = input.to_vec();
-        //     if let Some(decryptor) = decryptor.as_mut() {
-        //         buf.set_data(&mut input, |blocks| {
-        //             if blocks.is_empty() {
-        //                 return;
-        //             }
-
-        //             decryptor.decrypt_blocks_mut(blocks);
-        //             result.push(blocks.to_vec());
-        //         });
-        //     } else {
-        //         tmp_file.write_all(&mut input).await.unwrap();
-        //     }
-        // }
     }
 }
 
