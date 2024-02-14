@@ -8,10 +8,11 @@ use std::{
     },
 };
 
-use futures_util::StreamExt;
+use aes::cipher::{BlockDecryptMut, KeyIvInit};
+use cbc::cipher::block_padding::Pkcs7;
 use m3u8_rs::{KeyMethod, MediaPlaylist, Playlist};
 use reqwest::{Client, Url};
-use tokio::{fs::File, sync::mpsc};
+use tokio::{fs::File, io::AsyncWriteExt, sync::mpsc};
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -199,18 +200,44 @@ impl StreamingSource for CommonM3u8ArchiveDownloader {
             .await
             .unwrap();
 
-        let mut byte_stream = self
+        let bytes = self
             .client
             .get(segment.url)
             .send()
             .await
             .expect("http error")
-            .bytes_stream();
-        while let Some(item) = byte_stream.next().await {
-            tokio::io::copy(&mut item.unwrap().as_ref(), &mut tmp_file)
-                .await
-                .unwrap();
+            .bytes()
+            .await
+            .unwrap();
+        // TODO: use bytes_stream to improve performance
+        // .bytes_stream();
+        let decryptor = segment
+            .key
+            .map(|key| cbc::Decryptor::<aes::Aes128>::new(&key.key.into(), &key.iv.into()));
+        if let Some(decryptor) = decryptor {
+            let bytes = decryptor.decrypt_padded_vec_mut::<Pkcs7>(&bytes).unwrap();
+            tmp_file.write_all(&bytes).await.unwrap();
+        } else {
+            tmp_file.write_all(&bytes).await.unwrap();
         }
+
+        // let mut buf = EagerBuffer::<block_buffer::generic_array::typenum::consts::U16>::default();
+        // while let Some(item) = byte_stream.next().await {
+        //     let input = item.unwrap();
+        //     let mut input = input.to_vec();
+        //     if let Some(decryptor) = decryptor.as_mut() {
+        //         buf.set_data(&mut input, |blocks| {
+        //             if blocks.is_empty() {
+        //                 return;
+        //             }
+
+        //             decryptor.decrypt_blocks_mut(blocks);
+        //             result.push(blocks.to_vec());
+        //         });
+        //     } else {
+        //         tmp_file.write_all(&mut input).await.unwrap();
+        //     }
+        // }
     }
 }
 

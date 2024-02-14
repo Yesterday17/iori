@@ -5,8 +5,12 @@ edition = "2021"
 
 [dependencies]
 async-recursion = "1.0.5"
-futures-util = "0.3.30"
+futures-util = { version = "0.3.30", features = ["io"] }
 log = "0.4.20"
 m3u8-rs = "5.0.5"
 reqwest = { version = "0.11.24", features = ["stream"] }
 tokio = { version = "1.36.0", features = ["full"] }
+
+aes = "0.8.2"
+cbc = { version = "0.1.2", features = ["std"] }
+block-buffer = "0.10.4"
