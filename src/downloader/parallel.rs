@@ -20,13 +20,15 @@ where
 
     total: Arc<AtomicUsize>,
     downloaded: Arc<AtomicUsize>,
+
+    retries: u32,
 }
 
 impl<S> ParallelDownloader<S>
 where
     S: StreamingSource + Send + Sync + 'static,
 {
-    pub fn new(source: S, concurrency: NonZeroU32) -> Self {
+    pub fn new(source: S, concurrency: NonZeroU32, retries: u32) -> Self {
         let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
@@ -36,6 +38,8 @@ where
 
             total: Arc::new(AtomicUsize::new(0)),
             downloaded: Arc::new(AtomicUsize::new(0)),
+
+            retries,
         }
     }
 
@@ -55,12 +59,29 @@ where
                 let segments_downloaded = self.downloaded.clone();
                 let segments_total = self.total.clone();
                 let source: Arc<RwLock<S>> = self.source.clone();
+                let mut retries = self.retries;
                 tokio::spawn(async move {
-                    let segment = source.read().await.fetch_segment(segment).await.unwrap();
+                    let filename = segment.file_name();
+                    loop {
+                        let result = source.read().await.fetch_segment(&segment).await;
+                        match result {
+                            Ok(_) => break,
+                            Err(e) => {
+                                if retries == 0 {
+                                    log::error!(
+                                        "Processing ${filename} failed, max retries exceed, drop. {e}"
+                                    );
+                                    return;
+                                }
+
+                                retries -= 1;
+                                log::warn!("Processing ${filename} failed, retry later. {e}")
+                            }
+                        }
+                    }
+
                     // semaphore is only used to limit download concurrency, so drop it directly after fetching
                     drop(permit);
-
-                    let filename = segment.file_name();
 
                     let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed) + 1;
                     let total = segments_total.load(Ordering::Relaxed);

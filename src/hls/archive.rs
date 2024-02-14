@@ -118,7 +118,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: Self::Segment) -> IoriResult<Self::Segment> {
+    async fn fetch_segment(&self, segment: &Self::Segment) -> IoriResult<()> {
         if !self.output_dir.exists() {
             tokio::fs::create_dir_all(&self.output_dir).await?;
         }
@@ -155,7 +155,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
             tmp_file.write_all(&bytes).await?;
         }
 
-        Ok(segment)
+        Ok(())
     }
 }
 

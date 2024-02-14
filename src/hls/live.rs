@@ -77,7 +77,7 @@ impl StreamingSource for CommonM3u8LiveSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: Self::Segment) -> IoriResult<Self::Segment> {
+    async fn fetch_segment(&self, segment: &Self::Segment) -> IoriResult<()> {
         self.inner.fetch_segment(segment).await
     }
 }

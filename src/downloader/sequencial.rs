@@ -20,7 +20,7 @@ where
 
         while let Some(segment) = receiver.recv().await {
             for segment in segment {
-                self.source.fetch_segment(segment).await?;
+                self.source.fetch_segment(&segment).await?;
             }
         }
 

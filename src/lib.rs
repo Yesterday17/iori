@@ -36,8 +36,8 @@ pub trait StreamingSource {
 
     fn fetch_segment(
         &self,
-        segment: Self::Segment,
-    ) -> impl std::future::Future<Output = error::IoriResult<Self::Segment>> + Send;
+        segment: &Self::Segment,
+    ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send;
 }
 
 pub trait StreamingSegment {
