@@ -10,7 +10,7 @@ use std::{
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use m3u8_rs::KeyMethod;
 
-use crate::error::IoriResult;
+use crate::error::{IoriError, IoriResult};
 
 pub enum M3u8Key {
     Aes128 {
@@ -124,9 +124,7 @@ pub enum M3u8Decryptor {
 impl M3u8Decryptor {
     pub fn decrypt(self, data: &[u8]) -> IoriResult<Vec<u8>> {
         Ok(match self {
-            M3u8Decryptor::Aes128(decryptor) => {
-                decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data).unwrap()
-            }
+            M3u8Decryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data)?,
             M3u8Decryptor::Mp4Decrypt {
                 keys,
                 shaka_packager_command,
@@ -166,7 +164,7 @@ impl M3u8Decryptor {
                     file.read_to_end(&mut data)?;
                     data
                 } else {
-                    mp4decrypt::mp4decrypt(data, keys, None).unwrap()
+                    mp4decrypt::mp4decrypt(data, keys, None).map_err(IoriError::Mp4DecryptError)?
                 }
             }
         })

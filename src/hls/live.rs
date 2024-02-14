@@ -44,6 +44,7 @@ impl StreamingSource for CommonM3u8LiveSource {
                     break;
                 }
 
+                // TODO: retry
                 let (segments, _, playlist) = inner
                     .load_segments(Some(latest_media_sequence))
                     .await
