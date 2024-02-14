@@ -1,10 +1,17 @@
 #![allow(async_fn_in_trait)]
-use std::{str::FromStr, sync::Arc};
+use std::{
+    path::PathBuf,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
 use futures_util::StreamExt;
 use m3u8_rs::{MediaPlaylist, Playlist};
 use reqwest::{Client, Url};
-use tokio::sync::mpsc;
+use tokio::{fs::File, sync::mpsc};
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -28,15 +35,17 @@ use tokio::sync::mpsc;
 /// │                       │  Segment Last  │                    │
 /// │                       ├────────────────►                    │
 /// └───────────────────────┘                └────────────────────┘
-pub trait StreamingDownloader {
+pub trait StreamingSource {
     type Segment;
 
+    // TODO: maybe this method can be sync?
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment>;
 
     async fn fetch_segment(&self, segment: Self::Segment);
 }
 
-pub trait StreamingDownloaderExt: StreamingDownloader {
+// TODO: maybe this should not be a trait?
+pub trait StreamingDownloaderExt: StreamingSource {
     async fn download(&mut self) {
         let mut info = self.fetch_info().await;
         while let Some(segment) = info.recv().await {
@@ -47,22 +56,30 @@ pub trait StreamingDownloaderExt: StreamingDownloader {
 }
 
 pub struct CommonM3u8ArchiveDownloader {
-    m3u8: String,
+    m3u8_url: String,
 
+    output_dir: PathBuf,
+    sequence: AtomicU64,
     client: Arc<Client>,
 }
 
 impl CommonM3u8ArchiveDownloader {
-    pub fn new(m3u8: String) -> Self {
+    pub fn new(m3u8: String, output_dir: PathBuf) -> Self {
         let client = Arc::new(Client::new());
-        Self { client, m3u8 }
+        Self {
+            m3u8_url: m3u8,
+            output_dir,
+
+            sequence: AtomicU64::new(0),
+            client,
+        }
     }
 
     #[async_recursion::async_recursion]
     async fn load_m3u8(&self, url: Option<String>) -> (Url, MediaPlaylist) {
         log::info!("Start fetching M3U8 file.");
 
-        let url = Url::from_str(&url.unwrap_or(self.m3u8.clone())).expect("Invalid URL");
+        let url = Url::from_str(&url.unwrap_or(self.m3u8_url.clone())).expect("Invalid URL");
         let m3u8_bytes = self
             .client
             .get(url.clone())
@@ -103,7 +120,7 @@ impl CommonM3u8ArchiveDownloader {
     }
 }
 
-impl StreamingDownloader for CommonM3u8ArchiveDownloader {
+impl StreamingSource for CommonM3u8ArchiveDownloader {
     type Segment = M3u8Segment;
 
     async fn fetch_info(&mut self) -> mpsc::UnboundedReceiver<Self::Segment> {
@@ -112,8 +129,17 @@ impl StreamingDownloader for CommonM3u8ArchiveDownloader {
         let (playlist_url, playlist) = self.load_m3u8(None).await;
 
         for segment in playlist.segments {
+            let url = playlist_url.join(&segment.uri).unwrap();
+            // FIXME: filename may be too long
+            let filename = url
+                .path_segments()
+                .and_then(|c| c.last())
+                .unwrap_or("output.ts")
+                .to_string();
             let segment = M3u8Segment {
-                url: playlist_url.join(&segment.uri).unwrap(),
+                url,
+                filename,
+                sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
             };
             if let Err(_) = sender.send(segment) {
                 break;
@@ -123,6 +149,16 @@ impl StreamingDownloader for CommonM3u8ArchiveDownloader {
     }
 
     async fn fetch_segment(&self, segment: Self::Segment) {
+        if !self.output_dir.exists() {
+            tokio::fs::create_dir_all(&self.output_dir).await.unwrap();
+        }
+
+        let filename = segment.filename;
+        let sequence = segment.sequence;
+        let mut tmp_file = File::create(self.output_dir.join(format!("{sequence:06}_{filename}")))
+            .await
+            .unwrap();
+
         let mut byte_stream = self
             .client
             .get(segment.url)
@@ -130,7 +166,6 @@ impl StreamingDownloader for CommonM3u8ArchiveDownloader {
             .await
             .expect("http error")
             .bytes_stream();
-        let mut tmp_file = tokio::fs::File::create("/tmp/1.ts").await.unwrap();
         while let Some(item) = byte_stream.next().await {
             tokio::io::copy(&mut item.unwrap().as_ref(), &mut tmp_file)
                 .await
@@ -143,6 +178,8 @@ impl StreamingDownloaderExt for CommonM3u8ArchiveDownloader {}
 
 pub struct M3u8Segment {
     url: Url,
+    filename: String,
+    sequence: u64,
     // pub byte_range: Option<ByteRange>,
     // headers: HeaderMap,
 }
@@ -155,6 +192,7 @@ mod tests {
     async fn test_download() {
         let mut downloader = CommonM3u8ArchiveDownloader::new(
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
+            "/tmp/test".into(),
         );
         downloader.download().await;
     }
