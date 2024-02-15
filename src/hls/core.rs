@@ -99,6 +99,7 @@ impl M3u8ListSource {
                 initial_segment: initial_block.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                 media_sequence,
+                byte_range: segment.byte_range.clone(),
             };
             segments.push(segment);
         }
@@ -116,13 +117,18 @@ impl M3u8ListSource {
         let mut tmp_file =
             File::create(self.output_dir.join(format!("{sequence:06}_{filename}"))).await?;
 
-        let bytes = self
-            .client
-            .get(segment.url.clone())
-            .send()
-            .await?
-            .bytes()
-            .await?;
+        let mut request = self.client.get(segment.url.clone());
+        if let Some(byte_range) = &segment.byte_range {
+            // offset = 0, length = 1024
+            // Range: bytes=0-1023
+            //
+            // start = offset
+            let start = byte_range.offset.unwrap_or(0);
+            // end = start + length - 1
+            let end = start + byte_range.length - 1;
+            request = request.header("Range", format!("bytes={}-{}", start, end));
+        }
+        let bytes = request.send().await?.bytes().await?;
         // TODO: use bytes_stream to improve performance
         // .bytes_stream();
         let decryptor = segment.key.clone().map(|key| key.to_decryptor());
