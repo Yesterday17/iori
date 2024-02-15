@@ -11,7 +11,7 @@ use m3u8_rs::MediaPlaylist;
 use reqwest::{Client, Url};
 use tokio::{fs::File, io::AsyncWriteExt};
 
-use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment};
+use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment, M3u8StreamingSegment};
 use crate::error::IoriResult;
 
 /// Core part to perform network operations
@@ -107,18 +107,21 @@ impl M3u8ListSource {
         Ok((segments, playlist_url, playlist))
     }
 
-    pub async fn fetch_segment(&self, segment: &M3u8Segment) -> IoriResult<()> {
+    pub async fn fetch_segment<S>(&self, segment: &S) -> IoriResult<()>
+    where
+        S: M3u8StreamingSegment,
+    {
         if !self.output_dir.exists() {
             tokio::fs::create_dir_all(&self.output_dir).await?;
         }
 
-        let filename = &segment.filename;
-        let sequence = segment.sequence;
+        let filename = segment.file_name();
+        let sequence = segment.sequence();
         let mut tmp_file =
             File::create(self.output_dir.join(format!("{sequence:06}_{filename}"))).await?;
 
-        let mut request = self.client.get(segment.url.clone());
-        if let Some(byte_range) = &segment.byte_range {
+        let mut request = self.client.get(segment.url().clone());
+        if let Some(byte_range) = segment.byte_range() {
             // offset = 0, length = 1024
             // Range: bytes=0-1023
             //
@@ -131,9 +134,9 @@ impl M3u8ListSource {
         let bytes = request.send().await?.bytes().await?;
         // TODO: use bytes_stream to improve performance
         // .bytes_stream();
-        let decryptor = segment.key.clone().map(|key| key.to_decryptor());
+        let decryptor = segment.key().map(|key| key.to_decryptor());
         if let Some(decryptor) = decryptor {
-            let bytes = if let Some(initial_segment) = &segment.initial_segment {
+            let bytes = if let Some(initial_segment) = segment.initial_segment() {
                 let mut result = initial_segment.to_vec();
                 result.extend_from_slice(&bytes);
                 result
@@ -143,8 +146,8 @@ impl M3u8ListSource {
             let bytes = decryptor.decrypt(&bytes)?;
             tmp_file.write_all(&bytes).await?;
         } else {
-            if let Some(initial_segment) = &segment.initial_segment {
-                tmp_file.write_all(initial_segment).await?;
+            if let Some(initial_segment) = segment.initial_segment() {
+                tmp_file.write_all(&initial_segment).await?;
             }
             tmp_file.write_all(&bytes).await?;
         }
