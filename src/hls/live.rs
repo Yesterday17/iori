@@ -3,11 +3,11 @@ use std::{path::PathBuf, sync::Arc};
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use super::{CommonM3u8ArchiveSource, M3u8Segment};
+use super::{core::M3u8ListSource, M3u8Segment};
 use crate::{error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8LiveSource {
-    inner: Arc<CommonM3u8ArchiveSource>,
+    inner: Arc<M3u8ListSource>,
 }
 
 impl CommonM3u8LiveSource {
@@ -19,7 +19,7 @@ impl CommonM3u8LiveSource {
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
-            inner: Arc::new(CommonM3u8ArchiveSource::new(
+            inner: Arc::new(M3u8ListSource::new(
                 client,
                 m3u8,
                 key,
@@ -36,7 +36,7 @@ impl StreamingSource for CommonM3u8LiveSource {
     async fn fetch_info(&mut self) -> IoriResult<mpsc::UnboundedReceiver<Vec<Self::Segment>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let inner: Arc<CommonM3u8ArchiveSource> = self.inner.clone();
+        let inner = self.inner.clone();
         tokio::spawn(async move {
             let mut latest_media_sequence = 0;
             loop {

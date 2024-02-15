@@ -1,4 +1,5 @@
 mod archive;
+mod core;
 mod decrypt;
 mod live;
 mod utils;
@@ -6,17 +7,14 @@ mod utils;
 use std::sync::Arc;
 
 pub use archive::CommonM3u8ArchiveSource;
+pub use core::M3u8ListSource;
 pub use live::CommonM3u8LiveSource;
-
-use crate::StreamingSegment;
-
-use self::decrypt::M3u8Key;
 
 pub struct M3u8Segment {
     url: reqwest::Url,
     filename: String,
 
-    key: Option<Arc<M3u8Key>>,
+    key: Option<Arc<decrypt::M3u8Key>>,
     initial_segment: Option<Arc<Vec<u8>>>,
 
     /// Sequence id allocated by the downloader
@@ -26,7 +24,7 @@ pub struct M3u8Segment {
     // pub byte_range: Option<ByteRange>,
 }
 
-impl StreamingSegment for M3u8Segment {
+impl crate::StreamingSegment for M3u8Segment {
     fn file_name(&self) -> &str {
         self.filename.as_str()
     }
