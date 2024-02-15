@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 pub use archive::CommonM3u8ArchiveSource;
 pub use core::M3u8ListSource;
+pub use decrypt::M3u8Key;
 pub use live::CommonM3u8LiveSource;
+pub use m3u8_rs;
 
 use crate::StreamingSegment;
 
