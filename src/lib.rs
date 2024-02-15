@@ -31,7 +31,9 @@ pub trait StreamingSource {
     fn fetch_info(
         &mut self,
     ) -> impl std::future::Future<
-        Output = error::IoriResult<tokio::sync::mpsc::UnboundedReceiver<Vec<Self::Segment>>>,
+        Output = error::IoriResult<
+            tokio::sync::mpsc::UnboundedReceiver<error::IoriResult<Vec<Self::Segment>>>,
+        >,
     > + Send;
 
     fn fetch_segment(

@@ -33,11 +33,13 @@ impl CommonM3u8ArchiveSource {
 impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
 
-    async fn fetch_info(&mut self) -> IoriResult<mpsc::UnboundedReceiver<Vec<Self::Segment>>> {
+    async fn fetch_info(
+        &mut self,
+    ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let (segments, _, _) = self.inner.load_segments(None).await?;
-        let _ = sender.send(segments);
+        let _ = sender.send(Ok(segments));
 
         Ok(receiver)
     }

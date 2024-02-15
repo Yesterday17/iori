@@ -19,7 +19,7 @@ where
         let mut receiver = self.source.fetch_info().await?;
 
         while let Some(segment) = receiver.recv().await {
-            for segment in segment {
+            for segment in segment? {
                 self.source.fetch_segment(&segment).await?;
             }
         }

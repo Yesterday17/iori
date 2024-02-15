@@ -51,6 +51,13 @@ where
 
         let mut receiver = self.get_receiver().await?;
         while let Some(segments) = receiver.recv().await {
+            // If the playlist is not available, the downloader will be stopped.
+            if let Err(e) = segments {
+                log::error!("Failed to fetch segment list: {e}");
+                return Err(e);
+            }
+            let segments = segments?;
+
             self.total.fetch_add(segments.len(), Ordering::Relaxed);
             log::info!("{} new segments were added to queue.", segments.len());
 
@@ -108,7 +115,9 @@ where
         Ok(())
     }
 
-    async fn get_receiver(&mut self) -> IoriResult<mpsc::UnboundedReceiver<Vec<S::Segment>>> {
+    async fn get_receiver(
+        &mut self,
+    ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<S::Segment>>>> {
         self.source.write().await.fetch_info().await
     }
 }
