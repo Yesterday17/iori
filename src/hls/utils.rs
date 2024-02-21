@@ -7,7 +7,26 @@ use crate::error::{IoriError, IoriResult};
 pub(crate) async fn load_m3u8(client: &Client, url: Url) -> IoriResult<(Url, MediaPlaylist)> {
     log::info!("Start fetching M3U8 file.");
 
-    let m3u8_bytes = client.get(url.clone()).send().await?.bytes().await?;
+    let mut retry = 3;
+    let m3u8_bytes = loop {
+        if retry == 0 {
+            return Err(IoriError::M3u8FetchError);
+        }
+
+        match client.get(url.clone()).send().await {
+            Ok(resp) => match resp.bytes().await {
+                Ok(bytes) => break bytes,
+                Err(error) => {
+                    log::warn!("Failed to fetch M3U8 file: {error}");
+                    retry -= 1;
+                }
+            },
+            Err(error) => {
+                log::warn!("Failed to fetch M3U8 file: {error}");
+                retry -= 1;
+            }
+        }
+    };
     log::info!("M3U8 file fetched.");
 
     let parsed = m3u8_rs::parse_playlist_res(&m3u8_bytes)

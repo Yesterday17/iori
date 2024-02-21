@@ -3,6 +3,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum IoriError {
+    #[error("M3u8 fetch error")]
+    M3u8FetchError,
+
     #[error("mp4decrypt error: {0}")]
     Mp4DecryptError(String),
 
