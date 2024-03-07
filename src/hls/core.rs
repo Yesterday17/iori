@@ -9,10 +9,10 @@ use std::{
 
 use m3u8_rs::MediaPlaylist;
 use reqwest::{Client, Url};
-use tokio::{fs::File, io::AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
 use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment, M3u8StreamingSegment};
-use crate::error::IoriResult;
+use crate::{consumer::FileConsumer, error::IoriResult};
 
 /// Core part to perform network operations
 pub struct M3u8ListSource {
@@ -21,7 +21,7 @@ pub struct M3u8ListSource {
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
 
-    output_dir: PathBuf,
+    consumer: FileConsumer,
     sequence: AtomicU64,
     client: Arc<Client>,
 }
@@ -31,7 +31,7 @@ impl M3u8ListSource {
         client: Client,
         m3u8: String,
         key: Option<String>,
-        output_dir: PathBuf,
+        consumer: FileConsumer,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         let client = Arc::new(client);
@@ -39,7 +39,7 @@ impl M3u8ListSource {
             m3u8_url: m3u8,
             key,
             shaka_packager_command,
-            output_dir,
+            consumer,
 
             sequence: AtomicU64::new(0),
             client,
@@ -111,14 +111,12 @@ impl M3u8ListSource {
     where
         S: M3u8StreamingSegment,
     {
-        if !self.output_dir.exists() {
-            tokio::fs::create_dir_all(&self.output_dir).await?;
-        }
-
         let filename = segment.file_name();
         let sequence = segment.sequence();
-        let mut tmp_file =
-            File::create(self.output_dir.join(format!("{sequence:06}_{filename}"))).await?;
+        let mut tmp_file = self
+            .consumer
+            .open_file(format!("{sequence:06}_{filename}"))
+            .await?;
 
         let mut request = self.client.get(segment.url().clone());
         if let Some(byte_range) = segment.byte_range() {

@@ -4,7 +4,7 @@ use reqwest::Client;
 use tokio::sync::mpsc;
 
 use super::{core::M3u8ListSource, M3u8Segment};
-use crate::{error::IoriResult, StreamingSource};
+use crate::{consumer::FileConsumer, error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8ArchiveSource {
     inner: Arc<M3u8ListSource>,
@@ -15,7 +15,7 @@ impl CommonM3u8ArchiveSource {
         client: Client,
         m3u8: String,
         key: Option<String>,
-        output_dir: PathBuf,
+        consumer: FileConsumer,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
@@ -23,7 +23,7 @@ impl CommonM3u8ArchiveSource {
                 client,
                 m3u8,
                 key,
-                output_dir,
+                consumer,
                 shaka_packager_command,
             )),
         }
@@ -60,7 +60,7 @@ mod tests {
             Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
             None,
-            "/tmp/test".into(),
+            FileConsumer::new("/tmp/test")?,
             None,
         );
         SequencialDownloader::new(source).download().await?;
