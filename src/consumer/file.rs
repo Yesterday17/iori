@@ -20,7 +20,7 @@ impl FileConsumer {
         Ok(Self { output_dir })
     }
 
-    pub async fn open_file(&self, filename: String) -> IoriResult<File> {
+    pub async fn open_writer(&self, filename: String) -> IoriResult<File> {
         let tmp_file = File::create(self.output_dir.join(filename)).await?;
         Ok(tmp_file)
     }

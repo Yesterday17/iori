@@ -82,8 +82,15 @@ impl M3u8ListSource {
             let filename = url
                 .path_segments()
                 .and_then(|c| c.last())
-                .unwrap_or("output.ts")
-                .to_string();
+                .map(|r| {
+                    if r.ends_with(".m4s") {
+                        // xx.m4s -> x.mp4
+                        format!("{}.mp4", &r[..r.len() - 4])
+                    } else {
+                        r.to_string()
+                    }
+                })
+                .unwrap_or("output.ts".to_string());
 
             let media_sequence = playlist.media_sequence + i as u64;
             if let Some(latest_media_sequence) = latest_media_sequence {
@@ -115,7 +122,7 @@ impl M3u8ListSource {
         let sequence = segment.sequence();
         let mut tmp_file = self
             .consumer
-            .open_file(format!("{sequence:06}_{filename}"))
+            .open_writer(format!("{sequence:06}_{filename}"))
             .await?;
 
         let mut request = self.client.get(segment.url().clone());
