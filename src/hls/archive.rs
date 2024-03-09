@@ -108,7 +108,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{consumer::FileConsumer, downloader::SequencialDownloader};
+    use crate::downloader::SequencialDownloader;
 
     #[tokio::test]
     async fn test_download_archive() -> IoriResult<()> {
@@ -117,7 +117,7 @@ mod tests {
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
             None,
             Default::default(),
-            Consumer::File(FileConsumer::new("/tmp/test")?),
+            Consumer::file("/tmp/test")?,
             None,
         );
         SequencialDownloader::new(source).download().await?;

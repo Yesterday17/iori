@@ -87,7 +87,7 @@ impl StreamingSource for CommonM3u8LiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{consumer::FileConsumer, downloader::SequencialDownloader};
+    use crate::downloader::SequencialDownloader;
 
     #[tokio::test]
     async fn test_download_live() -> IoriResult<()> {
@@ -95,7 +95,7 @@ mod tests {
             Default::default(),
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
             None,
-            Consumer::File(FileConsumer::new("/tmp/test_live")?),
+            Consumer::file("/tmp/test_live")?,
             None,
         );
         SequencialDownloader::new(source).download().await?;

@@ -1,5 +1,6 @@
 use std::{
     ops::{Deref, DerefMut},
+    path::PathBuf,
     pin::Pin,
 };
 use tokio::io::AsyncWrite;
@@ -17,6 +18,14 @@ pub enum Consumer {
 }
 
 impl Consumer {
+    pub fn file(output_dir: impl Into<PathBuf>) -> IoriResult<Self> {
+        Ok(Self::File(FileConsumer::new(output_dir)?))
+    }
+
+    pub fn pipe(output_dir: impl Into<PathBuf>) -> IoriResult<Self> {
+        Ok(Self::Pipe(PipeConsumer::new(output_dir)?))
+    }
+
     pub async fn open_writer(
         &self,
         segment: &(impl StreamingSegment + Send + Sync + 'static),
