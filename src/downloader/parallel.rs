@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use tokio::sync::{mpsc, RwLock, Semaphore};
+use tokio::sync::{mpsc, Semaphore};
 
 use crate::{error::IoriResult, StreamingSegment, StreamingSource};
 
@@ -14,7 +14,7 @@ pub struct ParallelDownloader<S>
 where
     S: StreamingSource,
 {
-    source: Arc<RwLock<S>>,
+    source: Arc<S>,
     concurrency: NonZeroU32,
     permits: Arc<Semaphore>,
 
@@ -32,7 +32,7 @@ where
         let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
-            source: Arc::new(RwLock::new(source)),
+            source: Arc::new(source),
             concurrency,
             permits,
 
@@ -65,12 +65,12 @@ where
                 let permit = self.permits.clone().acquire_owned().await.unwrap();
                 let segments_downloaded = self.downloaded.clone();
                 let segments_total = self.total.clone();
-                let source: Arc<RwLock<S>> = self.source.clone();
+                let source = self.source.clone();
                 let mut retries = self.retries;
                 tokio::spawn(async move {
                     let filename = segment.file_name();
                     loop {
-                        let result = source.read().await.fetch_segment(&segment).await;
+                        let result = source.fetch_segment(&segment).await;
                         match result {
                             Ok(_) => break,
                             Err(e) => {
@@ -118,6 +118,6 @@ where
     async fn get_receiver(
         &mut self,
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<S::Segment>>>> {
-        self.source.write().await.fetch_info().await
+        self.source.fetch_info().await
     }
 }

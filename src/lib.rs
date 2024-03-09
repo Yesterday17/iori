@@ -30,7 +30,7 @@ pub trait StreamingSource {
 
     // TODO: maybe this method can be sync?
     fn fetch_info(
-        &mut self,
+        &self,
     ) -> impl std::future::Future<
         Output = error::IoriResult<
             tokio::sync::mpsc::UnboundedReceiver<error::IoriResult<Vec<Self::Segment>>>,
