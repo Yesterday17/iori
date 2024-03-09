@@ -12,6 +12,7 @@ pub struct CommonM3u8ArchiveSource {
 }
 
 /// A subrange for m3u8 archive sources to choose which segment to use
+#[derive(Debug, Clone)]
 pub struct SegmentRange {
     /// Start offset to use. Default to 1
     pub start: u64,
