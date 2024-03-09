@@ -8,7 +8,10 @@ async-recursion = "1.0.5"
 futures-util = { version = "0.3.30", features = ["io"] }
 log = "0.4.20"
 m3u8-rs = "5.0.5"
-reqwest = { version = "0.11.24", features = ["stream"] }
+reqwest = { version = "0.11.24", default-features = false, features = [
+    "rustls",
+    "stream",
+] }
 tokio = { version = "1.36.0", features = ["full"] }
 
 aes = "0.8.2"
