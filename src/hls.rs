@@ -23,7 +23,7 @@ pub struct M3u8Segment {
 
     pub byte_range: Option<m3u8_rs::ByteRange>,
 
-    /// Sequence id allocated by the downloader
+    /// Sequence id allocated by the downloader, starts from 0
     pub sequence: u64,
     /// Media sequence id from the m3u8 file
     pub media_sequence: u64,
