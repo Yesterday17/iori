@@ -69,7 +69,7 @@ impl M3u8Key {
             KeyMethod::SampleAES => todo!(),
             KeyMethod::Other(name) => match name.as_str() {
                 "SAMPLE-AES-CENC" | "SAMPLE-AES-CTR" => {
-                    log::info!("{name} encryption detected. Using manual key.");
+                    log::debug!("{name} encryption detected. Using manual key.");
 
                     // <kid>:<key>;<kid>:<key>;...
                     let manual_key =

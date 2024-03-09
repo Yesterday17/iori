@@ -24,8 +24,11 @@ impl PipeConsumer {
     where
         P: Into<PathBuf>,
     {
+        let output_dir = output_dir.into();
+        std::fs::create_dir_all(&output_dir)?;
+
         Ok(Self {
-            output_dir: output_dir.into(),
+            output_dir,
 
             next: Arc::new(AtomicU64::new(0)),
             segments: Arc::new(Mutex::new(HashMap::new())),

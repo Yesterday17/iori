@@ -21,3 +21,7 @@ tempfile = "3.10.0"
 rand = "0.8.5"
 thiserror = "1.0.57"
 url = "2.5.0"
+
+[dev-dependencies]
+anyhow = "1"
+pretty_env_logger = "0.5.0"
