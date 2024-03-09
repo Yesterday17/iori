@@ -1,8 +1,8 @@
 use std::path::PathBuf;
-
 use tokio::fs::File;
 
-use crate::error::IoriResult;
+use super::ConsumerOutput;
+use crate::{error::IoriResult, StreamingSegment};
 
 pub struct FileConsumer {
     output_dir: PathBuf,
@@ -20,7 +20,13 @@ impl FileConsumer {
         Ok(Self { output_dir })
     }
 
-    pub async fn open_writer(&self, filename: String) -> IoriResult<Option<File>> {
+    pub async fn open_writer(
+        &self,
+        segment: &impl StreamingSegment,
+    ) -> IoriResult<Option<ConsumerOutput>> {
+        let filename = segment.file_name();
+        let sequence = segment.sequence();
+        let filename = format!("{sequence:06}_{filename}");
         let path = self.output_dir.join(filename);
         if path
             .metadata()
@@ -31,6 +37,6 @@ impl FileConsumer {
             return Ok(None);
         }
         let tmp_file = File::create(path).await?;
-        Ok(Some(tmp_file))
+        Ok(Some(Box::pin(tmp_file)))
     }
 }

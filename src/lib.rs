@@ -44,5 +44,7 @@ pub trait StreamingSource {
 }
 
 pub trait StreamingSegment {
+    fn sequence(&self) -> u64;
+
     fn file_name(&self) -> &str;
 }

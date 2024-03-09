@@ -118,12 +118,7 @@ impl M3u8ListSource {
     where
         S: M3u8StreamingSegment,
     {
-        let filename = segment.file_name();
-        let sequence = segment.sequence();
-        let tmp_file = self
-            .consumer
-            .open_writer(format!("{sequence:06}_{filename}"))
-            .await?;
+        let tmp_file = self.consumer.open_writer(segment).await?;
         let mut tmp_file = match tmp_file {
             Some(f) => f,
             None => return Ok(()),

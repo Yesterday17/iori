@@ -34,11 +34,14 @@ pub trait M3u8StreamingSegment: StreamingSegment {
     fn key(&self) -> Option<Arc<decrypt::M3u8Key>>;
     fn initial_segment(&self) -> Option<Arc<Vec<u8>>>;
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange>;
-    fn sequence(&self) -> u64;
     fn media_sequence(&self) -> u64;
 }
 
 impl crate::StreamingSegment for M3u8Segment {
+    fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
     fn file_name(&self) -> &str {
         self.filename.as_str()
     }
@@ -59,10 +62,6 @@ impl M3u8StreamingSegment for M3u8Segment {
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
         self.byte_range.clone()
-    }
-
-    fn sequence(&self) -> u64 {
-        self.sequence
     }
 
     fn media_sequence(&self) -> u64 {
