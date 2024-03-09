@@ -12,7 +12,7 @@ use reqwest::{Client, Url};
 use tokio::io::AsyncWriteExt;
 
 use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment, M3u8StreamingSegment};
-use crate::{consumer::FileConsumer, error::IoriResult};
+use crate::{consumer::Consumer, error::IoriResult};
 
 /// Core part to perform network operations
 pub struct M3u8ListSource {
@@ -21,7 +21,7 @@ pub struct M3u8ListSource {
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
 
-    consumer: FileConsumer,
+    consumer: Consumer,
     sequence: AtomicU64,
     client: Arc<Client>,
 }
@@ -31,7 +31,7 @@ impl M3u8ListSource {
         client: Client,
         m3u8: String,
         key: Option<String>,
-        consumer: FileConsumer,
+        consumer: Consumer,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         let client = Arc::new(client);
@@ -116,7 +116,7 @@ impl M3u8ListSource {
 
     pub async fn fetch_segment<S>(&self, segment: &S) -> IoriResult<()>
     where
-        S: M3u8StreamingSegment,
+        S: M3u8StreamingSegment + Send + Sync + 'static,
     {
         let tmp_file = self.consumer.open_writer(segment).await?;
         let mut tmp_file = match tmp_file {

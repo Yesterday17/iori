@@ -37,6 +37,6 @@ impl FileConsumer {
             return Ok(None);
         }
         let tmp_file = File::create(path).await?;
-        Ok(Some(Box::pin(tmp_file)))
+        Ok(Some(ConsumerOutput::new(Box::pin(tmp_file))))
     }
 }

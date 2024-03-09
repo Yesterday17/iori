@@ -1,8 +1,75 @@
-use std::pin::Pin;
+use std::{
+    ops::{Deref, DerefMut},
+    pin::Pin,
+};
 use tokio::io::AsyncWrite;
 
 mod file;
 pub use file::FileConsumer;
-mod stream;
+mod pipe;
+pub use pipe::PipeConsumer;
 
-pub type ConsumerOutput = Pin<Box<dyn AsyncWrite + Send + Sync + 'static>>;
+use crate::{error::IoriResult, StreamingSegment};
+
+pub enum Consumer {
+    File(FileConsumer),
+    Pipe(PipeConsumer),
+}
+
+impl Consumer {
+    pub async fn open_writer(
+        &self,
+        segment: &(impl StreamingSegment + Send + Sync + 'static),
+    ) -> IoriResult<Option<ConsumerOutput>> {
+        match self {
+            Self::File(consumer) => consumer.open_writer(segment).await,
+            Self::Pipe(consumer) => consumer.open_writer(segment).await,
+        }
+    }
+}
+
+type ConsumerOutputStream = Pin<Box<dyn AsyncWrite + Send + Sync + 'static>>;
+
+pub struct ConsumerOutput {
+    stream: ConsumerOutputStream,
+    on_finish: Option<Box<dyn FnOnce() -> () + Send + Sync + 'static>>,
+}
+
+impl ConsumerOutput {
+    pub fn new(stream: ConsumerOutputStream) -> Self {
+        Self {
+            stream,
+            on_finish: None,
+        }
+    }
+
+    pub fn on_finish<F>(mut self, on_finish: F) -> Self
+    where
+        F: FnOnce() -> () + Send + Sync + 'static,
+    {
+        self.on_finish = Some(Box::new(on_finish));
+        self
+    }
+
+    pub fn finish(self) {
+        drop(self.stream);
+
+        if let Some(on_finish) = self.on_finish {
+            on_finish();
+        }
+    }
+}
+
+impl Deref for ConsumerOutput {
+    type Target = ConsumerOutputStream;
+
+    fn deref(&self) -> &Self::Target {
+        &self.stream
+    }
+}
+
+impl DerefMut for ConsumerOutput {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.stream
+    }
+}
