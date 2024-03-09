@@ -76,13 +76,13 @@ where
                             Err(e) => {
                                 if retries == 0 {
                                     log::error!(
-                                        "Processing ${filename} failed, max retries exceed, drop. {e}"
+                                        "Processing {filename} failed, max retries exceed, drop. {e}"
                                     );
                                     return;
                                 }
 
                                 retries -= 1;
-                                log::warn!("Processing ${filename} failed, retry later. {e}")
+                                log::warn!("Processing {filename} failed, retry later. {e}")
                             }
                         }
                     }

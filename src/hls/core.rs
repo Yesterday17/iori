@@ -120,10 +120,14 @@ impl M3u8ListSource {
     {
         let filename = segment.file_name();
         let sequence = segment.sequence();
-        let mut tmp_file = self
+        let tmp_file = self
             .consumer
             .open_writer(format!("{sequence:06}_{filename}"))
             .await?;
+        let mut tmp_file = match tmp_file {
+            Some(f) => f,
+            None => return Ok(()),
+        };
 
         let mut request = self.client.get(segment.url().clone());
         if let Some(byte_range) = segment.byte_range() {

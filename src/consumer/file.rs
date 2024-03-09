@@ -20,8 +20,13 @@ impl FileConsumer {
         Ok(Self { output_dir })
     }
 
-    pub async fn open_writer(&self, filename: String) -> IoriResult<File> {
-        let tmp_file = File::create(self.output_dir.join(filename)).await?;
-        Ok(tmp_file)
+    pub async fn open_writer(&self, filename: String) -> IoriResult<Option<File>> {
+        let path = self.output_dir.join(filename);
+        if path.exists() {
+            log::warn!("File {} already exists, ignoring.", path.display());
+            return Ok(None);
+        }
+        let tmp_file = File::create(path).await?;
+        Ok(Some(tmp_file))
     }
 }
