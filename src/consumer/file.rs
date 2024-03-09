@@ -22,7 +22,11 @@ impl FileConsumer {
 
     pub async fn open_writer(&self, filename: String) -> IoriResult<Option<File>> {
         let path = self.output_dir.join(filename);
-        if path.exists() {
+        if path
+            .metadata()
+            .map(|p| p.is_file() && p.len() > 0)
+            .unwrap_or_default()
+        {
             log::warn!("File {} already exists, ignoring.", path.display());
             return Ok(None);
         }
