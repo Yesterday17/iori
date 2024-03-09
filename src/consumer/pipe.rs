@@ -63,7 +63,7 @@ impl PipeConsumer {
                     while let Some(path) = segments.remove(&next.load(Ordering::Relaxed)) {
                         // open file and write binary content to stdout
                         let mut file = std::fs::File::open(&path).unwrap();
-                        std::io::copy(&mut file, &mut std::io::stdout()).unwrap();
+                        let _ = std::io::copy(&mut file, &mut std::io::stdout());
                         if recycle {
                             std::fs::remove_file(&path).unwrap();
                         }
