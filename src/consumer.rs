@@ -22,8 +22,8 @@ impl Consumer {
         Ok(Self::File(FileConsumer::new(output_dir)?))
     }
 
-    pub fn pipe(output_dir: impl Into<PathBuf>) -> IoriResult<Self> {
-        Ok(Self::Pipe(PipeConsumer::new(output_dir)?))
+    pub fn pipe(output_dir: impl Into<PathBuf>, recycle: bool) -> IoriResult<Self> {
+        Ok(Self::Pipe(PipeConsumer::new(output_dir, recycle)?))
     }
 
     pub async fn open_writer(

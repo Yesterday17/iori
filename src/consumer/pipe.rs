@@ -14,13 +14,14 @@ use crate::{error::IoriResult, StreamingSegment};
 
 pub struct PipeConsumer {
     output_dir: PathBuf,
+    recycle: bool,
 
     next: Arc<AtomicU64>,
     segments: Arc<Mutex<HashMap<u64, PathBuf>>>,
 }
 
 impl PipeConsumer {
-    pub fn new<P>(output_dir: P) -> IoriResult<Self>
+    pub fn new<P>(output_dir: P, recycle: bool) -> IoriResult<Self>
     where
         P: Into<PathBuf>,
     {
@@ -29,6 +30,7 @@ impl PipeConsumer {
 
         Ok(Self {
             output_dir,
+            recycle,
 
             next: Arc::new(AtomicU64::new(0)),
             segments: Arc::new(Mutex::new(HashMap::new())),
@@ -45,6 +47,7 @@ impl PipeConsumer {
         let path = self.output_dir.join(filename);
 
         let file = File::create(&path).await?;
+        let recycle = self.recycle;
 
         let next = self.next.clone();
         let segments = self.segments.clone();
@@ -61,6 +64,9 @@ impl PipeConsumer {
                         // open file and write binary content to stdout
                         let mut file = std::fs::File::open(&path).unwrap();
                         std::io::copy(&mut file, &mut std::io::stdout()).unwrap();
+                        if recycle {
+                            std::fs::remove_file(&path).unwrap();
+                        }
 
                         next.fetch_add(1, Ordering::Relaxed);
                     }
