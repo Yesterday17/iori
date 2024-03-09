@@ -3,11 +3,11 @@ use std::{
     path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
-use tokio::fs::File;
+use tokio::{fs::File, sync::Mutex};
 
 use super::ConsumerOutput;
 use crate::{error::IoriResult, StreamingSegment};
@@ -53,24 +53,28 @@ impl PipeConsumer {
         let segments = self.segments.clone();
         Ok(Some(ConsumerOutput::new(Box::pin(file)).on_finish(
             move || {
-                // Hold the lock so that no one would be able to write new segments and modify `next`
-                let mut segments = segments.lock().unwrap();
+                Box::pin(async move {
+                    // Hold the lock so that no one would be able to write new segments and modify `next`
+                    let mut segments = segments.lock().await;
 
-                // write file path to HashMap
-                segments.insert(sequence, path);
+                    // write file path to HashMap
+                    segments.insert(sequence, path);
 
-                if sequence == next.load(Ordering::Relaxed) {
-                    while let Some(path) = segments.remove(&next.load(Ordering::Relaxed)) {
-                        // open file and write binary content to stdout
-                        let mut file = std::fs::File::open(&path).unwrap();
-                        let _ = std::io::copy(&mut file, &mut std::io::stdout());
-                        if recycle {
-                            std::fs::remove_file(&path).unwrap();
+                    if sequence == next.load(Ordering::Relaxed) {
+                        while let Some(path) = segments.remove(&next.load(Ordering::Relaxed)) {
+                            // open file and write binary content to stdout
+                            let mut file = File::open(&path).await?;
+                            let _ = tokio::io::copy(&mut file, &mut tokio::io::stdout());
+                            if recycle {
+                                tokio::fs::remove_file(&path).await?;
+                            }
+
+                            next.fetch_add(1, Ordering::Relaxed);
                         }
-
-                        next.fetch_add(1, Ordering::Relaxed);
                     }
-                }
+
+                    Ok(())
+                })
             },
         )))
     }

@@ -1,4 +1,5 @@
 use std::{
+    future::Future,
     ops::{Deref, DerefMut},
     path::PathBuf,
     pin::Pin,
@@ -41,7 +42,14 @@ type ConsumerOutputStream = Pin<Box<dyn AsyncWrite + Send + Sync + 'static>>;
 
 pub struct ConsumerOutput {
     stream: ConsumerOutputStream,
-    on_finish: Option<Box<dyn FnOnce() -> () + Send + Sync + 'static>>,
+    on_finish: Option<
+        Box<
+            dyn FnOnce() -> Pin<Box<dyn Future<Output = IoriResult<()>> + Send + 'static>>
+                + Send
+                + Sync
+                + 'static,
+        >,
+    >,
 }
 
 impl ConsumerOutput {
@@ -54,18 +62,23 @@ impl ConsumerOutput {
 
     pub fn on_finish<F>(mut self, on_finish: F) -> Self
     where
-        F: FnOnce() -> () + Send + Sync + 'static,
+        F: FnOnce() -> Pin<Box<dyn Future<Output = IoriResult<()>> + Send + 'static>>
+            + Send
+            + Sync
+            + 'static,
     {
         self.on_finish = Some(Box::new(on_finish));
         self
     }
 
-    pub fn finish(self) {
+    pub async fn finish(self) -> IoriResult<()> {
         drop(self.stream);
 
         if let Some(on_finish) = self.on_finish {
-            on_finish();
+            on_finish().await?;
         }
+
+        Ok(())
     }
 }
 

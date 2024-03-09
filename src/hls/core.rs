@@ -156,7 +156,7 @@ impl M3u8ListSource {
             tmp_file.write_all(&bytes).await?;
         }
 
-        tmp_file.finish();
+        tmp_file.finish().await?;
         Ok(())
     }
 }
