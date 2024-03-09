@@ -3,11 +3,15 @@ use std::{num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc};
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use super::{core::M3u8ListSource, M3u8Segment};
+use super::{
+    core::{HlsSegmentFetcher, M3u8Source},
+    M3u8Segment,
+};
 use crate::{consumer::Consumer, error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8ArchiveSource {
-    inner: Arc<M3u8ListSource>,
+    playlist: Arc<M3u8Source>,
+    segment: Arc<HlsSegmentFetcher>,
     range: SegmentRange,
 }
 
@@ -63,14 +67,15 @@ impl CommonM3u8ArchiveSource {
         consumer: Consumer,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
+        let client = Arc::new(client);
         Self {
-            inner: Arc::new(M3u8ListSource::new(
-                client,
+            playlist: Arc::new(M3u8Source::new(
+                client.clone(),
                 m3u8,
                 key,
-                consumer,
                 shaka_packager_command,
             )),
+            segment: Arc::new(HlsSegmentFetcher::new(client, consumer)),
             range,
         }
     }
@@ -84,7 +89,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (segments, _, _) = self.inner.load_segments(None).await?;
+        let (segments, _, _) = self.playlist.load_segments(None).await?;
         let segments = segments
             .into_iter()
             .filter_map(|segment| {
@@ -101,7 +106,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
     }
 
     async fn fetch_segment(&self, segment: &Self::Segment) -> IoriResult<()> {
-        self.inner.fetch_segment(segment).await
+        self.segment.fetch(segment).await
     }
 }
 

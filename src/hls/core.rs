@@ -15,31 +15,27 @@ use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment, M3u8StreamingSegmen
 use crate::{consumer::Consumer, error::IoriResult};
 
 /// Core part to perform network operations
-pub struct M3u8ListSource {
+pub struct M3u8Source {
     m3u8_url: String,
 
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
 
-    consumer: Consumer,
     sequence: AtomicU64,
     client: Arc<Client>,
 }
 
-impl M3u8ListSource {
+impl M3u8Source {
     pub fn new(
-        client: Client,
-        m3u8: String,
+        client: Arc<Client>,
+        m3u8_url: String,
         key: Option<String>,
-        consumer: Consumer,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
-        let client = Arc::new(client);
         Self {
-            m3u8_url: m3u8,
+            m3u8_url,
             key,
             shaka_packager_command,
-            consumer,
 
             sequence: AtomicU64::new(0),
             client,
@@ -113,8 +109,19 @@ impl M3u8ListSource {
 
         Ok((segments, playlist_url, playlist))
     }
+}
 
-    pub async fn fetch_segment<S>(&self, segment: &S) -> IoriResult<()>
+pub struct HlsSegmentFetcher {
+    client: Arc<Client>,
+    consumer: Consumer,
+}
+
+impl HlsSegmentFetcher {
+    pub fn new(client: Arc<Client>, consumer: Consumer) -> Self {
+        Self { client, consumer }
+    }
+
+    pub async fn fetch<S>(&self, segment: &S) -> IoriResult<()>
     where
         S: M3u8StreamingSegment + Send + Sync + 'static,
     {
