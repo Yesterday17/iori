@@ -124,7 +124,7 @@ impl M3u8ListSource {
             None => return Ok(()),
         };
 
-        let mut request = self.client.get(segment.url().clone());
+        let mut request = self.client.get(segment.url());
         if let Some(byte_range) = segment.byte_range() {
             // offset = 0, length = 1024
             // Range: bytes=0-1023

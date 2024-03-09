@@ -30,7 +30,7 @@ pub struct M3u8Segment {
 }
 
 pub trait M3u8StreamingSegment: StreamingSegment {
-    fn url(&self) -> &reqwest::Url;
+    fn url(&self) -> reqwest::Url;
     fn key(&self) -> Option<Arc<decrypt::M3u8Key>>;
     fn initial_segment(&self) -> Option<Arc<Vec<u8>>>;
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange>;
@@ -48,8 +48,8 @@ impl crate::StreamingSegment for M3u8Segment {
 }
 
 impl M3u8StreamingSegment for M3u8Segment {
-    fn url(&self) -> &reqwest::Url {
-        &self.url
+    fn url(&self) -> reqwest::Url {
+        self.url.clone()
     }
 
     fn key(&self) -> Option<Arc<decrypt::M3u8Key>> {
