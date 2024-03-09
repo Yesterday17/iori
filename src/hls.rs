@@ -6,7 +6,7 @@ mod utils;
 
 use std::sync::Arc;
 
-pub use archive::CommonM3u8ArchiveSource;
+pub use archive::{CommonM3u8ArchiveSource, SegmentRange};
 pub use core::M3u8ListSource;
 pub use decrypt::M3u8Key;
 pub use live::CommonM3u8LiveSource;
