@@ -4,7 +4,7 @@ use reqwest::{Client, Url};
 use crate::error::{IoriError, IoriResult};
 
 #[async_recursion::async_recursion]
-pub(crate) async fn load_m3u8(client: &Client, url: Url) -> IoriResult<(Url, MediaPlaylist)> {
+pub async fn load_m3u8(client: &Client, url: Url) -> IoriResult<(Url, MediaPlaylist)> {
     log::info!("Start fetching M3U8 file.");
 
     let mut retry = 3;

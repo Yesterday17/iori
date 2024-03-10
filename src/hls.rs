@@ -2,7 +2,7 @@ mod archive;
 mod core;
 mod decrypt;
 mod live;
-mod utils;
+pub mod utils;
 
 use std::sync::Arc;
 
