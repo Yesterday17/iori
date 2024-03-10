@@ -12,7 +12,10 @@ use reqwest::{Client, Url};
 use tokio::io::AsyncWriteExt;
 
 use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment, M3u8StreamingSegment};
-use crate::{consumer::Consumer, error::IoriResult};
+use crate::{
+    consumer::Consumer,
+    error::{IoriError, IoriResult},
+};
 
 /// Core part to perform network operations
 pub struct M3u8Source {
@@ -142,7 +145,12 @@ impl HlsSegmentFetcher {
             let end = start + byte_range.length - 1;
             request = request.header("Range", format!("bytes={}-{}", start, end));
         }
-        let bytes = request.send().await?.bytes().await?;
+        let response = request.send().await?;
+        if !response.status().is_success() {
+            return Err(IoriError::HttpError(response.status()));
+        }
+
+        let bytes = response.bytes().await?;
         // TODO: use bytes_stream to improve performance
         // .bytes_stream();
         let decryptor = segment.key().map(|key| key.to_decryptor());

@@ -3,6 +3,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum IoriError {
+    #[error("HTTP error: {0}")]
+    HttpError(reqwest::StatusCode),
+
     #[error("M3u8 fetch error")]
     M3u8FetchError,
 
