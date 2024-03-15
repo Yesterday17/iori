@@ -1,3 +1,6 @@
+[workspace]
+members = ["bin/*"]
+
 [package]
 name = "iori"
 version = "0.1.0"
@@ -12,7 +15,7 @@ reqwest = { version = "0.11.24", default-features = false, features = [
     "rustls",
     "stream",
 ] }
-tokio = { version = "1.36.0", features = ["full"] }
+tokio = { version = "1", features = ["macros"] }
 
 aes = "0.8.2"
 cbc = { version = "0.1.2", features = ["std"] }
@@ -28,3 +31,7 @@ url = "2.5.0"
 [dev-dependencies]
 anyhow = "1"
 pretty_env_logger = "0.5.0"
+
+[[example]]
+name = "pipe"
+required-features = ["tokio/full"]
