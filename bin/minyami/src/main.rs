@@ -181,6 +181,10 @@ impl MinyamiArgs {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    pretty_env_logger::formatted_builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
+
     let args = MinyamiArgs::parse();
     let client = args.client();
 
