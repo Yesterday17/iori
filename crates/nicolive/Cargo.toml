@@ -1,7 +1,8 @@
 [package]
 name = "iori-nicolive"
-version = "0.1.0"
-edition = "2021"
+version = "0.0.1"
+
+edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true

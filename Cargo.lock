@@ -637,7 +637,7 @@ dependencies = [
 
 [[package]]
 name = "iori"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "aes",
  "anyhow",
@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "iori-nicolive"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "fake_user_agent",
