@@ -1,0 +1,32 @@
+
+[package]
+name = "iori"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-recursion = "1.0.5"
+futures-util = { version = "0.3.30", features = ["io"] }
+log.workspace = true
+m3u8-rs = "5.0.5"
+reqwest.workspace = true
+tokio.workspace = true
+
+aes = "0.8.2"
+cbc = { version = "0.1.2", features = ["std"] }
+block-buffer = "0.10.4"
+data-url = "0.3.1"
+hex = "0.4.3"
+mp4decrypt = "0.4.2"
+tempfile = "3.10.0"
+rand = "0.8.5"
+thiserror = "1.0.57"
+url = "2.5.0"
+
+[dev-dependencies]
+anyhow.workspace = true
+pretty_env_logger = "0.5.0"
+
+[[example]]
+name = "pipe"
+required-features = ["tokio/full"]
