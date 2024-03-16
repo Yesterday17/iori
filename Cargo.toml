@@ -1,5 +1,22 @@
 [workspace]
-members = ["bin/*"]
+members = ["bin/*", "crates/*"]
+
+[workspace.dependencies]
+iori = { path = "." }
+regex = "1.9.3"
+tokio = { version = "1", features = ["macros"] }
+
+fake_user_agent = "0.2.1"
+anyhow = "1.0.81"
+log = "0.4.20"
+
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.102"
+
+reqwest = { version = "0.11.24", default-features = false, features = [
+    "rustls",
+    "stream",
+] }
 
 [package]
 name = "iori"
@@ -9,13 +26,10 @@ edition = "2021"
 [dependencies]
 async-recursion = "1.0.5"
 futures-util = { version = "0.3.30", features = ["io"] }
-log = "0.4.20"
+log.workspace = true
 m3u8-rs = "5.0.5"
-reqwest = { version = "0.11.24", default-features = false, features = [
-    "rustls",
-    "stream",
-] }
-tokio = { version = "1", features = ["macros"] }
+reqwest.workspace = true
+tokio.workspace = true
 
 aes = "0.8.2"
 cbc = { version = "0.1.2", features = ["std"] }
@@ -29,7 +43,7 @@ thiserror = "1.0.57"
 url = "2.5.0"
 
 [dev-dependencies]
-anyhow = "1"
+anyhow.workspace = true
 pretty_env_logger = "0.5.0"
 
 [[example]]

@@ -1,0 +1,25 @@
+[package]
+name = "iori-nicolive"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+fake_user_agent.workspace = true
+iori.workspace = true
+
+regex.workspace = true
+tokio.workspace = true
+
+once_cell = "1.17.1"
+url = "2.4.1"
+html-escape = "0.2.13"
+tokio-tungstenite = { version = "0.20.0", features = [
+    "rustls-tls-webpki-roots",
+] }
+futures-util = { version = "0.3.30", features = ["futures-sink"] }
+parking_lot = "0.12.1"

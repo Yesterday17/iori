@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-iori = { path = "../../" }
-reqwest = "0.11.26"
+tokio = { workspace = true, features = ["full"] }
+iori.workspace = true
+reqwest.workspace = true
+fake_user_agent.workspace = true
+anyhow.workspace = true
+log.workspace = true
+
 clap = { version = "4.4.18", features = ["derive", "env"] }
-fake_user_agent = "0.2.1"
-anyhow = "1.0.81"
-log = "0.4.21"
 pretty_env_logger = "0.5.0"
