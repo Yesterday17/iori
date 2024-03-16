@@ -4,8 +4,10 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["full"] }
 iori.workspace = true
+iori-nicolive.workspace = true
+
+tokio = { workspace = true, features = ["full"] }
 reqwest.workspace = true
 fake_user_agent.workspace = true
 anyhow.workspace = true

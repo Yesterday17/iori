@@ -667,6 +667,7 @@ dependencies = [
  "clap",
  "fake_user_agent",
  "iori",
+ "iori-nicolive",
  "log",
  "pretty_env_logger",
  "reqwest",

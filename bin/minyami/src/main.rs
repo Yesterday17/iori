@@ -13,6 +13,7 @@ use iori::{
     downloader::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
 };
+use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, ClientBuilder,
@@ -211,16 +212,40 @@ async fn main() -> anyhow::Result<()> {
     } else {
         // Archive Downloader
         let consumer = Consumer::file(output_dir)?;
-        let source = CommonM3u8ArchiveSource::new(
-            client,
-            args.m3u8,
-            args.key,
-            args.range,
-            consumer,
-            args.shaka_packager,
-        );
-        let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-        downloader.download().await?;
+
+        if args.m3u8.contains("dmc.nico") {
+            log::info!("Enhanced mode for Nico-TS enabled");
+
+            let key = args.key.expect("Key is required for Nico-TS");
+            let (audience_token, quality) =
+                key.split_once(',').unwrap_or_else(|| (&key, "super_high"));
+            log::debug!("audience_token: {audience_token}, quality: {quality}");
+
+            let (live_id, _) = audience_token
+                .split_once('_')
+                .unwrap_or((audience_token, ""));
+            let is_channel_live = !live_id.starts_with("lv");
+            let wss_url = if is_channel_live {
+                format!("wss://a.live2.nicovideo.jp/unama/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
+            } else {
+                format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
+            };
+
+            let source = NicoTimeshiftSource::new(client, wss_url, consumer).await?;
+            let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
+            downloader.download().await?;
+        } else {
+            let source = CommonM3u8ArchiveSource::new(
+                client,
+                args.m3u8,
+                args.key,
+                args.range,
+                consumer,
+                args.shaka_packager,
+            );
+            let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
+            downloader.download().await?;
+        }
     }
 
     Ok(())
