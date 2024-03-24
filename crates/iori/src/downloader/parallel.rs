@@ -2,7 +2,7 @@ use std::{
     num::NonZeroU32,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc,
+        Arc, RwLock,
     },
 };
 
@@ -20,6 +20,7 @@ where
 
     total: Arc<AtomicUsize>,
     downloaded: Arc<AtomicUsize>,
+    failed: Arc<RwLock<Vec<String>>>,
 
     retries: u32,
 }
@@ -38,6 +39,7 @@ where
 
             total: Arc::new(AtomicUsize::new(0)),
             downloaded: Arc::new(AtomicUsize::new(0)),
+            failed: Arc::new(RwLock::new(Vec::new())),
 
             retries,
         }
@@ -64,6 +66,7 @@ where
             for segment in segments {
                 let permit = self.permits.clone().acquire_owned().await.unwrap();
                 let segments_downloaded = self.downloaded.clone();
+                let segments_failed = self.failed.clone();
                 let segments_total = self.total.clone();
                 let source = self.source.clone();
                 let mut retries = self.retries;
@@ -78,6 +81,10 @@ where
                                     log::error!(
                                         "Processing {filename} failed, max retries exceed, drop. {e}"
                                     );
+                                    segments_failed
+                                        .write()
+                                        .unwrap()
+                                        .push(segment.file_name().to_string());
                                     return;
                                 }
 
@@ -90,7 +97,9 @@ where
                     // semaphore is only used to limit download concurrency, so drop it directly after fetching
                     drop(permit);
 
-                    let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed) + 1;
+                    let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed)
+                        + 1
+                        + segments_failed.read().unwrap().len();
                     let total = segments_total.load(Ordering::Relaxed);
                     let percentage = if total == 0 {
                         0.
@@ -111,6 +120,14 @@ where
             .acquire_many(self.concurrency.get() as u32)
             .await
             .unwrap();
+
+        let failed = self.failed.read().unwrap();
+        if !failed.is_empty() {
+            log::error!("Failed to download {} segments:", failed.len());
+            for segment in failed.iter() {
+                log::error!("  - {}", segment);
+            }
+        }
 
         Ok(())
     }
