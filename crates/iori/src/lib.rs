@@ -2,6 +2,7 @@ pub mod consumer;
 pub mod downloader;
 pub mod error;
 pub mod hls;
+pub mod merge;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -40,6 +41,7 @@ pub trait StreamingSource {
     fn fetch_segment(
         &self,
         segment: &Self::Segment,
+        will_retry: bool,
     ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send;
 }
 

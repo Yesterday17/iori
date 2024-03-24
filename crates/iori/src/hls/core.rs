@@ -124,7 +124,7 @@ impl HlsSegmentFetcher {
         Self { client, consumer }
     }
 
-    pub async fn fetch<S>(&self, segment: &S) -> IoriResult<()>
+    pub async fn fetch<S>(&self, segment: &S, will_retry: bool) -> IoriResult<()>
     where
         S: M3u8StreamingSegment + Send + Sync + 'static,
     {
@@ -147,6 +147,9 @@ impl HlsSegmentFetcher {
         }
         let response = request.send().await?;
         if !response.status().is_success() {
+            if !will_retry {
+                tmp_file.fail().await?;
+            }
             return Err(IoriError::HttpError(response.status()));
         }
 

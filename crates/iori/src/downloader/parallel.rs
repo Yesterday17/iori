@@ -73,7 +73,7 @@ where
                 tokio::spawn(async move {
                     let filename = segment.file_name();
                     loop {
-                        let result = source.fetch_segment(&segment).await;
+                        let result = source.fetch_segment(&segment, retries > 0).await;
                         match result {
                             Ok(_) => break,
                             Err(e) => {

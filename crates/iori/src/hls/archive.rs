@@ -105,8 +105,8 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: &Self::Segment) -> IoriResult<()> {
-        self.segment.fetch(segment).await
+    async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
+        self.segment.fetch(segment, will_retry).await
     }
 }
 

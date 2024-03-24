@@ -44,7 +44,7 @@ pub struct ConsumerOutput {
     stream: ConsumerOutputStream,
     on_finish: Option<
         Box<
-            dyn FnOnce() -> Pin<Box<dyn Future<Output = IoriResult<()>> + Send + 'static>>
+            dyn FnOnce(bool) -> Pin<Box<dyn Future<Output = IoriResult<()>> + Send + 'static>>
                 + Send
                 + Sync
                 + 'static,
@@ -62,7 +62,7 @@ impl ConsumerOutput {
 
     pub fn on_finish<F>(mut self, on_finish: F) -> Self
     where
-        F: FnOnce() -> Pin<Box<dyn Future<Output = IoriResult<()>> + Send + 'static>>
+        F: FnOnce(bool) -> Pin<Box<dyn Future<Output = IoriResult<()>> + Send + 'static>>
             + Send
             + Sync
             + 'static,
@@ -75,7 +75,17 @@ impl ConsumerOutput {
         drop(self.stream);
 
         if let Some(on_finish) = self.on_finish {
-            on_finish().await?;
+            on_finish(false).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn fail(self) -> IoriResult<()> {
+        drop(self.stream);
+
+        if let Some(on_finish) = self.on_finish {
+            on_finish(true).await?;
         }
 
         Ok(())
