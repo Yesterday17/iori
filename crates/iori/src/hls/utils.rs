@@ -8,14 +8,20 @@ pub async fn load_m3u8(client: &Client, url: Url) -> IoriResult<(Url, MediaPlayl
     log::info!("Start fetching M3U8 file.");
 
     let mut retry = 3;
-    let m3u8_bytes = loop {
+    let m3u8_parsed = loop {
         if retry == 0 {
             return Err(IoriError::M3u8FetchError);
         }
 
         match client.get(url.clone()).send().await {
             Ok(resp) => match resp.bytes().await {
-                Ok(bytes) => break bytes,
+                Ok(m3u8_bytes) => match m3u8_rs::parse_playlist_res(&m3u8_bytes) {
+                    Ok(parsed) => break parsed,
+                    Err(error) => {
+                        log::warn!("Failed to parse M3U8 file: {error}");
+                        retry -= 1;
+                    }
+                },
                 Err(error) => {
                     log::warn!("Failed to fetch M3U8 file: {error}");
                     retry -= 1;
@@ -29,9 +35,7 @@ pub async fn load_m3u8(client: &Client, url: Url) -> IoriResult<(Url, MediaPlayl
     };
     log::info!("M3U8 file fetched.");
 
-    let parsed = m3u8_rs::parse_playlist_res(&m3u8_bytes)
-        .map_err(|_| IoriError::M3u8ParseError(String::from_utf8_lossy(&m3u8_bytes).to_string()))?;
-    match parsed {
+    match m3u8_parsed {
         Playlist::MasterPlaylist(pl) => {
             log::info!("Master playlist input detected. Auto selecting best quality streams.");
             let mut variants = pl.variants;
