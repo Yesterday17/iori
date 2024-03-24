@@ -3,7 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use iori::{consumer::Consumer, downloader::ParallelDownloader, hls::CommonM3u8LiveSource};
+use iori::{consumer::Consumer, download::ParallelDownloader, hls::CommonM3u8LiveSource};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

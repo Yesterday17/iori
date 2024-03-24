@@ -1,5 +1,5 @@
 pub mod consumer;
-pub mod downloader;
+pub mod download;
 pub mod error;
 pub mod hls;
 pub mod merge;

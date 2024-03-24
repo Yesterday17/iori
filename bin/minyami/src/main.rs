@@ -10,7 +10,7 @@ use clap::Parser;
 use fake_user_agent::get_chrome_rua;
 use iori::{
     consumer::Consumer,
-    downloader::ParallelDownloader,
+    download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
 };
 use iori_nicolive::source::NicoTimeshiftSource;

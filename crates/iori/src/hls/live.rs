@@ -92,7 +92,7 @@ impl StreamingSource for CommonM3u8LiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::downloader::SequencialDownloader;
+    use crate::download::SequencialDownloader;
 
     #[tokio::test]
     async fn test_download_live() -> IoriResult<()> {

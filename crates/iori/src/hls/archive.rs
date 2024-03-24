@@ -113,7 +113,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::downloader::SequencialDownloader;
+    use crate::download::SequencialDownloader;
 
     #[tokio::test]
     async fn test_download_archive() -> IoriResult<()> {
