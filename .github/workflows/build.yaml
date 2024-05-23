@@ -1,0 +1,77 @@
+name: Build
+on: [push]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: iori-x86_64-unknown-linux-gnu.tar.gz
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            name: iori-x86_64-unknown-linux-musl.tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: iori-x86_64-pc-windows-msvc.zip
+          - target: x86_64-apple-darwin
+            os: macOS-latest
+            name: iori-x86_64-apple-darwin.tar.gz
+
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v2.4.0
+
+      - name: Setup | Cache Cargo
+        uses: actions/cache@v2.1.7
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup | Cache Cargo Target
+        uses: actions/cache@v2.1.7
+        with:
+          path: target
+          key: ${{ matrix.target }}-cargo-target
+
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+          target: ${{ matrix.target }}
+
+      - name: Build | Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --locked --all-features --target ${{ matrix.target }}"
+          use-cross: ${{ matrix.os == 'ubuntu-latest' }}
+
+      - name: PostBuild | Prepare artifacts [Windows]
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          strip minyami.exe
+          7z a ../../../${{ matrix.name }} minyami.exe
+          cd -
+      - name: PostBuild | Prepare artifacts [-nix]
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          strip minyami || true
+          tar czvf ../../../${{ matrix.name }} minyami
+          cd -
+
+      - name: Deploy | Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
