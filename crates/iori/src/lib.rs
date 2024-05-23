@@ -1,4 +1,5 @@
 pub mod consumer;
+pub mod dash;
 pub mod download;
 pub mod error;
 pub mod hls;

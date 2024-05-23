@@ -36,7 +36,7 @@ pub trait M3u8StreamingSegment: StreamingSegment {
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange>;
 }
 
-impl crate::StreamingSegment for M3u8Segment {
+impl StreamingSegment for M3u8Segment {
     fn sequence(&self) -> u64 {
         self.sequence
     }

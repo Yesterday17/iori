@@ -29,6 +29,9 @@ pub enum IoriError {
 
     #[error(transparent)]
     RequestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    MpdParseError(#[from] dash_mpd::DashMpdError),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;
