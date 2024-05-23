@@ -27,10 +27,7 @@ tempfile = "3.10.0"
 rand = "0.8.5"
 thiserror = "1.0.57"
 url = "2.5.0"
-dash-mpd = { version = "0.15.0", features = [
-    "native-tls",
-    "compression",
-    "socks",
+dash-mpd = { version = "0.15.0", default-features = false, features = [
     "scte35",
 ] }
 once_cell = "1.19.0"
