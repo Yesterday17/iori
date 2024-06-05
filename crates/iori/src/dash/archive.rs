@@ -39,37 +39,30 @@ impl StreamingSource for CommonDashArchiveSource {
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let text = include_str!("../../tests/fixtures/a2d-tv.mpd");
-        // let text = self
-        //     .client
-        //     .get(&self.mpd)
-        //     .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
-        //     .send()
-        //     .await
-        //     .expect("requesting MPD content")
-        //     .text()
-        //     .await
-        //     .expect("fetching MPD content");
+        let text = self
+            .client
+            .get(self.mpd.as_ref())
+            .header("Accept", "application/dash+xml,video/vnd.mpeg.dash.mpd")
+            .send()
+            .await
+            .expect("requesting MPD content")
+            .text()
+            .await
+            .expect("fetching MPD content");
         let mpd = dash_mpd::parse(&text)?;
 
         // let Some("static") = mpd.mpdtype.map(|r| r.as_str()) else {
         //     panic!("only static MPD is supported");
         // };
 
-        // 分片最大时长
         let max_segment_duration = mpd.maxSegmentDuration;
-        // 分片从该时间起可用
         let availability_start_time = mpd.availabilityStartTime;
-        // 在availabilityStartTime的前XX段时间，分片有效
         let time_shift_buffer_depth = mpd.timeShiftBufferDepth;
-        // MPD发布时间
         let publish_time = mpd.publishTime;
-        // MPD总时长
         let media_presentation_duration = mpd.mediaPresentationDuration;
 
         let mut base_url = self.mpd.clone();
         if let Some(mpd_base_url) = mpd.base_url.get(0) {
-            // 读取在MPD开头定义的<BaseURL>，并替换本身的URL
             base_url = merge_baseurls(&base_url, &mpd_base_url.base)?;
         }
 
@@ -133,27 +126,37 @@ impl StreamingSource for CommonDashArchiveSource {
                         if let Some(initialization) = segment_base.initialization {
                             if let Some(source_url) = initialization.sourceURL {
                                 // let url = base_url;
+                                let init_url = base_url.join(&source_url)?;
+                                let init_range = initialization.range.as_deref();
+
+                                // TODO: set init
                             } else {
                                 //
                             }
                         }
                     }
 
-                    if let Some(segment_template) = representation.SegmentTemplate {
+                    let inner_segment_template = representation.SegmentTemplate.as_ref();
+                    let outer_segment_template = adaptation.SegmentTemplate.as_ref();
+
+                    if let Some(segment_template) =
+                        inner_segment_template.or(outer_segment_template)
+                    {
                         println!("segment_template: {segment_template:?}");
                         let time_scale = segment_template.timescale.unwrap_or(1);
-                        if let Some(initialization) = segment_template.initialization {
+                        if let Some(ref initialization) = segment_template.initialization {
                             let initialization = resolve_url_template(&initialization, &params);
                             let url = merge_baseurls(&base_url, &initialization)?;
+                            println!("initialization url: {url}");
 
-                            todo!("fetch initialization segment");
+                            // todo!("fetch initialization segment");
                         }
 
-                        if let Some(media_template) = segment_template.media {
+                        if let Some(ref media_template) = segment_template.media {
                             let mut current_time = 0;
                             let mut segment_number = 1;
-                            if let Some(segment_timeline) = segment_template.SegmentTimeline {
-                                for segment in segment_timeline.segments {
+                            if let Some(ref segment_timeline) = segment_template.SegmentTimeline {
+                                for segment in segment_timeline.segments.iter() {
                                     if let Some(t) = segment.t {
                                         current_time = t;
                                     }
@@ -165,6 +168,7 @@ impl StreamingSource for CommonDashArchiveSource {
                                         params.insert("Number", segment_number.to_string());
                                         let media = resolve_url_template(&media_template, &params);
                                         let url = merge_baseurls(&base_url, &media)?;
+                                        println!("media: {media}");
                                         println!("url: {url}");
 
                                         segment_number += 1;
