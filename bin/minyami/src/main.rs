@@ -10,6 +10,7 @@ use clap::Parser;
 use fake_user_agent::get_chrome_rua;
 use iori::{
     consumer::Consumer,
+    dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
 };
@@ -129,6 +130,11 @@ pub struct MinyamiArgs {
     #[clap(long)]
     pipe: bool,
 
+    /// [Iori Argument]
+    /// Download with dash format
+    #[clap(long)]
+    dash: bool,
+
     /// m3u8 file path
     m3u8: String,
 }
@@ -232,6 +238,10 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let source = NicoTimeshiftSource::new(client, wss_url, consumer).await?;
+            let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
+            downloader.download().await?;
+        } else if args.dash {
+            let source = CommonDashArchiveSource::new(client, args.m3u8, args.key, consumer)?;
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
             downloader.download().await?;
         } else {

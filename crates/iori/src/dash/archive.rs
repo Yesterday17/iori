@@ -101,66 +101,71 @@ impl StreamingSource for CommonDashArchiveSource {
                 let mime_type = adaptation.contentType.or_else(|| adaptation.mimeType);
                 let frame_rate = adaptation.frameRate; // TODO: GetFrameRate
 
-                for representation in adaptation.representations {
-                    let base_url = if let Some(mpd_base_url) = representation.BaseURL.get(0) {
-                        Cow::Owned(merge_baseurls(&base_url, &mpd_base_url.base)?)
-                    } else {
-                        base_url.clone()
-                    };
+                let representation = adaptation
+                    .representations
+                    .into_iter()
+                    // TODO: better representation select logic
+                    .max_by_key(|r| r.bandwidth.unwrap_or(0))
+                    .unwrap();
 
-                    let mime_type = mime_type
-                        .clone() // TODO: do not clone here
-                        .or_else(|| representation.contentType)
-                        .or_else(|| representation.mimeType);
+                let base_url = if let Some(mpd_base_url) = representation.BaseURL.get(0) {
+                    Cow::Owned(merge_baseurls(&base_url, &mpd_base_url.base)?)
+                } else {
+                    base_url.clone()
+                };
 
-                    let bandwidth = representation.bandwidth.unwrap_or(0);
-                    let codecs = representation
-                        .codecs
-                        .as_deref()
-                        .or_else(|| adaptation.codecs.as_deref());
-                    let language = representation
-                        .lang
-                        .as_deref()
-                        .or_else(|| adaptation.lang.as_deref());
-                    let frame_rate = frame_rate
-                        .as_deref()
-                        .or_else(|| representation.frameRate.as_deref());
-                    let resolution = representation
-                        .width
-                        .and_then(|w| representation.height.map(|h| (w, h)))
-                        .map(|(w, h)| format!("{w}x{h}"));
+                let mime_type = mime_type
+                    .clone() // TODO: do not clone here
+                    .or_else(|| representation.contentType)
+                    .or_else(|| representation.mimeType);
 
-                    let mut params = HashMap::new();
-                    if let Some(representation_id) = representation.id.clone() {
-                        params.insert("RepresentationID", representation_id);
-                    }
-                    params.insert("Bandwidth", bandwidth.to_string());
+                let bandwidth = representation.bandwidth.unwrap_or(0);
+                let codecs = representation
+                    .codecs
+                    .as_deref()
+                    .or_else(|| adaptation.codecs.as_deref());
+                let language = representation
+                    .lang
+                    .as_deref()
+                    .or_else(|| adaptation.lang.as_deref());
+                let frame_rate = frame_rate
+                    .as_deref()
+                    .or_else(|| representation.frameRate.as_deref());
+                let resolution = representation
+                    .width
+                    .and_then(|w| representation.height.map(|h| (w, h)))
+                    .map(|(w, h)| format!("{w}x{h}"));
 
-                    // 1. TODO: SegmentBase
-                    if let Some(segment_base) = representation.SegmentBase {
-                        if let Some(initialization) = segment_base.initialization {
-                            if let Some(source_url) = initialization.sourceURL {
-                                // let url = base_url;
-                                let init_url = base_url.join(&source_url)?;
-                                let init_range = initialization.range.as_deref();
+                let mut params = HashMap::new();
+                if let Some(representation_id) = representation.id.clone() {
+                    params.insert("RepresentationID", representation_id);
+                }
+                params.insert("Bandwidth", bandwidth.to_string());
 
-                                // TODO: set init
-                            } else {
-                                //
-                            }
+                let mut segments = Vec::new();
+
+                // 1. TODO: SegmentBase
+                if let Some(segment_base) = representation.SegmentBase {
+                    if let Some(initialization) = segment_base.initialization {
+                        if let Some(source_url) = initialization.sourceURL {
+                            // let url = base_url;
+                            let init_url = base_url.join(&source_url)?;
+                            let init_range = initialization.range.as_deref();
+
+                            // TODO: set init
+                        } else {
+                            //
                         }
                     }
+                }
 
-                    let inner_segment_template = representation.SegmentTemplate.as_ref();
-                    let outer_segment_template = adaptation.SegmentTemplate.as_ref();
+                let inner_segment_template = representation.SegmentTemplate.as_ref();
+                let outer_segment_template = adaptation.SegmentTemplate.as_ref();
 
-                    if let Some(segment_template) =
-                        inner_segment_template.or(outer_segment_template)
-                    {
-                        let time_scale = segment_template.timescale.unwrap_or(1);
-                        let initial_segment = if let Some(ref initialization) =
-                            segment_template.initialization
-                        {
+                if let Some(segment_template) = inner_segment_template.or(outer_segment_template) {
+                    let time_scale = segment_template.timescale.unwrap_or(1);
+                    let initial_segment =
+                        if let Some(ref initialization) = segment_template.initialization {
                             let initialization = resolve_url_template(&initialization, &params);
                             let url = merge_baseurls(&base_url, &initialization)?;
                             let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
@@ -170,47 +175,47 @@ impl StreamingSource for CommonDashArchiveSource {
                             None
                         };
 
-                        if let Some(ref media_template) = segment_template.media {
-                            let mut current_time = 0;
-                            let mut segment_number = 1;
-                            if let Some(ref segment_timeline) = segment_template.SegmentTimeline {
-                                for segment in segment_timeline.segments.iter() {
-                                    if let Some(t) = segment.t {
-                                        current_time = t;
-                                    }
+                    if let Some(ref media_template) = segment_template.media {
+                        let mut current_time = 0;
+                        let mut segment_number = 1;
+                        if let Some(ref segment_timeline) = segment_template.SegmentTimeline {
+                            for segment in segment_timeline.segments.iter() {
+                                if let Some(t) = segment.t {
+                                    current_time = t;
+                                }
 
-                                    let duration = segment.d;
-                                    let repeat = segment.r.unwrap_or(0);
-                                    for _ in 0..(repeat + 1) {
-                                        params.insert("Time", current_time.to_string());
-                                        params.insert("Number", segment_number.to_string());
-                                        let filename =
-                                            resolve_url_template(&media_template, &params);
-                                        let url = merge_baseurls(&base_url, &filename)?;
+                                let duration = segment.d;
+                                let repeat = segment.r.unwrap_or(0);
+                                for _ in 0..(repeat + 1) {
+                                    params.insert("Time", current_time.to_string());
+                                    params.insert("Number", segment_number.to_string());
+                                    let filename = resolve_url_template(&media_template, &params);
+                                    let url = merge_baseurls(&base_url, &filename)?;
 
-                                        let segment = DashSegment {
-                                            url,
-                                            filename: filename.replace("/", "__"),
-                                            initial_segment: initial_segment.clone(),
-                                            key: self.key.clone(),
-                                            byte_range: None,
-                                            sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
-                                        };
-                                        sender.send(Ok(vec![segment])).unwrap();
+                                    let segment = DashSegment {
+                                        url,
+                                        filename: filename.replace("/", "__"),
+                                        initial_segment: initial_segment.clone(),
+                                        key: self.key.clone(),
+                                        byte_range: None,
+                                        sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+                                    };
+                                    segments.push(segment);
 
-                                        segment_number += 1;
-                                        current_time += duration;
-                                    }
+                                    segment_number += 1;
+                                    current_time += duration;
                                 }
                             }
-                        } else {
-                            todo!()
                         }
+                    } else {
+                        todo!()
                     }
 
                     // segment.url =
                     //     merge_baseurls(&base_url, &resolve_url_template(&segment.url, &params))?;
                 }
+
+                sender.send(Ok(segments)).unwrap();
             }
         }
 
