@@ -1,12 +1,7 @@
-use std::{
-    num::NonZeroU32,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use iori::{
-    consumer::Consumer,
-    dash::archive::CommonDashArchiveSource,
-    download::{ParallelDownloader, SequencialDownloader},
+    consumer::Consumer, dash::archive::CommonDashArchiveSource, download::SequencialDownloader,
 };
 
 #[tokio::main]

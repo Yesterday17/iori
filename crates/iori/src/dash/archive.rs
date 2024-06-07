@@ -149,12 +149,17 @@ impl StreamingSource for CommonDashArchiveSource {
                         inner_segment_template.or(outer_segment_template)
                     {
                         let time_scale = segment_template.timescale.unwrap_or(1);
-                        if let Some(ref initialization) = segment_template.initialization {
+                        let initial_segment = if let Some(ref initialization) =
+                            segment_template.initialization
+                        {
                             let initialization = resolve_url_template(&initialization, &params);
                             let url = merge_baseurls(&base_url, &initialization)?;
-
+                            let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
+                            Some(Arc::new(bytes))
                             // todo!("fetch initialization segment");
-                        }
+                        } else {
+                            None
+                        };
 
                         if let Some(ref media_template) = segment_template.media {
                             let mut current_time = 0;
@@ -177,7 +182,7 @@ impl StreamingSource for CommonDashArchiveSource {
                                         let segment = DashSegment {
                                             url,
                                             filename: filename.replace("/", "__"),
-                                            initial_segment: None, // TODO: initial segment
+                                            initial_segment: initial_segment.clone(),
                                             byte_range: None,
                                             sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                                         };
