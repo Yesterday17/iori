@@ -28,6 +28,10 @@ impl StreamingSegment for DashSegment {
     fn initial_segment(&self) -> Option<Arc<Vec<u8>>> {
         self.initial_segment.clone()
     }
+
+    fn key(&self) -> Option<Arc<IoriKey>> {
+        self.key.clone()
+    }
 }
 
 impl RemoteStreamingSegment for DashSegment {
