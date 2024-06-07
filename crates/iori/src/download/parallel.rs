@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use tokio::sync::{mpsc, Semaphore};
+use tokio::sync::Semaphore;
 
 use crate::{error::IoriResult, StreamingSegment, StreamingSource};
 
@@ -45,13 +45,14 @@ where
         }
     }
 
-    pub async fn download(&mut self) -> IoriResult<()> {
+    pub async fn download(&mut self) -> IoriResult<Vec<S::SegmentInfo>> {
         log::info!(
             "Start downloading with {} thread(s).",
             self.concurrency.get()
         );
 
-        let mut receiver = self.get_receiver().await?;
+        let mut receiver = self.source.fetch_info().await?;
+        let mut segments_info = Vec::new();
         while let Some(segments) = receiver.recv().await {
             // If the playlist is not available, the downloader will be stopped.
             if let Err(e) = segments {
@@ -64,6 +65,10 @@ where
             log::info!("{} new segments were added to queue.", segments.len());
 
             for segment in segments {
+                if let Some(segment_info) = self.source.fetch_segment_info(&segment).await {
+                    segments_info.push(segment_info);
+                }
+
                 let permit = self.permits.clone().acquire_owned().await.unwrap();
                 let segments_downloaded = self.downloaded.clone();
                 let segments_failed = self.failed.clone();
@@ -129,12 +134,6 @@ where
             }
         }
 
-        Ok(())
-    }
-
-    async fn get_receiver(
-        &mut self,
-    ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<S::Segment>>>> {
-        self.source.fetch_info().await
+        Ok(segments_info)
     }
 }

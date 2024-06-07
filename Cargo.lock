@@ -830,6 +830,7 @@ dependencies = [
  "rand",
  "regex",
  "reqwest",
+ "serde",
  "tempfile",
  "thiserror",
  "tokio",
@@ -1866,6 +1867,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

@@ -34,6 +34,7 @@ impl CommonM3u8LiveSource {
 
 impl StreamingSource for CommonM3u8LiveSource {
     type Segment = M3u8Segment;
+    type SegmentInfo = ();
 
     async fn fetch_info(
         &self,

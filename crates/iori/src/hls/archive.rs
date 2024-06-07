@@ -80,6 +80,7 @@ impl CommonM3u8ArchiveSource {
 
 impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
+    type SegmentInfo = ();
 
     async fn fetch_info(
         &self,

@@ -31,6 +31,7 @@ pub mod merge;
 /// └───────────────────────┘                └────────────────────┘
 pub trait StreamingSource {
     type Segment: StreamingSegment + Send + 'static;
+    type SegmentInfo: serde::Serialize + serde::de::DeserializeOwned + Send + 'static;
 
     // TODO: maybe this method can be sync?
     fn fetch_info(
@@ -46,6 +47,13 @@ pub trait StreamingSource {
         segment: &Self::Segment,
         will_retry: bool,
     ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send;
+
+    fn fetch_segment_info(
+        &self,
+        _segment: &Self::Segment,
+    ) -> impl std::future::Future<Output = Option<Self::SegmentInfo>> + Send {
+        async move { None }
+    }
 }
 
 pub trait StreamingSegment {

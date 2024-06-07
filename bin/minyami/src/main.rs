@@ -1,4 +1,5 @@
 use std::{
+    env::current_dir,
     num::NonZeroU32,
     path::PathBuf,
     str::FromStr,
@@ -13,6 +14,7 @@ use iori::{
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
+    merge::mkvmerge_dash,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
@@ -201,7 +203,7 @@ async fn main() -> anyhow::Result<()> {
         let temp_path = args.temp_dir()?;
         let started_at = SystemTime::now();
         let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
-        temp_path.join(format!("minyami_{}", started_at))
+        temp_path.join(format!("minyami_{started_at}"))
     };
 
     if args.live {
@@ -217,7 +219,7 @@ async fn main() -> anyhow::Result<()> {
         downloader.download().await?;
     } else {
         // Archive Downloader
-        let consumer = Consumer::file(output_dir)?;
+        let consumer = Consumer::file(&output_dir)?;
 
         if args.m3u8.contains("dmc.nico") {
             log::info!("Enhanced mode for Nico-TS enabled");
@@ -243,7 +245,15 @@ async fn main() -> anyhow::Result<()> {
         } else if args.dash {
             let source = CommonDashArchiveSource::new(client, args.m3u8, args.key, consumer)?;
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-            downloader.download().await?;
+            let segments = downloader.download().await?;
+            if !args.no_merge {
+                let target_file = current_dir()?.join(args.output);
+                mkvmerge_dash(segments, &output_dir, target_file).await?;
+
+                if !args.keep {
+                    tokio::fs::remove_dir_all(&output_dir).await?;
+                }
+            }
         } else {
             let source = CommonM3u8ArchiveSource::new(
                 client,

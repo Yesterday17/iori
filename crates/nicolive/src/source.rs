@@ -148,6 +148,7 @@ const NICO_SEGMENT_OFFSET_REGEXP: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(\d{3
 
 impl StreamingSource for NicoTimeshiftSource {
     type Segment = NicoTimeshiftSegment;
+    type SegmentInfo = ();
 
     async fn fetch_info(
         &self,

@@ -14,6 +14,8 @@ use url::Url;
 use super::{
     // core::{HlsSegmentFetcher, M3u8Source},
     DashSegment,
+    DashSegmentInfo,
+    DashSegmentType,
 };
 use crate::{
     common::CommonSegmentFetcher, consumer::Consumer, decrypt::IoriKey, error::IoriResult,
@@ -57,6 +59,7 @@ impl CommonDashArchiveSource {
 
 impl StreamingSource for CommonDashArchiveSource {
     type Segment = DashSegment;
+    type SegmentInfo = DashSegmentInfo;
 
     async fn fetch_info(
         &self,
@@ -195,6 +198,9 @@ impl StreamingSource for CommonDashArchiveSource {
                                     let segment = DashSegment {
                                         url,
                                         filename: filename.replace("/", "__"),
+                                        r#type: DashSegmentType::from_mime_type(
+                                            mime_type.as_deref(),
+                                        ),
                                         initial_segment: initial_segment.clone(),
                                         key: self.key.clone(),
                                         byte_range: None,
@@ -224,6 +230,15 @@ impl StreamingSource for CommonDashArchiveSource {
 
     async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
         self.fetch.fetch(segment, will_retry).await
+    }
+
+    async fn fetch_segment_info(&self, segment: &Self::Segment) -> Option<Self::SegmentInfo> {
+        Some(DashSegmentInfo {
+            url: segment.url.clone(),
+            filename: segment.filename.clone(),
+            r#type: segment.r#type,
+            sequence: segment.sequence,
+        })
     }
 }
 
