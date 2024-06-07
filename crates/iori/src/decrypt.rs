@@ -12,7 +12,7 @@ use m3u8_rs::KeyMethod;
 
 use crate::error::{IoriError, IoriResult};
 
-pub enum M3u8Key {
+pub enum IoriKey {
     Aes128 {
         key: [u8; 16],
         iv: [u8; 16],
@@ -23,7 +23,7 @@ pub enum M3u8Key {
     },
 }
 
-impl M3u8Key {
+impl IoriKey {
     pub async fn from_key(
         client: &reqwest::Client,
         key: &m3u8_rs::Key,
@@ -97,15 +97,15 @@ impl M3u8Key {
         })
     }
 
-    pub fn to_decryptor(&self) -> M3u8Decryptor {
+    pub fn to_decryptor(&self) -> IoriDecryptor {
         match self {
-            M3u8Key::Aes128 { key, iv } => {
-                M3u8Decryptor::Aes128(cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into()))
+            IoriKey::Aes128 { key, iv } => {
+                IoriDecryptor::Aes128(cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into()))
             }
-            M3u8Key::Mp4Decrypt {
+            IoriKey::Mp4Decrypt {
                 keys,
                 shaka_packager_command,
-            } => M3u8Decryptor::Mp4Decrypt {
+            } => IoriDecryptor::Mp4Decrypt {
                 keys: keys.clone(),
                 shaka_packager_command: shaka_packager_command.clone(),
             },
@@ -113,7 +113,7 @@ impl M3u8Key {
     }
 }
 
-pub enum M3u8Decryptor {
+pub enum IoriDecryptor {
     Aes128(cbc::Decryptor<aes::Aes128>),
     Mp4Decrypt {
         keys: HashMap<String, String>,
@@ -121,11 +121,11 @@ pub enum M3u8Decryptor {
     },
 }
 
-impl M3u8Decryptor {
+impl IoriDecryptor {
     pub fn decrypt(self, data: &[u8]) -> IoriResult<Vec<u8>> {
         Ok(match self {
-            M3u8Decryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data)?,
-            M3u8Decryptor::Mp4Decrypt {
+            IoriDecryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data)?,
+            IoriDecryptor::Mp4Decrypt {
                 keys,
                 shaka_packager_command,
             } => {

@@ -18,8 +18,6 @@ pub struct DashSegment {
 
     /// Sequence id allocated by the downloader, starts from 0
     pub sequence: u64,
-    /// Media sequence id from the m3u8 file
-    pub media_sequence: u64,
 }
 
 // pub trait M3u8StreamingSegment: StreamingSegment {
@@ -37,6 +35,10 @@ impl StreamingSegment for DashSegment {
     fn file_name(&self) -> &str {
         self.filename.as_str()
     }
+
+    fn initial_segment(&self) -> Option<Arc<Vec<u8>>> {
+        self.initial_segment.clone()
+    }
 }
 
 // impl M3u8StreamingSegment for DashSegment {
@@ -47,12 +49,4 @@ impl StreamingSegment for DashSegment {
 //     // fn key(&self) -> Option<Arc<decrypt::M3u8Key>> {
 //     //     self.key.clone()
 //     // }
-
-//     fn initial_segment(&self) -> Option<Arc<Vec<u8>>> {
-//         self.initial_segment.clone()
-//     }
-
-//     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
-//         self.byte_range.clone()
-//     }
 // }

@@ -1,5 +1,7 @@
+pub mod common;
 pub mod consumer;
 pub mod dash;
+pub mod decrypt;
 pub mod download;
 pub mod error;
 pub mod hls;
@@ -47,7 +49,34 @@ pub trait StreamingSource {
 }
 
 pub trait StreamingSegment {
+    /// Sequence ID of the segment, starts from 0
     fn sequence(&self) -> u64;
 
+    /// File name of the segment
     fn file_name(&self) -> &str;
+
+    /// Optional initial segment data
+    fn initial_segment(&self) -> Option<std::sync::Arc<Vec<u8>>> {
+        None
+    }
+
+    /// Optional key for decryption
+    fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>> {
+        None
+    }
+}
+
+pub trait RemoteStreamingSegment {
+    fn url(&self) -> reqwest::Url;
+
+    fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
+        None
+    }
+}
+
+pub trait ToSegmentData {
+    fn to_segment(
+        &self,
+        client: std::sync::Arc<reqwest::Client>,
+    ) -> impl std::future::Future<Output = error::IoriResult<bytes::Bytes>> + Send;
 }

@@ -3,15 +3,12 @@ use std::{num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc};
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use super::{
-    core::{HlsSegmentFetcher, M3u8Source},
-    M3u8Segment,
-};
-use crate::{consumer::Consumer, error::IoriResult, StreamingSource};
+use super::{core::M3u8Source, M3u8Segment};
+use crate::{common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8ArchiveSource {
     playlist: Arc<M3u8Source>,
-    segment: Arc<HlsSegmentFetcher>,
+    segment: Arc<CommonSegmentFetcher>,
     range: SegmentRange,
 }
 
@@ -75,7 +72,7 @@ impl CommonM3u8ArchiveSource {
                 key,
                 shaka_packager_command,
             )),
-            segment: Arc::new(HlsSegmentFetcher::new(client, consumer)),
+            segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
             range,
         }
     }

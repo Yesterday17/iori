@@ -9,13 +9,9 @@ use std::{
 
 use m3u8_rs::MediaPlaylist;
 use reqwest::{Client, Url};
-use tokio::io::AsyncWriteExt;
 
-use super::{decrypt::M3u8Key, utils::load_m3u8, M3u8Segment, M3u8StreamingSegment};
-use crate::{
-    consumer::Consumer,
-    error::{IoriError, IoriResult},
-};
+use super::{utils::load_m3u8, M3u8Segment};
+use crate::{decrypt::IoriKey, error::IoriResult};
 
 /// Core part to perform network operations
 pub struct M3u8Source {
@@ -58,7 +54,7 @@ impl M3u8Source {
         let mut segments = Vec::with_capacity(playlist.segments.len());
         for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
-                key = M3u8Key::from_key(
+                key = IoriKey::from_key(
                     &self.client,
                     k,
                     &playlist_url,
@@ -111,70 +107,5 @@ impl M3u8Source {
         }
 
         Ok((segments, playlist_url, playlist))
-    }
-}
-
-pub struct HlsSegmentFetcher {
-    client: Arc<Client>,
-    consumer: Consumer,
-}
-
-impl HlsSegmentFetcher {
-    pub fn new(client: Arc<Client>, consumer: Consumer) -> Self {
-        Self { client, consumer }
-    }
-
-    pub async fn fetch<S>(&self, segment: &S, will_retry: bool) -> IoriResult<()>
-    where
-        S: M3u8StreamingSegment + Send + Sync + 'static,
-    {
-        let tmp_file = self.consumer.open_writer(segment).await?;
-        let mut tmp_file = match tmp_file {
-            Some(f) => f,
-            None => return Ok(()),
-        };
-
-        let mut request = self.client.get(segment.url());
-        if let Some(byte_range) = segment.byte_range() {
-            // offset = 0, length = 1024
-            // Range: bytes=0-1023
-            //
-            // start = offset
-            let start = byte_range.offset.unwrap_or(0);
-            // end = start + length - 1
-            let end = start + byte_range.length - 1;
-            request = request.header("Range", format!("bytes={}-{}", start, end));
-        }
-        let response = request.send().await?;
-        if !response.status().is_success() {
-            if !will_retry {
-                tmp_file.fail().await?;
-            }
-            return Err(IoriError::HttpError(response.status()));
-        }
-
-        let bytes = response.bytes().await?;
-        // TODO: use bytes_stream to improve performance
-        // .bytes_stream();
-        let decryptor = segment.key().map(|key| key.to_decryptor());
-        if let Some(decryptor) = decryptor {
-            let bytes = if let Some(initial_segment) = segment.initial_segment() {
-                let mut result = initial_segment.to_vec();
-                result.extend_from_slice(&bytes);
-                result
-            } else {
-                bytes.to_vec()
-            };
-            let bytes = decryptor.decrypt(&bytes)?;
-            tmp_file.write_all(&bytes).await?;
-        } else {
-            if let Some(initial_segment) = segment.initial_segment() {
-                tmp_file.write_all(&initial_segment).await?;
-            }
-            tmp_file.write_all(&bytes).await?;
-        }
-
-        tmp_file.finish().await?;
-        Ok(())
     }
 }

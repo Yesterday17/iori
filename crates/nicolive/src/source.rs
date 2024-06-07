@@ -4,10 +4,8 @@ use std::sync::{
 };
 
 use iori::{
-    consumer::Consumer,
-    error::IoriResult,
-    hls::{m3u8_rs::ByteRange, utils::load_m3u8, HlsSegmentFetcher, M3u8Key, M3u8StreamingSegment},
-    StreamingSegment, StreamingSource,
+    common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, hls::utils::load_m3u8,
+    RemoteStreamingSegment, StreamingSegment, StreamingSource,
 };
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
@@ -42,7 +40,7 @@ impl StreamingSegment for NicoTimeshiftSegment {
     }
 }
 
-impl M3u8StreamingSegment for NicoTimeshiftSegment {
+impl RemoteStreamingSegment for NicoTimeshiftSegment {
     fn url(&self) -> reqwest::Url {
         let host = self.host.read().clone();
         let token = self.token.read().clone();
@@ -66,26 +64,15 @@ impl M3u8StreamingSegment for NicoTimeshiftSegment {
 
         url
     }
-
-    fn key(&self) -> Option<Arc<M3u8Key>> {
-        None
-    }
-
-    fn initial_segment(&self) -> Option<Arc<Vec<u8>>> {
-        None
-    }
-
-    fn byte_range(&self) -> Option<ByteRange> {
-        None
-    }
 }
+
 pub struct NicoTimeshiftSource {
     client: Arc<Client>,
 
     m3u8_url: String,
     sequence: Arc<AtomicU64>,
 
-    segment: Arc<HlsSegmentFetcher>,
+    segment: Arc<CommonSegmentFetcher>,
 
     host: Arc<RwLock<Url>>,
     token: Arc<RwLock<String>>,
@@ -146,7 +133,7 @@ impl NicoTimeshiftSource {
             client: client.clone(),
             m3u8_url: stream.uri,
             sequence: Arc::new(AtomicU64::new(0)),
-            segment: Arc::new(HlsSegmentFetcher::new(client, consumer)),
+            segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
             host,
             token,
         })

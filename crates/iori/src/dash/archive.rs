@@ -1,4 +1,11 @@
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
 use reqwest::Client;
 use tokio::sync::mpsc;
@@ -16,18 +23,25 @@ pub struct CommonDashArchiveSource {
     client: Arc<Client>,
     mpd: Url,
     key: Option<String>,
-    // consumer: Consumer,
+    sequence: AtomicU64,
+    consumer: Consumer,
 }
 
 impl CommonDashArchiveSource {
-    pub fn new(client: Client, mpd: String, key: Option<String>) -> Self {
+    pub fn new(
+        client: Client,
+        mpd: String,
+        key: Option<String>,
+        consumer: Consumer,
+    ) -> IoriResult<Self> {
         let client = Arc::new(client);
-        Self {
+        Ok(Self {
             client,
-            mpd: Url::parse(&mpd).expect("parsing MPD URL"),
+            mpd: Url::parse(&mpd)?,
             key,
-            // consumer,
-        }
+            sequence: AtomicU64::new(0),
+            consumer,
+        })
     }
 }
 
@@ -55,21 +69,12 @@ impl StreamingSource for CommonDashArchiveSource {
         //     panic!("only static MPD is supported");
         // };
 
-        let max_segment_duration = mpd.maxSegmentDuration;
-        let availability_start_time = mpd.availabilityStartTime;
-        let time_shift_buffer_depth = mpd.timeShiftBufferDepth;
-        let publish_time = mpd.publishTime;
-        let media_presentation_duration = mpd.mediaPresentationDuration;
-
         let mut base_url = self.mpd.clone();
         if let Some(mpd_base_url) = mpd.base_url.get(0) {
             base_url = merge_baseurls(&base_url, &mpd_base_url.base)?;
         }
 
         for period in mpd.periods {
-            let period_duration = period.duration;
-            let period_id = period.id;
-
             let base_url = if let Some(mpd_base_url) = period.BaseURL.get(0) {
                 Cow::Owned(merge_baseurls(&base_url, &mpd_base_url.base)?)
             } else {
@@ -121,7 +126,7 @@ impl StreamingSource for CommonDashArchiveSource {
                     }
                     params.insert("Bandwidth", bandwidth.to_string());
 
-                    // 1. SegmentBase
+                    // 1. TODO: SegmentBase
                     if let Some(segment_base) = representation.SegmentBase {
                         if let Some(initialization) = segment_base.initialization {
                             if let Some(source_url) = initialization.sourceURL {
@@ -166,10 +171,18 @@ impl StreamingSource for CommonDashArchiveSource {
                                     for _ in 0..(repeat + 1) {
                                         params.insert("Time", current_time.to_string());
                                         params.insert("Number", segment_number.to_string());
-                                        let media = resolve_url_template(&media_template, &params);
-                                        let url = merge_baseurls(&base_url, &media)?;
-                                        println!("media: {media}");
-                                        println!("url: {url}");
+                                        let filename =
+                                            resolve_url_template(&media_template, &params);
+                                        let url = merge_baseurls(&base_url, &filename)?;
+
+                                        let segment = DashSegment {
+                                            url,
+                                            filename,
+                                            initial_segment: None, // TODO: initial segment
+                                            byte_range: None,
+                                            sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+                                        };
+                                        sender.send(Ok(vec![segment])).unwrap();
 
                                         segment_number += 1;
                                         current_time += duration;
@@ -267,14 +280,4 @@ fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> Strin
         }
     }
     result
-}
-
-#[tokio::test]
-async fn test_1() {
-    let source = CommonDashArchiveSource {
-        client: Arc::new(Client::new()),
-        mpd: "https://example.com/manifest.mpd".try_into().unwrap(),
-        key: None,
-    };
-    source.fetch_info().await.unwrap();
 }

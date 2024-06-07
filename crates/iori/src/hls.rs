@@ -1,6 +1,5 @@
 mod archive;
 mod core;
-mod decrypt;
 mod live;
 pub mod utils;
 
@@ -8,17 +7,16 @@ use std::sync::Arc;
 
 pub use archive::*;
 pub use core::*;
-pub use decrypt::M3u8Key;
 pub use live::CommonM3u8LiveSource;
 pub use m3u8_rs;
 
-use crate::StreamingSegment;
+use crate::{decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
 
 pub struct M3u8Segment {
     pub url: reqwest::Url,
     pub filename: String,
 
-    pub key: Option<Arc<decrypt::M3u8Key>>,
+    pub key: Option<Arc<IoriKey>>,
     pub initial_segment: Option<Arc<Vec<u8>>>,
 
     pub byte_range: Option<m3u8_rs::ByteRange>,
@@ -29,13 +27,6 @@ pub struct M3u8Segment {
     pub media_sequence: u64,
 }
 
-pub trait M3u8StreamingSegment: StreamingSegment {
-    fn url(&self) -> reqwest::Url;
-    fn key(&self) -> Option<Arc<decrypt::M3u8Key>>;
-    fn initial_segment(&self) -> Option<Arc<Vec<u8>>>;
-    fn byte_range(&self) -> Option<m3u8_rs::ByteRange>;
-}
-
 impl StreamingSegment for M3u8Segment {
     fn sequence(&self) -> u64 {
         self.sequence
@@ -44,19 +35,19 @@ impl StreamingSegment for M3u8Segment {
     fn file_name(&self) -> &str {
         self.filename.as_str()
     }
-}
-
-impl M3u8StreamingSegment for M3u8Segment {
-    fn url(&self) -> reqwest::Url {
-        self.url.clone()
-    }
-
-    fn key(&self) -> Option<Arc<decrypt::M3u8Key>> {
-        self.key.clone()
-    }
 
     fn initial_segment(&self) -> Option<Arc<Vec<u8>>> {
         self.initial_segment.clone()
+    }
+
+    fn key(&self) -> Option<Arc<IoriKey>> {
+        self.key.clone()
+    }
+}
+
+impl RemoteStreamingSegment for M3u8Segment {
+    fn url(&self) -> reqwest::Url {
+        self.url.clone()
     }
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
