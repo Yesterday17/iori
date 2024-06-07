@@ -10,7 +10,7 @@ use std::{
 use m3u8_rs::MediaPlaylist;
 use reqwest::{Client, Url};
 
-use super::{utils::load_m3u8, M3u8Segment};
+use super::{segment::M3u8Segment, utils::load_m3u8};
 use crate::{decrypt::IoriKey, error::IoriResult};
 
 /// Core part to perform network operations

@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use super::{core::M3u8Source, M3u8Segment};
+use super::{segment::M3u8Segment, source::M3u8Source};
 use crate::{common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, StreamingSource};
 
 pub struct CommonM3u8LiveSource {
