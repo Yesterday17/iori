@@ -17,13 +17,27 @@ pub enum IoriKey {
         key: [u8; 16],
         iv: [u8; 16],
     },
-    Mp4Decrypt {
+    ClearKey {
         keys: HashMap<String, String>,
+        /// Whether to use shaka_packager for decryption
         shaka_packager_command: Option<PathBuf>,
     },
 }
 
 impl IoriKey {
+    pub fn clear_key(key: String) -> IoriResult<Self> {
+        let (kid, key) = key
+            .split_once(':')
+            .ok_or_else(|| IoriError::InvalidClearKey(key.clone()))?;
+
+        let mut keys = HashMap::new();
+        keys.insert(kid.to_string(), key.to_string());
+        Ok(Self::ClearKey {
+            keys,
+            shaka_packager_command: None,
+        })
+    }
+
     pub async fn from_key(
         client: &reqwest::Client,
         key: &m3u8_rs::Key,
@@ -87,7 +101,7 @@ impl IoriKey {
                         panic!("No valid key found in {}", manual_key);
                     }
 
-                    Some(Self::Mp4Decrypt {
+                    Some(Self::ClearKey {
                         keys,
                         shaka_packager_command,
                     })
@@ -102,7 +116,7 @@ impl IoriKey {
             IoriKey::Aes128 { key, iv } => {
                 IoriDecryptor::Aes128(cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into()))
             }
-            IoriKey::Mp4Decrypt {
+            IoriKey::ClearKey {
                 keys,
                 shaka_packager_command,
             } => IoriDecryptor::Mp4Decrypt {

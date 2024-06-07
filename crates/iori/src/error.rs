@@ -9,6 +9,9 @@ pub enum IoriError {
     #[error("M3u8 fetch error")]
     M3u8FetchError,
 
+    #[error("Invalid clear key: {0}")]
+    InvalidClearKey(String),
+
     #[error("mp4decrypt error: {0}")]
     Mp4DecryptError(String),
 

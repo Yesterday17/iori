@@ -15,14 +15,17 @@ use super::{
     // core::{HlsSegmentFetcher, M3u8Source},
     DashSegment,
 };
-use crate::{common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, StreamingSource};
+use crate::{
+    common::CommonSegmentFetcher, consumer::Consumer, decrypt::IoriKey, error::IoriResult,
+    StreamingSource,
+};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 pub struct CommonDashArchiveSource {
     client: Arc<Client>,
     mpd: Url,
-    key: Option<String>,
+    key: Option<Arc<IoriKey>>,
     sequence: AtomicU64,
     fetch: CommonSegmentFetcher,
 }
@@ -36,6 +39,12 @@ impl CommonDashArchiveSource {
     ) -> IoriResult<Self> {
         let client = Arc::new(client);
         let fetch = CommonSegmentFetcher::new(client.clone(), consumer);
+        let key = if let Some(k) = key {
+            Some(Arc::new(IoriKey::clear_key(k)?))
+        } else {
+            None
+        };
+
         Ok(Self {
             client,
             mpd: Url::parse(&mpd)?,
@@ -183,6 +192,7 @@ impl StreamingSource for CommonDashArchiveSource {
                                             url,
                                             filename: filename.replace("/", "__"),
                                             initial_segment: initial_segment.clone(),
+                                            key: self.key.clone(),
                                             byte_range: None,
                                             sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                                         };

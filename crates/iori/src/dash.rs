@@ -1,16 +1,13 @@
 pub mod archive;
 
+use crate::{decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
 use std::sync::Arc;
-
-pub use m3u8_rs;
-
-use crate::{RemoteStreamingSegment, StreamingSegment};
 
 pub struct DashSegment {
     pub url: reqwest::Url,
     pub filename: String,
 
-    // pub key: Option<Arc<decrypt::IoriKey>>,
+    pub key: Option<Arc<IoriKey>>,
     pub initial_segment: Option<Arc<Vec<u8>>>,
 
     pub byte_range: Option<m3u8_rs::ByteRange>,
