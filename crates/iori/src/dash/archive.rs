@@ -15,7 +15,7 @@ use super::{
     // core::{HlsSegmentFetcher, M3u8Source},
     DashSegment,
 };
-use crate::{consumer::Consumer, error::IoriResult, StreamingSource};
+use crate::{common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, StreamingSource};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -24,7 +24,7 @@ pub struct CommonDashArchiveSource {
     mpd: Url,
     key: Option<String>,
     sequence: AtomicU64,
-    consumer: Consumer,
+    fetch: CommonSegmentFetcher,
 }
 
 impl CommonDashArchiveSource {
@@ -35,12 +35,13 @@ impl CommonDashArchiveSource {
         consumer: Consumer,
     ) -> IoriResult<Self> {
         let client = Arc::new(client);
+        let fetch = CommonSegmentFetcher::new(client.clone(), consumer);
         Ok(Self {
             client,
             mpd: Url::parse(&mpd)?,
             key,
             sequence: AtomicU64::new(0),
-            consumer,
+            fetch,
         })
     }
 }
@@ -147,12 +148,10 @@ impl StreamingSource for CommonDashArchiveSource {
                     if let Some(segment_template) =
                         inner_segment_template.or(outer_segment_template)
                     {
-                        println!("segment_template: {segment_template:?}");
                         let time_scale = segment_template.timescale.unwrap_or(1);
                         if let Some(ref initialization) = segment_template.initialization {
                             let initialization = resolve_url_template(&initialization, &params);
                             let url = merge_baseurls(&base_url, &initialization)?;
-                            println!("initialization url: {url}");
 
                             // todo!("fetch initialization segment");
                         }
@@ -177,7 +176,7 @@ impl StreamingSource for CommonDashArchiveSource {
 
                                         let segment = DashSegment {
                                             url,
-                                            filename,
+                                            filename: filename.replace("/", "__"),
                                             initial_segment: None, // TODO: initial segment
                                             byte_range: None,
                                             sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
@@ -204,7 +203,7 @@ impl StreamingSource for CommonDashArchiveSource {
     }
 
     async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
-        todo!()
+        self.fetch.fetch(segment, will_retry).await
     }
 }
 
