@@ -38,6 +38,10 @@ impl StreamingSegment for NicoTimeshiftSegment {
     fn file_name(&self) -> &str {
         &self.file_name
     }
+
+    fn key(&self) -> Option<Arc<iori::decrypt::IoriKey>> {
+        None
+    }
 }
 
 impl RemoteStreamingSegment for NicoTimeshiftSegment {
