@@ -4,13 +4,18 @@ use std::sync::{
 };
 
 use iori::{
-    common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, hls::utils::load_m3u8,
+    common::{CommonSegmentFetcher, SegmentType},
+    consumer::Consumer,
+    error::IoriResult,
+    hls::utils::load_m3u8,
+    merge::MergableSegmentInfo,
     RemoteStreamingSegment, StreamingSegment, StreamingSource,
 };
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use regex::Regex;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use url::Url;
 
@@ -67,6 +72,26 @@ impl RemoteStreamingSegment for NicoTimeshiftSegment {
             .append_pair("ht2_nicolive", token.as_str());
 
         url
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NicoTimeshiftSegmentInfo {
+    sequence: u64,
+    file_name: String,
+}
+
+impl MergableSegmentInfo for NicoTimeshiftSegmentInfo {
+    fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
+    fn file_name(&self) -> &str {
+        &self.file_name
+    }
+
+    fn r#type(&self) -> SegmentType {
+        SegmentType::Video
     }
 }
 
@@ -148,7 +173,7 @@ const NICO_SEGMENT_OFFSET_REGEXP: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(\d{3
 
 impl StreamingSource for NicoTimeshiftSource {
     type Segment = NicoTimeshiftSegment;
-    type SegmentInfo = ();
+    type SegmentInfo = NicoTimeshiftSegmentInfo;
 
     async fn fetch_info(
         &self,
@@ -278,5 +303,12 @@ impl StreamingSource for NicoTimeshiftSource {
 
     async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
         self.segment.fetch(segment, will_retry).await
+    }
+
+    async fn fetch_segment_info(&self, segment: &Self::Segment) -> Option<Self::SegmentInfo> {
+        Some(NicoTimeshiftSegmentInfo {
+            sequence: segment.sequence(),
+            file_name: segment.file_name().to_string(),
+        })
     }
 }
