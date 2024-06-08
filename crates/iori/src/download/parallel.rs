@@ -1,7 +1,7 @@
 use std::{
     num::NonZeroU32,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc, RwLock,
     },
 };
@@ -53,6 +53,22 @@ where
 
         let mut receiver = self.source.fetch_info().await?;
         let mut segments_info = Vec::new();
+
+        // ctrl-c handler
+        let is_closed = Arc::new(AtomicBool::new(false));
+        let is_closed_inner = is_closed.clone();
+        let ctrlc_handler = tokio::spawn(async move {
+            // wait for the first ctrl-c to stop downloader
+            tokio::signal::ctrl_c().await.unwrap();
+            log::info!("Ctrl-C received, stopping downloader.");
+            is_closed_inner.store(true, Ordering::Relaxed);
+
+            // wait for the second ctrl-c to force exit
+            tokio::signal::ctrl_c().await.unwrap();
+            log::info!("Ctrl-C received again, force exit.");
+            std::process::exit(1);
+        });
+
         while let Some(segments) = receiver.recv().await {
             // If the playlist is not available, the downloader will be stopped.
             if let Err(e) = segments {
@@ -117,6 +133,10 @@ where
                     );
                 });
             }
+
+            if is_closed.load(Ordering::Relaxed) {
+                break;
+            }
         }
 
         // wait for all tasks to finish
@@ -134,6 +154,7 @@ where
             }
         }
 
+        ctrlc_handler.abort();
         Ok(segments_info)
     }
 }
