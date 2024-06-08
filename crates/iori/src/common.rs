@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
@@ -8,6 +9,30 @@ use crate::{
     error::{IoriError, IoriResult},
     RemoteStreamingSegment, StreamingSegment, ToSegmentData,
 };
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SegmentType {
+    Video,
+    Audio,
+    Subtitle,
+}
+
+impl SegmentType {
+    pub fn from_mime_type(mime_type: Option<&str>) -> Self {
+        let mime_type = mime_type.unwrap_or("video");
+
+        if mime_type.starts_with("video") {
+            return Self::Video;
+        } else if mime_type.starts_with("audio") {
+            return Self::Audio;
+        } else if mime_type.starts_with("text") {
+            return Self::Subtitle;
+        } else {
+            panic!("Unknown mime type: {}", mime_type);
+        }
+    }
+}
 
 pub struct CommonSegmentFetcher {
     client: Arc<Client>,

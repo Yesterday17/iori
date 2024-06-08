@@ -14,7 +14,7 @@ use iori::{
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
-    merge::mkvmerge_dash,
+    merge::{merge, MergableSegmentInfo},
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
@@ -91,15 +91,11 @@ pub struct MinyamiArgs {
     #[clap(long)]
     slice: Option<String>,
 
-    /// [Unimplemented]
     /// Do not merge m3u8 chunks.
     #[clap(long)]
     no_merge: bool,
 
-    /// [Unimplemented]
     /// Keep temporary files.
-    ///
-    /// Only takes effect in live mode with --pipe argument.
     #[clap(short, long)]
     keep: bool,
 
@@ -206,17 +202,23 @@ async fn main() -> anyhow::Result<()> {
         temp_path.join(format!("minyami_{started_at}"))
     };
 
-    if args.live {
+    let segments: Option<Vec<_>> = if args.live {
         // Live Downloader
         let consumer = if args.pipe {
-            Consumer::pipe(output_dir, args.keep)?
+            Consumer::pipe(&output_dir, args.keep)?
         } else {
-            Consumer::file(output_dir)?
+            Consumer::file(&output_dir)?
         };
         let source =
             CommonM3u8LiveSource::new(client, args.m3u8, args.key, consumer, args.shaka_packager);
         let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-        downloader.download().await?;
+        let segments = downloader.download().await?;
+        Some(
+            segments
+                .into_iter()
+                .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
+                .collect(),
+        )
     } else {
         // Archive Downloader
         let consumer = Consumer::file(&output_dir)?;
@@ -242,18 +244,19 @@ async fn main() -> anyhow::Result<()> {
             let source = NicoTimeshiftSource::new(client, wss_url, consumer).await?;
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
             downloader.download().await?;
+
+            None
         } else if args.dash {
             let source = CommonDashArchiveSource::new(client, args.m3u8, args.key, consumer)?;
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
             let segments = downloader.download().await?;
-            if !args.no_merge {
-                let target_file = current_dir()?.join(args.output);
-                mkvmerge_dash(segments, &output_dir, target_file).await?;
 
-                if !args.keep {
-                    tokio::fs::remove_dir_all(&output_dir).await?;
-                }
-            }
+            Some(
+                segments
+                    .into_iter()
+                    .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
+                    .collect(),
+            )
         } else {
             let source = CommonM3u8ArchiveSource::new(
                 client,
@@ -264,9 +267,28 @@ async fn main() -> anyhow::Result<()> {
                 args.shaka_packager,
             );
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-            downloader.download().await?;
+            let segments = downloader.download().await?;
+            Some(
+                segments
+                    .into_iter()
+                    .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
+                    .collect(),
+            )
+        }
+    };
+
+    let Some(segments) = segments else {
+        log::warn!("Segments are not mergable. Skipping merge step.");
+        return Ok(());
+    };
+
+    if !args.no_merge {
+        let target_file = current_dir()?.join(args.output);
+        merge(segments, &output_dir, target_file).await?;
+
+        if !args.keep {
+            tokio::fs::remove_dir_all(&output_dir).await?;
         }
     }
-
     Ok(())
 }

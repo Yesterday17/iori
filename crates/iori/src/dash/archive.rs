@@ -12,9 +12,9 @@ use tokio::sync::mpsc;
 use url::Url;
 
 use crate::{
-    common::CommonSegmentFetcher,
+    common::{CommonSegmentFetcher, SegmentType},
     consumer::Consumer,
-    dash::segment::{DashSegment, DashSegmentInfo, DashSegmentType},
+    dash::segment::{DashSegment, DashSegmentInfo},
     decrypt::IoriKey,
     error::IoriResult,
     StreamingSource,
@@ -196,9 +196,7 @@ impl StreamingSource for CommonDashArchiveSource {
                                     let segment = DashSegment {
                                         url,
                                         filename: filename.replace("/", "__"),
-                                        r#type: DashSegmentType::from_mime_type(
-                                            mime_type.as_deref(),
-                                        ),
+                                        r#type: SegmentType::from_mime_type(mime_type.as_deref()),
                                         initial_segment: initial_segment.clone(),
                                         key: self.key.clone(),
                                         byte_range: None,

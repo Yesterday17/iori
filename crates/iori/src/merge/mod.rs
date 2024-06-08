@@ -1,34 +1,97 @@
 use std::path::{Path, PathBuf};
 
-use tokio::process::Command;
+use tokio::{fs::File, process::Command};
 
-use crate::{
-    dash::segment::{DashSegmentInfo, DashSegmentType},
-    error::IoriResult,
-};
+use crate::{common::SegmentType, error::IoriResult};
 
-pub async fn mkvmerge_dash<P>(
-    segments: Vec<DashSegmentInfo>,
-    cwd: P,
-    output: PathBuf,
-) -> IoriResult<()>
+pub trait MergableSegmentInfo {
+    fn sequence(&self) -> u64;
+
+    fn file_name(&self) -> &str;
+
+    fn r#type(&self) -> SegmentType;
+}
+
+impl MergableSegmentInfo for Box<dyn MergableSegmentInfo> {
+    fn sequence(&self) -> u64 {
+        self.as_ref().sequence()
+    }
+
+    fn file_name(&self) -> &str {
+        self.as_ref().file_name()
+    }
+
+    fn r#type(&self) -> SegmentType {
+        self.as_ref().r#type()
+    }
+}
+
+pub async fn merge<S, P>(segments: Vec<S>, cwd: P, output: PathBuf) -> IoriResult<()>
 where
+    S: MergableSegmentInfo,
     P: AsRef<Path>,
 {
-    let videos = segments
+    // if more than one type of segment is present, use mkvmerge
+    let has_video = segments
         .iter()
-        .filter(|info| info.r#type == DashSegmentType::Video);
-    let audios = segments
+        .any(|info| info.r#type() == SegmentType::Video);
+    let has_audio = segments
         .iter()
-        .filter(|info| info.r#type == DashSegmentType::Audio);
+        .any(|info| info.r#type() == SegmentType::Audio);
+    if has_video && has_audio {
+        mkvmerge_merge(segments, cwd, output).await?;
+        return Ok(());
+    }
 
+    // if file is mpegts, use concat
+    let is_mpegts = segments
+        .iter()
+        .all(|info| info.file_name().to_lowercase().ends_with(".ts"));
+    if is_mpegts {
+        concat_merge(segments, cwd, output).await?;
+        return Ok(());
+    }
+
+    // use mkvmerge as fallback
+    concat_merge(segments, cwd, output).await?;
+
+    Ok(())
+}
+
+pub async fn concat_merge<S, P>(mut segments: Vec<S>, cwd: P, output: PathBuf) -> IoriResult<()>
+where
+    S: MergableSegmentInfo,
+    P: AsRef<Path>,
+{
+    segments.sort_by(|a, b| a.sequence().cmp(&b.sequence()));
+
+    let mut output = File::create(output).await?;
+    for segment in segments {
+        let filename = format!("{:06}_{}", segment.sequence(), segment.file_name());
+        let path = cwd.as_ref().join(filename);
+        let mut file = File::open(path).await?;
+        tokio::io::copy(&mut file, &mut output).await?;
+    }
+    Ok(())
+}
+
+pub async fn mkvmerge_merge<S, P>(segments: Vec<S>, cwd: P, output: PathBuf) -> IoriResult<()>
+where
+    S: MergableSegmentInfo,
+    P: AsRef<Path>,
+{
     // 1. merge videos with mkvmerge
+    let mut videos: Vec<_> = segments
+        .iter()
+        .filter(|info| info.r#type() == SegmentType::Video)
+        .collect();
+    videos.sort_by(|a, b| a.sequence().cmp(&b.sequence()));
     let mut video = Command::new("mkvmerge")
         .current_dir(&cwd)
         .arg("-q")
         .arg("[")
-        .args(videos.map(|info| {
-            let filename = format!("{:06}_{}", info.sequence, info.filename);
+        .args(videos.iter().map(|info| {
+            let filename = format!("{:06}_{}", info.sequence(), info.file_name());
             filename
         }))
         .arg("]")
@@ -37,12 +100,17 @@ where
         .spawn()?;
 
     // 2. merge audios with mkvmerge
+    let mut audios: Vec<_> = segments
+        .iter()
+        .filter(|info| info.r#type() == SegmentType::Audio)
+        .collect();
+    audios.sort_by(|a, b| a.sequence().cmp(&b.sequence()));
     let mut audio = Command::new("mkvmerge")
         .current_dir(&cwd)
         .arg("-q")
         .arg("[")
-        .args(audios.map(|info| {
-            let filename = format!("{:06}_{}", info.sequence, info.filename);
+        .args(audios.iter().map(|info| {
+            let filename = format!("{:06}_{}", info.sequence(), info.file_name());
             filename
         }))
         .arg("]")

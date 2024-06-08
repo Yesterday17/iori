@@ -6,6 +6,7 @@ pub mod download;
 pub mod error;
 pub mod hls;
 pub mod merge;
+pub mod util;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │

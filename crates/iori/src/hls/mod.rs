@@ -1,6 +1,6 @@
 mod archive;
 mod live;
-mod segment;
+pub mod segment;
 mod source;
 pub mod utils;
 

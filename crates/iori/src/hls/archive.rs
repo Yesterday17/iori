@@ -7,6 +7,7 @@ use crate::{
     common::CommonSegmentFetcher,
     consumer::Consumer,
     error::IoriResult,
+    hls::segment::M3u8SegmentInfo,
     hls::{segment::M3u8Segment, source::M3u8Source},
     StreamingSource,
 };
@@ -85,7 +86,7 @@ impl CommonM3u8ArchiveSource {
 
 impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
-    type SegmentInfo = ();
+    type SegmentInfo = M3u8SegmentInfo;
 
     async fn fetch_info(
         &self,
@@ -110,6 +111,14 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 
     async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
         self.segment.fetch(segment, will_retry).await
+    }
+
+    async fn fetch_segment_info(&self, segment: &Self::Segment) -> Option<Self::SegmentInfo> {
+        Some(Self::SegmentInfo {
+            url: segment.url.clone(),
+            filename: segment.filename.clone(),
+            sequence: segment.sequence,
+        })
     }
 }
 
