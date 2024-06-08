@@ -10,8 +10,11 @@ use std::{
 use m3u8_rs::MediaPlaylist;
 use reqwest::{Client, Url};
 
-use super::{segment::M3u8Segment, utils::load_m3u8};
-use crate::{decrypt::IoriKey, error::IoriResult};
+use crate::{
+    decrypt::IoriKey,
+    error::IoriResult,
+    hls::{segment::M3u8Segment, utils::load_m3u8},
+};
 
 /// Core part to perform network operations
 pub struct M3u8Source {

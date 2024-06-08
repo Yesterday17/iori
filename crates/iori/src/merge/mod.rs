@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
 use crate::{
-    dash::{DashSegmentInfo, DashSegmentType},
+    dash::segment::{DashSegmentInfo, DashSegmentType},
     error::IoriResult,
 };
 

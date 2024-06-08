@@ -1,5 +1,3 @@
-pub mod archive;
-
 use serde::{Deserialize, Serialize};
 
 use crate::{decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};

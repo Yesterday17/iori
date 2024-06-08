@@ -11,14 +11,12 @@ use reqwest::Client;
 use tokio::sync::mpsc;
 use url::Url;
 
-use super::{
-    // core::{HlsSegmentFetcher, M3u8Source},
-    DashSegment,
-    DashSegmentInfo,
-    DashSegmentType,
-};
 use crate::{
-    common::CommonSegmentFetcher, consumer::Consumer, decrypt::IoriKey, error::IoriResult,
+    common::CommonSegmentFetcher,
+    consumer::Consumer,
+    dash::segment::{DashSegment, DashSegmentInfo, DashSegmentType},
+    decrypt::IoriKey,
+    error::IoriResult,
     StreamingSource,
 };
 use once_cell::sync::Lazy;

@@ -3,8 +3,13 @@ use std::{num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc};
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use super::{segment::M3u8Segment, source::M3u8Source};
-use crate::{common::CommonSegmentFetcher, consumer::Consumer, error::IoriResult, StreamingSource};
+use crate::{
+    common::CommonSegmentFetcher,
+    consumer::Consumer,
+    error::IoriResult,
+    hls::{segment::M3u8Segment, source::M3u8Source},
+    StreamingSource,
+};
 
 pub struct CommonM3u8ArchiveSource {
     playlist: Arc<M3u8Source>,
