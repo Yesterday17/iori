@@ -1,7 +1,4 @@
-use std::{
-    ffi::OsStr,
-    path::{Path, PathBuf},
-};
+use std::{ffi::OsStr, path::Path};
 
 use tokio::{fs::File, process::Command};
 
@@ -29,10 +26,11 @@ impl MergableSegmentInfo for Box<dyn MergableSegmentInfo> {
     }
 }
 
-pub async fn merge<S, P>(segments: Vec<S>, cwd: P, output: PathBuf) -> IoriResult<()>
+pub async fn merge<S, P, O>(segments: Vec<S>, cwd: P, output: O) -> IoriResult<()>
 where
     S: MergableSegmentInfo,
     P: AsRef<Path>,
+    O: AsRef<Path>,
 {
     // if more than one type of segment is present, use mkvmerge
     let has_video = segments
@@ -50,22 +48,23 @@ where
     let is_segments_mpegts = segments
         .iter()
         .all(|info| info.file_name().to_lowercase().ends_with(".ts"));
-    let is_output_mpegts = output.extension() == Some(OsStr::new("ts"));
+    let is_output_mpegts = output.as_ref().extension() == Some(OsStr::new("ts"));
     if is_segments_mpegts && is_output_mpegts {
         concat_merge(segments, cwd, output).await?;
         return Ok(());
     }
 
     // use mkvmerge as fallback
-    concat_merge(segments, cwd, output).await?;
+    mkvmerge_merge(segments, cwd, output).await?;
 
     Ok(())
 }
 
-pub async fn concat_merge<S, P>(mut segments: Vec<S>, cwd: P, output: PathBuf) -> IoriResult<()>
+pub async fn concat_merge<S, P, O>(mut segments: Vec<S>, cwd: P, output: O) -> IoriResult<()>
 where
     S: MergableSegmentInfo,
     P: AsRef<Path>,
+    O: AsRef<Path>,
 {
     segments.sort_by(|a, b| a.sequence().cmp(&b.sequence()));
 
@@ -79,10 +78,11 @@ where
     Ok(())
 }
 
-pub async fn mkvmerge_merge<S, P>(segments: Vec<S>, cwd: P, output: PathBuf) -> IoriResult<()>
+pub async fn mkvmerge_merge<S, P, O>(segments: Vec<S>, cwd: P, output: O) -> IoriResult<()>
 where
     S: MergableSegmentInfo,
     P: AsRef<Path>,
+    O: AsRef<Path>,
 {
     // 1. merge videos with mkvmerge
     let mut videos: Vec<_> = segments
@@ -131,7 +131,7 @@ where
         .arg("iori_video.mkv")
         .arg("iori_audio.mkv")
         .arg("-o")
-        .arg(output)
+        .arg(output.as_ref())
         .spawn()?;
     merge.wait().await?;
 

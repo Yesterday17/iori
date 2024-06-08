@@ -282,13 +282,25 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     };
 
-    if !args.no_merge {
-        let target_file = current_dir()?.join(args.output);
-        merge(segments, &output_dir, target_file).await?;
-
-        if !args.keep {
-            tokio::fs::remove_dir_all(&output_dir).await?;
-        }
+    if args.no_merge {
+        log::info!("Skip merging. Please merge video chunks manually.");
+        log::info!("Temporary files are located at {}", output_dir.display());
+        return Ok(());
     }
+
+    log::info!("Merging chunks...");
+    let target_file = current_dir()?.join(args.output);
+    merge(segments, &output_dir, &target_file).await?;
+
+    if !args.keep {
+        log::info!("End of merging.");
+        log::info!("Starting cleaning temporary files.");
+        tokio::fs::remove_dir_all(&output_dir).await?;
+    }
+
+    log::info!(
+        "All finished. Please checkout your files at {}",
+        target_file.display()
+    );
     Ok(())
 }
