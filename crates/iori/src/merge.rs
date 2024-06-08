@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
 
 use tokio::{fs::File, process::Command};
 
@@ -44,10 +47,11 @@ where
     }
 
     // if file is mpegts, use concat
-    let is_mpegts = segments
+    let is_segments_mpegts = segments
         .iter()
         .all(|info| info.file_name().to_lowercase().ends_with(".ts"));
-    if is_mpegts {
+    let is_output_mpegts = output.extension() == Some(OsStr::new("ts"));
+    if is_segments_mpegts && is_output_mpegts {
         concat_merge(segments, cwd, output).await?;
         return Ok(());
     }
