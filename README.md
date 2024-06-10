@@ -1,6 +1,6 @@
 # iori
 
-A brand new m3u8 stream downloader
+A brand new HLS / MPEG-Dash stream downloader.
 
 ## Road to stable
 
