@@ -13,7 +13,7 @@ iori = { path = "crates/iori" }
 iori-nicolive = { path = "crates/nicolive" }
 
 regex = "1.9.3"
-tokio = { version = "1" }
+tokio = { version = "1", features = ["signal", "process"] }
 
 fake_user_agent = "0.2.1"
 anyhow = "1.0.81"

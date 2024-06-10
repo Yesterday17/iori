@@ -11,9 +11,8 @@ use crate::model::DanmakuMessageChat;
 pub fn sec2hms(sec: f64) -> String {
     let hours = (sec / 3600.0).floor() as i32;
     let minutes = ((sec % 3600.0) / 60.0).floor() as i32;
-    let seconds = (sec % 60.0).round();
-    // TODO: seconds 的表现格式好像有点问题，需要加点测试
-    format!("{hours:02}:{minutes:02}:{seconds:05.2}")
+    let seconds = ((sec % 60.0) * 100f64).round() / 100f64;
+    format!("{hours:02}:{minutes:02}:{seconds}")
 }
 
 pub fn xml2ass(xml_name: &str) -> io::Result<()> {
@@ -73,7 +72,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
         ("blue", "0000FF"),
         ("orange", "ffcc00"),
         ("pink", "FF8080"),
-        ("cyan", "0FFFF"),
+        ("cyan", "00FFFF"),
         ("purple", "C000FF"),
         ("niconicowhite", "cccc99"),
         ("white2", "cccc99"),
@@ -130,9 +129,12 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
         };
         // FIXME: round
         let start_time = sec2hms((vpos as f64) / 100.0);
-        let end_time = sec2hms((vpos as f64) / 100.0 + 8.0);
+        let end_time = sec2hms((vpos as f64) / 100.0 + time_danmaku as f64);
         let mut color = "ffffff".to_string();
         let mut color_important = None;
+
+        let mut passageway_index = 0;
+        let mut passageway_min = 0;
 
         // 过滤弹幕
         let ng_words = [
@@ -163,7 +165,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                     end_time_w = start_time.clone();
                 }
                 let event_bg = format!(
-                    "Dialogue: 4,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\p1\\pos({},{})\\bord0\\1c&H000000&\\1a&H78&}}{office_bg}\n",
+                    "Dialogue: 4,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\p1\\pos({},{})\\bord0\\1c&H000000&\\1a&H78&}}{office_bg}",
                     video_width / 2,
                     office_bg_height / 2,
                 );
@@ -180,11 +182,12 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                 } else {
                     format!(
                         "Dialogue: 5,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\pos({},{})\\bord0{ass_color}\\fsp0}}{}",
-                        video_width/2,video_height/2,
+                        video_width / 2,
+                        office_bg_height / 2,
                         text_w.replace("/perm ", "")
                     )
                 };
-                if text.len() > 50 {
+                if text.chars().count() > 50 {
                     event_dm = event_dm.replace("fsp0", "fsp0\\fs30");
                 }
                 office_events.push(event_bg);
@@ -214,8 +217,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
         // 处理运营弹幕
         if office_ids.contains(user_id) {
             // 处理投票开始和投票结果
-            let re = Regex::new(r#"^/vote(?! stop)"#).unwrap();
-            if re.is_match(&text) {
+            if text.starts_with("/vote") && !text.starts_with("/vote stop") {
                 let split_text: Vec<_> = shlex::split(text)
                     .unwrap()
                     .into_iter()
@@ -256,7 +258,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                     video_height + 20,
                     video_height + 20,
                 );
-                if text_q.len() > 50 {
+                if text_q.chars().count() > 50 {
                     event_q_text = event_q_text.replace("fsp0", "fsp0\\fs30");
                 }
                 office_events.push(event_q_bg);
@@ -281,9 +283,9 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                     ];
                     let num_bg = format!(
                         "m 0 0 l {} 0 l {} 0 l 0 {}",
-                        font_size as f64 * 1.5,
-                        font_size as f64 * 1.5,
-                        font_size as f64 * 1.5
+                        font_size * 3 / 2,
+                        font_size * 3 / 2,
+                        font_size * 3 / 2
                     );
                     let bg = format!(
                         "m 0 0 l {} 0 l {} {} l 0 {}",
@@ -296,8 +298,8 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                         for i in 0..x.len() {
                             let vote_num_bg = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&HFFFFC8&\\pos({},{})}}{}",
-                                x[i] - bg_width / 2 + (font_size as f64 * 0.75) as i64,
-                                y[j] - bg_height / 2 + (font_size as f64 * 0.75) as i64,
+                                x[i] - bg_width / 2 + font_size  * 5 / 8,
+                                y[j] - bg_height / 2 + font_size  * 5 / 8,
                                 num_bg
                             );
                             let vote_num_text = format!(
@@ -307,25 +309,30 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                                 i + 1
                             );
                             let vote_bg = format!(
-                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\3c&HFFFFC8&\\bord6\\1c&HD5A07B&\\1a&H78&\\pos({},{}){}}}",
+                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\3c&HFFFFC8&\\bord6\\1c&HD5A07B&\\1a&H78&\\pos({},{})}}{}",
                                 x[i],
                                 y[j],
                                 bg
                             );
-                            let text_now = if text_o[i].len() <= 7 {
+                            let text_o_chars = text_o[i].chars().collect::<Vec<_>>();
+                            let text_now = if text_o_chars.len() <= 7 {
                                 format!("\\N{}", text_o[i])
-                            } else if text_o[i].len() > 7 && text_o[i].len() <= 14 {
-                                format!("\\N{}\\N{}", &text_o[i][0..7], &text_o[i][7..])
+                            } else if text_o_chars.len() > 7 && text_o_chars.len() <= 14 {
+                                format!(
+                                    "\\N{}\\N{}",
+                                    text_o_chars[0..7].iter().collect::<String>(),
+                                    text_o_chars[7..].iter().collect::<String>()
+                                )
                             } else {
                                 format!(
                                     "\\N{}\\N{}\\N{}",
-                                    &text_o[i][0..7],
-                                    &text_o[i][7..14],
-                                    &text_o[i][14..]
+                                    text_o_chars[0..7].iter().collect::<String>(),
+                                    text_o_chars[7..14].iter().collect::<String>(),
+                                    text_o_chars[14..].iter().collect::<String>()
                                 )
                             };
                             let vote_text = format!(
-                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\bord0\\1c&HFFFFFF\\pos({},{}){}}}",
+                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\bord0\\1c&HFFFFFF\\pos({},{})}}{}",
                                 x[i], y[j], text_now
                             );
                             office_events.push(vote_bg);
@@ -399,9 +406,9 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
 
                     let num_bg = format!(
                         "m 0 0 l {} 0 l {} 0 l 0 {}",
-                        font_size_anketo as f64 * 1.5,
-                        font_size_anketo as f64 * 1.5,
-                        font_size_anketo as f64 * 1.5
+                        font_size_anketo * 5 / 4,
+                        font_size_anketo * 5 / 4,
+                        font_size_anketo * 5 / 4
                     );
                     let bg =
                         format!("m 0 0 l {bg_width} 0 l {bg_width} {bg_height} l 0 {bg_height}");
@@ -414,33 +421,38 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                                 continue;
                             }
                             let vote_num_bg = format!(
-                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&HFFFFC8&\\pos({},{}){}}}",
-                                x[i] - bg_width / 2 + (font_size_anketo as f64 * 0.75) as i64,
-                                y[j] - bg_height / 2 + (font_size_anketo as f64 * 0.75) as i64,
+                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&HFFFFC8&\\pos({},{})}}{}",
+                                x[i] - bg_width / 2 + font_size_anketo * 5 / 8,
+                                y[j] - bg_height / 2 + font_size_anketo * 5 / 8,
                                 num_bg
                             );
                             let vote_num_text = format!(
-                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\bord0\\1c&HD5A07B&\\pos({},{}){}}}",
+                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\bord0\\1c&HD5A07B&\\pos({},{})}}{}",
                                 x[i] - bg_width / 2 + font_size_anketo / 2,
                                 y[j] - bg_height / 2 + font_size_anketo / 2,
                                 num + 1
                             );
                             let vote_bg = format!(
-                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\3c&HFFFFC8&\\bord6\\1c&HD5A07B&\\1a&H78&\\pos({},{}){}}}",
+                                "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\3c&HFFFFC8&\\bord6\\1c&HD5A07B&\\1a&H78&\\pos({},{})}}{}",
                                 x[i],
                                 y[j],
                                 bg
                             );
-                            let text_now = if text_o[num].len() <= 7 {
+                            let text_o_chars = text_o[num].chars().collect::<Vec<_>>();
+                            let text_now = if text_o_chars.len() <= 7 {
                                 text_o[num].to_string()
-                            } else if text_o[num].len() > 7 && text_o[num].len() <= 14 {
-                                format!("\\N{}\\N{}", &text_o[num][0..7], &text_o[num][7..])
+                            } else if text_o_chars.len() > 7 && text_o_chars.len() <= 14 {
+                                format!(
+                                    "{}\\N{}",
+                                    text_o_chars[0..7].iter().collect::<String>(),
+                                    text_o_chars[7..].iter().collect::<String>()
+                                )
                             } else {
                                 format!(
-                                    "\\N{}\\N{}\\N{}",
-                                    &text_o[num][0..7],
-                                    &text_o[num][7..14],
-                                    &text_o[num][14..]
+                                    "{}\\N{}\\N{}",
+                                    text_o_chars[0..7].iter().collect::<String>(),
+                                    text_o_chars[7..14].iter().collect::<String>(),
+                                    text_o_chars[14..].iter().collect::<String>()
                                 )
                             };
                             let vote_text = format!(
@@ -515,11 +527,10 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                     dm_count = 0;
                 }
                 let mut vpos_next_min = i64::MAX;
-                let vpos_next = vpos + 1280 / (text.len() as i64 * 70 + 1280) * time_danmaku * 100; // 弹幕不是太密集时，控制同一条通道的弹幕不超过前一行
+                let vpos_next =
+                    vpos + 1280 / (text.chars().count() as i64 * 70 + 1280) * time_danmaku * 100; // 弹幕不是太密集时，控制同一条通道的弹幕不超过前一行
                 dm_count += 1;
 
-                let mut passageway_index = 0;
-                let mut passageway_min = 0;
                 for i in 0..limit_line_amount {
                     if vpos_next >= danmaku_passageway[i] {
                         passageway_index = i;
@@ -540,7 +551,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                 // 计算弹幕位置
                 let sx = video_width;
                 let sy = danmaku_line_height * passageway_index;
-                let ex = -(text.len() as i64) * (danmaku_size + danmaku_font_space);
+                let ex = -(text.chars().count() as i64) * (danmaku_size + danmaku_font_space);
                 let ey = danmaku_line_height * passageway_index;
                 // 生成弹幕行并加入总弹幕
                 if matches!(premium, Some(24)) || matches!(premium, Some(25)) {
@@ -561,7 +572,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                 let text = &chat.content;
                 let vpos = chat.vpos.unwrap();
                 let start_time = sec2hms((vpos as f64) / 100.0);
-                let end_time = sec2hms((vpos as f64) / 100.0 + 8.0);
+                let end_time = sec2hms((vpos as f64) / 100.0 + time_danmaku as f64);
 
                 let mut color = "ffffff";
                 let mut color_important = None;
@@ -599,7 +610,8 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
     let mut ass_file = File::create(&ass_file_name)?;
 
     writeln!(ass_file, "[Script Info]")?;
-    writeln!(ass_file, "; Script generated by iori-nicolive")?;
+    writeln!(ass_file, "; Script generated by Aegisub 3.2.2")?;
+    writeln!(ass_file, "; http://www.aegisub.org/")?;
     writeln!(ass_file, "ScriptType: v4.00+")?;
     writeln!(ass_file, "PlayResX: 1280")?;
     writeln!(ass_file, "PlayResY: 720")?;
@@ -612,6 +624,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
     writeln!(ass_file, "Style: Office,{font_name},{office_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,1.5,0,2,0,0,10,0")?;
     writeln!(ass_file, "Style: Anketo,{font_name},{font_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,1.5,0,2,0,0,10,0")?;
     writeln!(ass_file, "Style: Danmaku,{font_name},{font_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,1.5,0,2,0,0,10,0")?;
+    writeln!(ass_file)?;
     writeln!(ass_file, "[Events]")?;
     writeln!(
         ass_file,
@@ -629,4 +642,11 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+#[test]
+fn test_generate() {
+    let input =
+        "/Users/yesterday17/Development/Me/iori/crates/nicolive/test/danmaku/json/548本篇.json";
+    xml2ass(input).unwrap();
 }
