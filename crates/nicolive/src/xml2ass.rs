@@ -429,8 +429,8 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                             let vote_num_text = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\fs{}\\an5\\bord0\\1c&HD5A07B&\\pos({},{})}}{}",
                                 font_size_anketo,
-                                x[i] - bg_width / 2 + font_size_anketo / 2,
-                                y[j] - bg_height / 2 + font_size_anketo / 2,
+                                x[i] - bg_width / 2 + font_size_anketo / 3,
+                                y[j] - bg_height / 2 + font_size_anketo / 3,
                                 num + 1
                             );
                             let vote_bg = format!(
