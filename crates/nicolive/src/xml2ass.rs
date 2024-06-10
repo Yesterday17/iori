@@ -12,7 +12,11 @@ pub fn sec2hms(sec: f64) -> String {
     let hours = (sec / 3600.0).floor() as i32;
     let minutes = ((sec % 3600.0) / 60.0).floor() as i32;
     let seconds = ((sec % 60.0) * 100f64).round() / 100f64;
-    format!("{hours:02}:{minutes:02}:{seconds}")
+    let mut result = format!("{hours:02}:{minutes:02}:{seconds}");
+    if seconds.fract() == 0.0 {
+        result += ".0";
+    }
+    result
 }
 
 pub fn xml2ass(xml_name: &str) -> io::Result<()> {
@@ -56,11 +60,11 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
     let danmaku_size = 68; // 弹幕字体大小
     let danmaku_line_height = 64; // 弹幕行高度
     let danmaku_font_space = 2; // 弹幕行间间隔
-    let time_danmaku = 8i64; // 普通弹幕持续时间，默认8秒
+    let time_danmaku = 8f64; // 普通弹幕持续时间，默认8秒
     let limit_line_amount = 11; // 屏上弹幕行数限制
-    let mut danmaku_passageway = vec![0; limit_line_amount]; // 计算弹幕应该在哪一行出现
+    let mut danmaku_passageway = vec![0.0; limit_line_amount]; // 计算弹幕应该在哪一行出现
     let mut dm_count = 0; // 处理同时出过多弹幕的情况
-    let mut vpos_now = 0;
+    let mut vpos_now = 0.0;
 
     let mut vote_check = false; // 判断投票是否开启
     let color_map: HashMap<_, _> = vec![
@@ -110,7 +114,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
     let mut start_time_w = "".to_string();
     let mut end_time_w = "".to_string();
     let mut text_w = "".to_string();
-    let mut vpos_w = 0;
+    let mut vpos_w = 0.0;
     let mut ass_color = String::new();
 
     let mut start_time_q = String::new();
@@ -127,9 +131,10 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
         let Some(vpos) = chat.vpos else {
             continue;
         };
+        let vpos = vpos as f64;
         // FIXME: round
-        let start_time = sec2hms((vpos as f64) / 100.0);
-        let end_time = sec2hms((vpos as f64) / 100.0 + time_danmaku as f64);
+        let start_time = sec2hms(vpos / 100.0);
+        let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
         let mut color = "ffffff".to_string();
         let mut color_important = None;
 
@@ -160,7 +165,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
 
         // 释放之前捕捉的运营弹幕
         if official_check {
-            if vpos - vpos_w > 800 || office_ids.contains(&user_id) {
+            if vpos - vpos_w > 800.0 || office_ids.contains(&user_id) {
                 if office_ids.contains(&user_id) {
                     end_time_w = start_time.clone();
                 }
@@ -197,7 +202,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
         }
 
         // 颜色调整
-        for style in mail.split_whitespace() {
+        for style in mail.split(' ') {
             let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
             if let Some(m) = re.captures(style) {
                 color_important = m.get(1).map(|m| m.as_str());
@@ -236,7 +241,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                 continue;
             } else if vote_check {
                 // 生成投票
-                let end_time_v = sec2hms((vpos as f64) / 100.0);
+                let end_time_v = sec2hms(vpos / 100.0);
                 let event_q_bg = format!(
                     "Dialogue: 4,{start_time_q},{end_time_v},Office,,0,0,0,,{{\\an5\\p1\\pos({},{})\\bord0\\1c&H000000&\\1a&H78&}}{}",
                     video_width / 2,
@@ -527,15 +532,17 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                     vpos_now = vpos;
                     dm_count = 0;
                 }
-                let mut vpos_next_min = i64::MAX;
-                let vpos_next =
-                    vpos + 1280 / (text.chars().count() as i64 * 70 + 1280) * time_danmaku * 100; // 弹幕不是太密集时，控制同一条通道的弹幕不超过前一行
+                let mut vpos_next_min = f64::MAX;
+                let vpos_next = (vpos
+                    + 1280.0 / (text.chars().count() as i64 * 70 + 1280) as f64
+                        * (time_danmaku * 100.0))
+                    .floor(); // 弹幕不是太密集时，控制同一条通道的弹幕不超过前一行
                 dm_count += 1;
 
                 for i in 0..limit_line_amount {
                     if vpos_next >= danmaku_passageway[i] {
                         passageway_index = i;
-                        danmaku_passageway[i] = vpos + time_danmaku * 100;
+                        danmaku_passageway[i] = vpos + time_danmaku * 100.0;
                         break;
                     } else if danmaku_passageway[i] < vpos_next_min {
                         vpos_next_min = danmaku_passageway[i];
@@ -543,7 +550,7 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
                     }
                     if i == limit_line_amount - 1 && vpos_next < vpos_next_min {
                         passageway_index = passageway_min;
-                        danmaku_passageway[passageway_min] = vpos + time_danmaku * 100;
+                        danmaku_passageway[passageway_min] = vpos + time_danmaku * 100.0;
                     }
                 }
                 if dm_count > 11 {
@@ -571,9 +578,9 @@ pub fn xml2ass(xml_name: &str) -> io::Result<()> {
             let styles: Vec<_> = mail.split(' ').collect();
             if styles.contains(&"mincho") || styles.contains(&"gothic") {
                 let text = &chat.content;
-                let vpos = chat.vpos.unwrap();
-                let start_time = sec2hms((vpos as f64) / 100.0);
-                let end_time = sec2hms((vpos as f64) / 100.0 + time_danmaku as f64);
+                let vpos = chat.vpos.unwrap() as f64;
+                let start_time = sec2hms(vpos / 100.0);
+                let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
 
                 let mut color = "ffffff";
                 let mut color_important = None;
