@@ -238,11 +238,17 @@ impl NewDanmakuClient {
                                         println!("notification: {message:?}");
                                     }
                                 }
-                                Data::Gift(gift) => {}
-                                Data::Nicoad(nicoad) => {}
-                                Data::GameUpdate(game_update) => {}
-                                Data::TagUpdated(tag_updated) => {}
-                                Data::ModeratorUpdated(updated) => {}
+                                Data::Gift(_) => {}
+                                Data::Nicoad(_) => {}
+                                Data::GameUpdate(game_update) => {
+                                    println!("game_update: {game_update:?}");
+                                }
+                                Data::TagUpdated(tag_updated) => {
+                                    println!("tag_updated: {tag_updated:?}");
+                                }
+                                Data::ModeratorUpdated(updated) => {
+                                    println!("moderator_updated: {updated:?}");
+                                }
                                 Data::SsngUpdated(ssng_updated) => todo!(),
                             }
                         }
@@ -260,17 +266,26 @@ impl NewDanmakuClient {
                         //   "anonymity":1,
                         //   "content":"以上で番組は終了です。皆さん、みりおっつ～"
                         // }
-                        if let Some(marquee) = state.marquee {
-                            if let Some(display) = marquee.display {
-                                if let Some(comment) = display.operator_comment {
+                        if let Some(marquee) = &state.marquee {
+                            if let Some(display) = &marquee.display {
+                                if let Some(comment) = &display.operator_comment {
                                     danmakus.push(DanmakuMessageChat::from_operator_comment(
-                                        comment, &meta,
+                                        comment.clone(),
+                                        &meta,
                                     ));
                                 }
                             }
+                            continue;
                         }
+
+                        if let Some(enquete) = &state.enquete {
+                            danmakus.push(DanmakuMessageChat::from_enquete(enquete.clone(), &meta));
+                        }
+
+                        println!("unhandled state: {state:?}");
                     }
                     Payload::Signal(signal) => {
+                        println!("signal: {signal:?}");
                         // TODO, but not important
                     }
                 }
@@ -308,7 +323,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_danmaku() -> anyhow::Result<()> {
         let data =
-            NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv345668802", None).await?;
+            NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv345610602", None).await?;
         let wss_url = data.websocket_url().expect("No websocket url found");
 
         let mut watcher = WatchClient::new(wss_url).await.unwrap();

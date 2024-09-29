@@ -6,7 +6,8 @@ use crate::danmaku::protocol::{
             modifier::{Color, ColorName, Font, Pos, Size},
             AccountStatus,
         },
-        Chat, OperatorComment,
+        enquete::Status,
+        Chat, Enquete, OperatorComment,
     },
     service::edge::chunked_message::Meta,
 };
@@ -320,6 +321,52 @@ impl DanmakuMessageChat {
             premium: Some(3),
             anonymity: Some(1),
             content: chat.content,
+        }
+    }
+
+    pub fn from_enquete(enquete: Enquete, meta: &Meta) -> Self {
+        let time = meta.at.unwrap().normalized();
+
+        let mut commands = Vec::new();
+        commands.push("184".to_string());
+
+        // {"thread":"M.KyX3o2wVpNJurP1jzo6ytQ","vpos":407083,"date":1704373070,"date_usec":839544,"mail":"184","user_id":"ETACr1rb2bHQ4naN57Zp61SAShw","premium":3,"anonymity":1,"content":"/vote showresult per 977 15 3 2 3"}
+        Self {
+            thread: None,
+            no: None,
+            vpos: None,
+            date: time.seconds as u64,
+            date_usec: time.nanos as u64 / 1000,
+            name: None,
+            mail: Some("184".to_string()),
+            user_id: "operator".to_string(),
+            premium: Some(3),
+            anonymity: Some(1),
+            content: match enquete.status() {
+                // /vote start 本日の番組はいかがでしたか？ とても良かった まぁまぁ良かった ふつうだった あまり良くなかった 良くなかった
+                Status::Poll => format!(
+                    "/vote start {} {}",
+                    enquete.question,
+                    enquete
+                        .choices
+                        .iter()
+                        .map(|c| c.description.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ),
+                // /vote showresult per 977 15 3 2 3
+                Status::Result => format!(
+                    "/vote showresult per {}",
+                    enquete
+                        .choices
+                        .iter()
+                        .map(|c| c.per_mille.unwrap_or(0).to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ),
+                // /vote stop
+                Status::Closed => "/vote stop".to_string(),
+            },
         }
     }
 }
