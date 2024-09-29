@@ -286,7 +286,11 @@ impl StreamingSource for NicoTimeshiftSource {
                         query: url.query().map(|q| q.to_string()),
                         sequence: sequence.fetch_add(1, Ordering::Relaxed),
                     });
+
                     time += chunk_length as f32;
+                    if video_length - format!("{time}.{offset}").parse::<f32>().unwrap() < 1. {
+                        break;
+                    }
                 }
 
                 // send segments
