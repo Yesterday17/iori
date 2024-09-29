@@ -15,8 +15,8 @@ iori.workspace = true
 
 regex.workspace = true
 tokio.workspace = true
+once_cell.workspace = true
 
-once_cell = "1.17.1"
 url = "2.4.1"
 html-escape = "0.2.13"
 tokio-tungstenite = { version = "0.20.0", features = [
