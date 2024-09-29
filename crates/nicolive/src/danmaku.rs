@@ -218,6 +218,7 @@ impl NewDanmakuClient {
     pub async fn recv(
         &self,
         uri: String,
+        start_time: Option<i64>,
     ) -> anyhow::Result<(Vec<DanmakuMessageChat>, Option<String>)> {
         let data = self.client.get(uri).send().await?;
         let b = data.error_for_status()?.bytes().await?;
@@ -272,6 +273,7 @@ impl NewDanmakuClient {
                                     danmakus.push(DanmakuMessageChat::from_operator_comment(
                                         comment.clone(),
                                         &meta,
+                                        start_time,
                                     ));
                                 }
                             }
@@ -279,7 +281,11 @@ impl NewDanmakuClient {
                         }
 
                         if let Some(enquete) = &state.enquete {
-                            danmakus.push(DanmakuMessageChat::from_enquete(enquete.clone(), &meta));
+                            danmakus.push(DanmakuMessageChat::from_enquete(
+                                enquete.clone(),
+                                &meta,
+                                start_time,
+                            ));
                         }
 
                         println!("unhandled state: {state:?}");
@@ -295,10 +301,14 @@ impl NewDanmakuClient {
         Ok((danmakus, segment.next.map(|n| n.uri)))
     }
 
-    pub async fn recv_all(&self, mut url: String) -> anyhow::Result<Vec<DanmakuMessageChat>> {
+    pub async fn recv_all(
+        &self,
+        mut url: String,
+        start_time: Option<i64>,
+    ) -> anyhow::Result<Vec<DanmakuMessageChat>> {
         let mut danmakus = Vec::new();
         loop {
-            let (messages, next) = self.recv(url).await?;
+            let (messages, next) = self.recv(url, start_time).await?;
             danmakus.extend(messages);
             if let Some(next) = next {
                 url = next;
@@ -315,10 +325,10 @@ impl NewDanmakuClient {
 
 #[cfg(test)]
 mod tests {
-    // use std::str::FromStr;
-    // use chrono::{DateTime, Utc};
     use super::NewDanmakuClient;
     use crate::{model::WatchResponse, program::NicoEmbeddedData, watch::WatchClient};
+    use chrono::{DateTime, Utc};
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_get_danmaku() -> anyhow::Result<()> {
@@ -337,13 +347,13 @@ mod tests {
         };
 
         let client = NewDanmakuClient::new(message_server.view_uri).await?;
-        // let at = DateTime::from_str(&message_server.vpos_base_time)
-        //     .map(|n: DateTime<Utc>| n.timestamp().to_string())
-        //     .unwrap_or("now".to_string());
+        let start_time = DateTime::<Utc>::from_str(&message_server.vpos_base_time)
+            .map(|r| r.timestamp())
+            .ok();
         let at = "now".to_string();
         let backward = client.get_backward_segment(at).await?;
         if let Some(segment) = backward.segment {
-            let danmakus = client.recv_all(segment.uri).await?;
+            let danmakus = client.recv_all(segment.uri, start_time).await?;
             let json = serde_json::to_string(&danmakus)?;
             std::fs::write("/tmp/test.json", json)?;
         }

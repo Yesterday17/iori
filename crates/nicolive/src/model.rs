@@ -268,7 +268,11 @@ impl DanmakuMessageChat {
         }
     }
 
-    pub fn from_operator_comment(chat: OperatorComment, meta: &Meta) -> Self {
+    pub fn from_operator_comment(
+        chat: OperatorComment,
+        meta: &Meta,
+        start_time: Option<i64>,
+    ) -> Self {
         let time = meta.at.unwrap().normalized();
 
         let mut commands = Vec::new();
@@ -308,7 +312,7 @@ impl DanmakuMessageChat {
         Self {
             thread: None,
             no: None,
-            vpos: None,
+            vpos: start_time.map(|s| (s - time.seconds) * 100),
             date: time.seconds as u64,
             date_usec: time.nanos as u64 / 1000,
             name: chat.name.clone(),
@@ -324,7 +328,7 @@ impl DanmakuMessageChat {
         }
     }
 
-    pub fn from_enquete(enquete: Enquete, meta: &Meta) -> Self {
+    pub fn from_enquete(enquete: Enquete, meta: &Meta, start_time: Option<i64>) -> Self {
         let time = meta.at.unwrap().normalized();
 
         let mut commands = Vec::new();
@@ -334,7 +338,7 @@ impl DanmakuMessageChat {
         Self {
             thread: None,
             no: None,
-            vpos: None,
+            vpos: start_time.map(|s| (s - time.seconds) * 100),
             date: time.seconds as u64,
             date_usec: time.nanos as u64 / 1000,
             name: None,
