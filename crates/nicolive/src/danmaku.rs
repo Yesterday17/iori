@@ -286,6 +286,7 @@ impl NewDanmakuClient {
                                 &meta,
                                 start_time,
                             ));
+                            continue;
                         }
 
                         println!("unhandled state: {state:?}");
