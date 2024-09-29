@@ -1,18 +1,47 @@
 use std::collections::BTreeSet;
 
+use fake_user_agent::get_chrome_rua;
 use futures_util::{SinkExt, StreamExt};
+use prost::Message as _;
+use protocol::{
+    data::nicolive_message::Data,
+    service::edge::{
+        chunked_entry::Entry, chunked_message::Payload, BackwardSegment, PackedSegment,
+    },
+};
+use reqwest::Client;
 use serde_json::json;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 use crate::{model::*, utils::prepare_websocket_request};
 
+pub mod protocol {
+    pub mod data {
+        pub mod atoms {
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/dwango.nicolive.chat.data.atoms.rs"
+            ));
+        }
+        include!(concat!(env!("OUT_DIR"), "/dwango.nicolive.chat.data.rs"));
+    }
+    pub mod service {
+        pub mod edge {
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/dwango.nicolive.chat.service.edge.rs"
+            ));
+        }
+    }
+}
+
 pub struct DanmakuClient {
     socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
 
     thread_id: String,
     when: u64,
-    last_no: Option<u64>,
+    last_no: Option<i64>,
 
     r: u64,
     p: u64,
@@ -31,7 +60,7 @@ impl DanmakuClient {
             thread_id,
             when: end_time,
 
-            last_no: Some(u64::MAX),
+            last_no: Some(i64::MAX),
 
             r: 0,
             p: 0,
@@ -125,53 +154,184 @@ impl DanmakuClient {
     }
 }
 
+pub struct DanmakuList(Vec<DanmakuMessageChat>);
+
+impl DanmakuList {
+    fn to_ass(&mut self) -> String {
+        todo!()
+    }
+}
+
+pub struct NewDanmakuClient {
+    client: Client,
+
+    view_uri: String,
+}
+
+impl NewDanmakuClient {
+    pub async fn new(view_uri: String) -> anyhow::Result<Self> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::ORIGIN,
+            reqwest::header::HeaderValue::from_str("https://live.nicovideo.jp")?,
+        );
+        headers.insert(
+            reqwest::header::REFERER,
+            reqwest::header::HeaderValue::from_str("https://live.nicovideo.jp/")?,
+        );
+        let client = Client::builder()
+            .default_headers(headers)
+            .user_agent(get_chrome_rua())
+            .build()?;
+        Ok(Self { client, view_uri })
+    }
+
+    pub async fn get_backward_segment(&self, mut at: String) -> anyhow::Result<BackwardSegment> {
+        // TODO: limit loop times
+        loop {
+            let response = self
+                .client
+                .get(&self.view_uri)
+                .query(&[("at", &at)])
+                .send()
+                .await?;
+            let data = response.error_for_status()?.bytes().await?;
+            let s = protocol::service::edge::ChunkedEntry::decode_length_delimited(data)?;
+
+            if let Some(entry) = s.entry {
+                match entry {
+                    Entry::Backward(backward) => return Ok(backward),
+                    Entry::Previous(previous) => {
+                        unimplemented!("{previous:#?}")
+                    }
+                    Entry::Segment(segment) => {
+                        unimplemented!("{segment:#?}")
+                    }
+                    Entry::Next(next) => {
+                        at = next.at.to_string();
+                    }
+                }
+            };
+        }
+    }
+
+    pub async fn recv(
+        &self,
+        uri: String,
+    ) -> anyhow::Result<(Vec<DanmakuMessageChat>, Option<String>)> {
+        let data = self.client.get(uri).send().await?;
+        let b = data.error_for_status()?.bytes().await?;
+        let segment: PackedSegment = prost::Message::decode(b)?;
+
+        let mut danmakus = Vec::with_capacity(segment.messages.len());
+        for message in segment.messages {
+            if let (Some(meta), Some(payload)) = (message.meta, message.payload) {
+                match payload {
+                    Payload::Message(message) => {
+                        if let Some(data) = message.data {
+                            match data {
+                                Data::Chat(chat) | Data::OverflowedChat(chat) => {
+                                    danmakus.push(DanmakuMessageChat::from_chat(chat, &meta))
+                                }
+                                Data::SimpleNotification(notification) => {
+                                    if let Some(message) = notification.message {
+                                        println!("notification: {message:?}");
+                                    }
+                                }
+                                Data::Gift(gift) => {}
+                                Data::Nicoad(nicoad) => {}
+                                Data::GameUpdate(game_update) => {}
+                                Data::TagUpdated(tag_updated) => {}
+                                Data::ModeratorUpdated(updated) => {}
+                                Data::SsngUpdated(ssng_updated) => todo!(),
+                            }
+                        }
+                    }
+                    Payload::State(state) => {
+                        // {
+                        //   "thread":"M.K4fxhVMa5jZmjb464HyG4A",
+                        //   "no":21324,
+                        //   "vpos":534110,
+                        //   "date":1704378541,
+                        //   "date_usec":118206,
+                        //   "mail":"184",
+                        //   "user_id":"vht4QQNupbLDtvKRx-rJkstr2Hg",
+                        //   "premium":3,
+                        //   "anonymity":1,
+                        //   "content":"以上で番組は終了です。皆さん、みりおっつ～"
+                        // }
+                        if let Some(marquee) = state.marquee {
+                            if let Some(display) = marquee.display {
+                                if let Some(comment) = display.operator_comment {
+                                    danmakus.push(DanmakuMessageChat::from_operator_comment(
+                                        comment, &meta,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    Payload::Signal(signal) => {
+                        // TODO, but not important
+                    }
+                }
+            }
+        }
+
+        Ok((danmakus, segment.next.map(|n| n.uri)))
+    }
+
+    pub async fn recv_all(&self, mut url: String) -> anyhow::Result<Vec<DanmakuMessageChat>> {
+        let mut danmakus = Vec::new();
+        loop {
+            let (messages, next) = self.recv(url).await?;
+            danmakus.extend(messages);
+            if let Some(next) = next {
+                url = next;
+            } else {
+                break;
+            }
+        }
+
+        danmakus.sort_by_key(|d| d.vpos.unwrap_or(0));
+
+        Ok(danmakus)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::DanmakuClient;
+    // use std::str::FromStr;
+    // use chrono::{DateTime, Utc};
+    use super::NewDanmakuClient;
     use crate::{model::WatchResponse, program::NicoEmbeddedData, watch::WatchClient};
 
     #[tokio::test]
     async fn test_get_danmaku() -> anyhow::Result<()> {
         let data =
-            NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv342260645", None).await?;
+            NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv345668802", None).await?;
         let wss_url = data.websocket_url().expect("No websocket url found");
 
         let mut watcher = WatchClient::new(wss_url).await.unwrap();
         watcher.init().await.unwrap();
 
-        let room = loop {
+        let message_server = loop {
             let msg = watcher.recv().await.unwrap();
-            if let Some(WatchResponse::Room(room)) = msg {
-                break room;
+            if let Some(WatchResponse::MessageServer(message_server)) = msg {
+                break message_server;
             }
         };
 
-        let mut client = DanmakuClient::new(
-            room.message_server.uri,
-            room.thread_id,
-            data.program_end_time(),
-        )
-        .await?;
-
-        let mut no = 0;
-        let danmaku = client.recv_all().await?;
-
-        if danmaku[0].no.is_some() {
-            for danmaku in danmaku.iter() {
-                no += 1;
-
-                loop {
-                    if danmaku.no.unwrap() > no {
-                        eprintln!("Missing: {no}");
-                        no += 1;
-                    } else {
-                        break;
-                    }
-                }
-            }
+        let client = NewDanmakuClient::new(message_server.view_uri).await?;
+        // let at = DateTime::from_str(&message_server.vpos_base_time)
+        //     .map(|n: DateTime<Utc>| n.timestamp().to_string())
+        //     .unwrap_or("now".to_string());
+        let at = "now".to_string();
+        let backward = client.get_backward_segment(at).await?;
+        if let Some(segment) = backward.segment {
+            let danmakus = client.recv_all(segment.uri).await?;
+            let json = serde_json::to_string(&danmakus)?;
+            std::fs::write("/tmp/test.json", json)?;
         }
-        println!("{}", serde_json::to_string(&danmaku)?);
-
         Ok(())
     }
 }

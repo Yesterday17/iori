@@ -1,5 +1,16 @@
 use serde::{Deserialize, Serialize};
 
+use crate::danmaku::protocol::{
+    data::{
+        chat::{
+            modifier::{Color, ColorName, Font, Pos, Size},
+            AccountStatus,
+        },
+        Chat, OperatorComment,
+    },
+    service::edge::chunked_message::Meta,
+};
+
 #[derive(Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "camelCase")]
 pub enum WatchResponse {
@@ -8,10 +19,11 @@ pub enum WatchResponse {
     ServerTime(WatchMessageServerTime),
     Seat(WatchMessageSeat),
     Stream(WatchMessageStream),
-    Room(WatchMessageRoom),
+    MessageServer(WatchMessageMessageServer),
     Statistics(WatchMessageStatistics),
     EventState(WatchMessageEventState),
     Akashic(WatchMessageAkashic),
+    Schedule(WatchMessageSchedule),
 }
 
 #[derive(Deserialize)]
@@ -45,24 +57,10 @@ pub struct WatchMessageStream {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct WatchMessageRoom {
-    pub name: String,
-    pub is_first: bool,
-    pub thread_id: String,
-    pub waybackkey: String,
-    pub your_post_key: Option<String>,
-
+pub struct WatchMessageMessageServer {
+    pub hashed_user_id: Option<String>,
+    pub view_uri: String,
     pub vpos_base_time: String,
-    pub message_server: DanmakuMessageServer,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct DanmakuMessageServer {
-    /// niwavided
-    pub r#type: String,
-    /// wss://
-    pub uri: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,6 +93,13 @@ pub struct WatchMessageAkashic {
     pub player_id: String,
     pub status: String,
     pub token: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchMessageSchedule {
+    pub begin: String,
+    pub end: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -159,9 +164,9 @@ pub struct DanmakuMessageChat {
     //         "content": "さいまえ"
     //     }
     // },
-    pub thread: String,
+    pub thread: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub no: Option<u64>,
+    pub no: Option<i64>,
     // vpos might be negative:
     // {"chat":{"thread":"M.V67enstLPeSLVO0U1lcbDA","no":1,"vpos":-298283036,"date":1690502169,"date_usec":660934,"mail":"184","user_id":"zQVo171K_fu_CsvU99gO305dOU4","premium":3,"anonymity":1,"content":"/trialpanel on 1"}}
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -188,6 +193,134 @@ impl PartialOrd for DanmakuMessageChat {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         // compare date first, then vpos
         Some(self.date.cmp(&other.date).then(self.vpos.cmp(&other.vpos)))
+    }
+}
+
+impl DanmakuMessageChat {
+    pub fn from_chat(chat: Chat, meta: &Meta) -> Self {
+        let time = meta.at.unwrap().normalized();
+
+        let mut commands = Vec::new();
+        if chat.raw_user_id() == 0 {
+            commands.push("184".to_string());
+        }
+        if let Some(modifier) = chat.modifier {
+            match modifier.position() {
+                Pos::Naka => {}
+                pos => commands.push(pos.as_str_name().to_string()),
+            }
+            match modifier.size() {
+                Size::Medium => {}
+                size => commands.push(size.as_str_name().to_string()),
+            }
+            if let Some(color) = modifier.color {
+                match color {
+                    Color::NamedColor(named) => {
+                        let name = ColorName::try_from(named).unwrap();
+                        match name {
+                            ColorName::White => {}
+                            name => commands.push(name.as_str_name().to_string()),
+                        }
+                    }
+                    Color::FullColor(color) => {
+                        let r = color.r;
+                        let g = color.g;
+                        let b = color.b;
+                        commands.push(format!("#{:02x}{:02x}{:02x}", r, g, b));
+                    }
+                }
+            }
+            match modifier.font() {
+                Font::Defont => {}
+                font => commands.push(font.as_str_name().to_string()),
+            }
+        }
+
+        Self {
+            thread: None,
+            no: Some(chat.no as i64),
+            vpos: Some(chat.vpos as i64),
+            date: time.seconds as u64,
+            date_usec: time.nanos as u64 / 1000,
+            name: chat.name.clone(),
+            mail: if commands.is_empty() {
+                None
+            } else {
+                Some(commands.join(" "))
+            },
+            user_id: if chat.raw_user_id() > 0 {
+                chat.raw_user_id().to_string()
+            } else {
+                chat.hashed_user_id().to_string()
+            },
+            premium: if let AccountStatus::Premium = chat.account_status() {
+                Some(1)
+            } else {
+                None
+            },
+            anonymity: if chat.raw_user_id() == 0 {
+                Some(1)
+            } else {
+                None
+            },
+            content: chat.content,
+        }
+    }
+
+    pub fn from_operator_comment(chat: OperatorComment, meta: &Meta) -> Self {
+        let time = meta.at.unwrap().normalized();
+
+        let mut commands = Vec::new();
+        commands.push("184".to_string());
+        if let Some(modifier) = chat.modifier {
+            match modifier.position() {
+                Pos::Naka => {}
+                pos => commands.push(pos.as_str_name().to_string()),
+            }
+            match modifier.size() {
+                Size::Medium => {}
+                size => commands.push(size.as_str_name().to_string()),
+            }
+            if let Some(color) = modifier.color {
+                match color {
+                    Color::NamedColor(named) => {
+                        let name = ColorName::try_from(named).unwrap();
+                        match name {
+                            ColorName::White => {}
+                            name => commands.push(name.as_str_name().to_string()),
+                        }
+                    }
+                    Color::FullColor(color) => {
+                        let r = color.r;
+                        let g = color.g;
+                        let b = color.b;
+                        commands.push(format!("#{:02x}{:02x}{:02x}", r, g, b));
+                    }
+                }
+            }
+            match modifier.font() {
+                Font::Defont => {}
+                font => commands.push(font.as_str_name().to_string()),
+            }
+        }
+
+        Self {
+            thread: None,
+            no: None,
+            vpos: None,
+            date: time.seconds as u64,
+            date_usec: time.nanos as u64 / 1000,
+            name: chat.name.clone(),
+            mail: if commands.is_empty() {
+                None
+            } else {
+                Some(commands.join(" "))
+            },
+            user_id: "operator".to_string(),
+            premium: Some(3),
+            anonymity: Some(1),
+            content: chat.content,
+        }
     }
 }
 

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data;
+
+import "dwango/nicolive/chat/data/atoms.proto";
+import "dwango/nicolive/chat/data/atoms/moderator.proto";
+
+message NicoliveState {
+
+  
+  optional Statistics statistics = 1;
+
+  
+  optional Enquete enquete = 2;
+
+  
+  optional MoveOrder move_order = 3;
+
+  
+  optional Marquee marquee = 4;
+
+  
+  optional CommentLock comment_lock = 5;
+
+  
+  optional CommentMode comment_mode = 6;
+
+  
+  optional TrialPanel trial_panel = 7;
+
+  
+
+  
+  optional ProgramStatus program_status = 9;
+
+  
+  optional atoms.ModerationAnnouncement moderation_announcement = 10;
+}

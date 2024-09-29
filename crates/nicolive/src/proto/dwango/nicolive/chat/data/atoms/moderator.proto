@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data.atoms;
+
+import "google/protobuf/timestamp.proto";
+
+
+message ModeratorUserInfo {
+    int64 user_id = 1;
+    optional string nickname = 2;
+    optional string iconUrl = 3;
+}
+
+
+message ModeratorUpdated {
+    enum ModeratorOperation {
+        ADD = 0;
+        DELETE = 1;
+    }
+    
+    ModeratorOperation operation = 1;
+    
+    ModeratorUserInfo operator = 2;
+    
+    google.protobuf.Timestamp updatedAt = 3;
+}
+
+
+message SSNGUpdated {
+    enum SSNGOperation {
+        ADD = 0;
+        DELETE = 1;
+    }
+    enum SSNGType {
+        USER = 0;
+        WORD = 1;
+        COMMAND = 2;
+    }
+    
+    SSNGOperation operation = 1;
+    
+    int64 ssng_id = 2;
+    
+    ModeratorUserInfo operator = 3;
+    
+    optional SSNGType type = 4;
+    
+    optional string source = 5;
+    
+    optional google.protobuf.Timestamp updatedAt = 6;
+}
+
+
+message ModerationAnnouncement {
+    enum GuidelineItem {
+        UNKNOWN = 0;
+        SEXUAL = 1;
+        SPAM = 2;
+        SLANDER = 3;
+        PERSONAL_INFORMATION = 4;
+    }
+    
+    optional string message = 1;
+    
+    repeated GuidelineItem guidelineItems = 2;
+    
+    google.protobuf.Timestamp updatedAt = 3;
+}
+

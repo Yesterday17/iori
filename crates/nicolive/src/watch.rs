@@ -58,12 +58,15 @@ impl WatchClient {
                         self.keep_seat_interval = seat.keep_interval_sec;
                     }
                     WatchResponse::Stream(msg) => return Ok(Some(WatchResponse::Stream(msg))),
-                    WatchResponse::Room(msg) => return Ok(Some(WatchResponse::Room(msg))),
+                    WatchResponse::MessageServer(msg) => {
+                        return Ok(Some(WatchResponse::MessageServer(msg)))
+                    }
                     WatchResponse::Statistics(msg) => {
                         return Ok(Some(WatchResponse::Statistics(msg)))
                     }
                     WatchResponse::EventState(_) => (), // dismiss event state
                     WatchResponse::Akashic(msg) => return Ok(Some(WatchResponse::Akashic(msg))),
+                    WatchResponse::Schedule(_) => (), // dismiss schedule
                 }
             }
         }
@@ -153,8 +156,8 @@ mod tests {
 
         loop {
             let msg = watcher.recv().await.unwrap();
-            if let Some(WatchResponse::Room(room)) = msg {
-                println!("{room:?}");
+            if let Some(WatchResponse::MessageServer(message_server)) = msg {
+                println!("{message_server:?}");
                 std::process::exit(0);
             }
         }

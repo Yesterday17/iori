@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.service.edge;
+import "google/protobuf/timestamp.proto";
+import "dwango/nicolive/chat/data/message.proto";
+import "dwango/nicolive/chat/data/state.proto";
+import "dwango/nicolive/chat/data/origin.proto";
+
+
+
+message ChunkedMessage {
+  message Meta {
+    
+    string id = 1;
+    
+    google.protobuf.Timestamp at = 2;
+    
+    data.NicoliveOrigin origin = 3;
+  }
+  Meta meta = 1;
+  oneof payload {
+    
+    data.NicoliveMessage message = 2;
+    
+    data.NicoliveState state = 4;
+    
+    
+    
+    Signal signal = 5;
+  }
+
+  enum Signal {
+    
+    
+    Flushed = 0;
+  }
+}
+
+
+message PackedSegment {
+  
+  repeated ChunkedMessage messages = 1;
+
+  message Next {
+    string uri = 1;
+  }
+  
+  Next next = 2;
+
+  StateSnapshot snapshot = 3;
+
+  message StateSnapshot {
+    
+    string uri = 1;
+  }
+}
+
+
+
+message ChunkedEntry {
+
+  
+  oneof entry {
+    
+    BackwardSegment backward = 2;
+
+    
+    MessageSegment previous = 3;
+
+    
+    MessageSegment segment = 1;
+
+    
+    ReadyForNext next = 4;
+  }
+  message ReadyForNext {
+    int64 at = 1;
+  }
+}
+
+
+
+
+message MessageSegment {
+  
+  google.protobuf.Timestamp from = 1;
+
+  
+  google.protobuf.Timestamp until = 2;
+
+  
+  
+  string uri = 3;
+}
+
+
+
+message BackwardSegment {
+  google.protobuf.Timestamp until = 1;
+  
+  
+  PackedSegment.Next segment = 2;
+  
+  PackedSegment.StateSnapshot snapshot = 3;
+}

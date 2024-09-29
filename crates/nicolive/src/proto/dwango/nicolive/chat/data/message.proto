@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data;
+import "dwango/nicolive/chat/data/atoms.proto";
+import "dwango/nicolive/chat/data/atoms/moderator.proto";
+
+
+
+message NicoliveMessage {
+
+  oneof data {
+    
+    Chat chat = 1;
+
+    
+    SimpleNotification simple_notification = 7;
+
+    
+    Gift gift = 8;
+
+    
+    Nicoad nicoad = 9;
+
+    GameUpdate game_update = 13;
+
+    
+    TagUpdated tag_updated = 17;
+
+    
+    atoms.ModeratorUpdated moderator_updated = 18;
+    
+    atoms.SSNGUpdated ssng_updated = 19;
+
+    
+    Chat overflowed_chat = 20;
+
+    
+  }
+
+  reserved 2 to 6, 10 to 12, 14 to 16;
+}

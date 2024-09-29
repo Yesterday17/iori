@@ -16,9 +16,7 @@ pub fn sec2hms(sec: f64) -> String {
     result
 }
 
-pub fn xml2ass(xml_data: &str) -> anyhow::Result<String> {
-    let mut chats: Vec<DanmakuMessageChat> = serde_json::from_str(&xml_data)?;
-
+pub fn xml2ass(mut chats: Vec<DanmakuMessageChat>) -> anyhow::Result<String> {
     chats.sort_by_key(|chat| chat.vpos.unwrap_or(0));
 
     // 获取运营弹幕ID和需要过滤弹幕的ID

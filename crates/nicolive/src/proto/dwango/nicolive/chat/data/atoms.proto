@@ -1,0 +1,341 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data;
+import "google/protobuf/duration.proto";
+
+
+message Chat {
+  
+  string content = 1;
+
+  int32 vpos = 3;
+
+  enum AccountStatus {
+    Standard = 0;
+    Premium = 1;
+  }
+  
+  AccountStatus account_status = 4;
+
+  
+  optional string name = 2;
+
+  
+  optional int64 raw_user_id = 5;
+
+  
+  
+  optional string hashed_user_id = 6;
+
+  
+  message Modifier {
+    
+    enum Pos {
+      naka = 0;
+      shita = 1;
+      ue = 2;
+    }
+    Pos position = 1;
+
+    
+    enum Size {
+      medium = 0;
+      small = 1;
+      big = 2;
+    }
+    Size size = 2;
+
+    
+    enum ColorName {
+      white = 0;
+      red = 1;
+      pink = 2;
+      orange = 3;
+      yellow = 4;
+      green = 5;
+      cyan = 6;
+      blue = 7;
+      purple = 8;
+      black = 9;
+      white2 = 10;
+      red2 = 11;
+      pink2 = 12;
+      orange2 = 13;
+      yellow2 = 14;
+      green2 = 15;
+      cyan2 = 16;
+      blue2 = 17;
+      purple2 = 18;
+      black2 = 19;
+    }
+
+    
+    message FullColor {
+      int32 r = 1;
+      int32 g = 2;
+      int32 b = 3;
+    }
+    oneof color {
+      ColorName named_color = 3;
+      FullColor full_color = 4;
+    }
+
+    enum Font {
+      defont = 0;
+      mincho = 1;
+      gothic = 2;
+    }
+    Font font = 5;
+
+    enum Opacity {
+      
+      Normal = 0;
+      
+      Translucent = 1;
+    }
+    Opacity opacity = 6;
+  }
+  Modifier modifier = 7;
+
+  
+  
+  
+  
+  
+  
+  
+  
+  int32 no = 8;
+}
+
+
+message OperatorComment {
+  string content = 1;
+
+  optional string name = 2;
+
+  Chat.Modifier modifier = 3;
+
+  optional string link = 4;
+}
+
+
+message Jump {
+  string content = 1;
+  string message = 2;
+  google.protobuf.Duration wait = 4;
+}
+
+
+message Redirect {
+  string uri = 1;
+  string message = 2;
+  google.protobuf.Duration wait = 4;
+}
+
+
+message SimpleNotification {
+  oneof message {
+    
+    string ichiba = 1;
+
+    
+    string quote = 2;
+
+    
+    string emotion = 3;
+
+    
+    string cruise = 4;
+
+    
+    string program_extended = 5;
+
+    
+    string ranking_in = 6;
+
+    
+    string ranking_updated = 8;
+
+    
+    string visited = 7;
+  }
+}
+
+
+message Gift {
+  string item_id = 1;
+  optional int64 advertiser_user_id = 2;
+  string advertiser_name = 3;
+  int64 point = 4;
+  string message = 5;
+  string item_name = 6;
+  optional int32 contribution_rank = 7;
+}
+
+
+message Nicoad {
+  message V0 {
+    message Latest {
+      string advertiser = 1;
+      int32 point = 2;
+      optional string message = 3;
+    }
+    Latest latest = 1;
+
+    message Ranking {
+      string advertiser = 1;
+      int32 rank = 2;
+      optional string message = 3;
+      optional int32 user_rank = 4;
+    }
+    repeated Ranking ranking = 2;
+
+    int32 total_point = 3;
+  }
+
+  message V1 {
+    int32 total_ad_point = 1;
+    string message = 2;
+  }
+
+  oneof versions {
+    V0 v0 = 1;
+    V1 v1 = 2;
+  }
+}
+
+
+message CommentLock {
+  enum Status {
+    Unrestricted = 0;
+    Locked = 1;
+  }
+  Status status = 1;
+}
+
+
+message CommentMode {
+  enum Layout {
+    Normal = 0;
+    SplitTop = 1;
+    Background = 2;
+  }
+  Layout layout = 1;
+}
+
+
+message GameUpdate {
+
+}
+
+
+
+
+
+message TrialPanel {
+  enum Panel {
+    Hidden = 0;  
+    Display = 1; 
+  }
+  
+  Panel panel = 1;
+
+  enum Mode {
+    Allowed = 0;   
+    Restricted = 1;
+    Forbidden = 2; 
+  }
+  
+  Mode unqualified_user = 2;
+}
+
+message ProgramStatus {
+  enum State {
+    Unknown = 0;
+    
+    Ended = 1;
+  }
+  State state = 1;
+}
+
+
+
+message TagUpdated {
+  message Tag {
+    string text = 1;
+    bool locked = 2;
+    bool reserved = 3;
+    string nicopedia_uri = 4;
+  }
+  repeated Tag tags = 1;
+  bool owner_locked = 2;
+}
+
+
+
+message Statistics {
+  
+  optional int64 viewers = 1;
+
+  
+  optional int64 comments = 2;
+
+  
+  optional int64 ad_points = 3;
+
+  
+  optional int64 gift_points = 4;
+
+  reserved 5;
+}
+
+
+message Marquee {
+  message Display {
+    OperatorComment operator_comment = 1;
+
+    
+    optional google.protobuf.Duration duration = 3;
+  }
+  
+  optional Display display = 1;
+}
+
+
+message Enquete {
+  
+  string question = 1;
+
+  
+  message Choice {
+    
+    string description = 1;
+
+    
+    
+    optional int32 per_mille = 3;
+  }
+  repeated Choice choices = 2;
+
+  enum Status {
+    
+    Closed = 0;
+
+    
+    Poll = 1;
+
+    
+    Result = 2;
+  }
+
+  Status status = 3;
+}
+
+
+message MoveOrder {
+  oneof to {
+    Jump jump = 1;
+    Redirect redirect = 2;
+  }
+}
