@@ -312,7 +312,7 @@ impl DanmakuMessageChat {
         Self {
             thread: None,
             no: None,
-            vpos: start_time.map(|s| (s - time.seconds + 9 * 60 * 60) * 100),
+            vpos: start_time.map(|s| (time.seconds - s) * 100),
             date: time.seconds as u64,
             date_usec: time.nanos as u64 / 1000,
             name: chat.name.clone(),
@@ -338,7 +338,7 @@ impl DanmakuMessageChat {
         Self {
             thread: None,
             no: None,
-            vpos: start_time.map(|s| (s - time.seconds + 9 * 60 * 60) * 100),
+            vpos: start_time.map(|s| (time.seconds - s) * 100),
             date: time.seconds as u64,
             date_usec: time.nanos as u64 / 1000,
             name: None,
