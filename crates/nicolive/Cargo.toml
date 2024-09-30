@@ -35,3 +35,4 @@ tokio = { workspace = true, features = ["full"] }
 
 [build-dependencies]
 prost-build = "0.13.3"
+protobuf-src = "2.1.0"
