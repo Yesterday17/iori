@@ -330,8 +330,12 @@ impl DanmakuList {
         self.0.iter()
     }
 
-    pub fn to_json(&self) -> anyhow::Result<String> {
-        Ok(serde_json::to_string(&self.0)?)
+    pub fn to_json(&self, pretty: bool) -> anyhow::Result<String> {
+        if pretty {
+            Ok(serde_json::to_string_pretty(&self.0)?)
+        } else {
+            Ok(serde_json::to_string(&self.0)?)
+        }
     }
 
     pub fn to_ass(&self) -> anyhow::Result<String> {
@@ -370,7 +374,7 @@ mod tests {
         let backward = client.get_backward_segment(at).await?;
         if let Some(segment) = backward.segment {
             let danmakus = client.recv_all(segment.uri, start_time).await?;
-            std::fs::write("/tmp/test.json", danmakus.to_json()?)?;
+            std::fs::write("/tmp/test.json", danmakus.to_json(true)?)?;
         }
         Ok(())
     }
