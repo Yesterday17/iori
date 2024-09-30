@@ -243,9 +243,14 @@ async fn main() -> anyhow::Result<()> {
 
             let source = NicoTimeshiftSource::new(client, wss_url, consumer).await?;
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-            downloader.download().await?;
+            let segments = downloader.download().await?;
 
-            None
+            Some(
+                segments
+                    .into_iter()
+                    .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
+                    .collect(),
+            )
         } else if args.dash {
             let source = CommonDashArchiveSource::new(client, args.m3u8, args.key, consumer)?;
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
