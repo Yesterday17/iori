@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
-use crate::model::DanmakuMessageChat;
+use crate::danmaku::DanmakuList;
 
 // 转换时间的函数
 pub fn sec2hms(sec: f64) -> String {
@@ -16,13 +16,11 @@ pub fn sec2hms(sec: f64) -> String {
     result
 }
 
-pub fn xml2ass(mut chats: Vec<DanmakuMessageChat>) -> anyhow::Result<String> {
-    chats.sort_by_key(|chat| chat.vpos.unwrap_or(0));
-
+pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     // 获取运营弹幕ID和需要过滤弹幕的ID
     let mut office_ids = Vec::new();
     let mut filtered_chats = Vec::new();
-    for chat in &chats {
+    for chat in chats.iter() {
         let user_id = &chat.user_id;
         let premium = chat.premium;
         if matches!(premium, Some(3)) || matches!(premium, Some(7)) || matches!(premium, Some(-1)) {

@@ -14,7 +14,7 @@ use serde_json::json;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
-use crate::{model::*, utils::prepare_websocket_request};
+use crate::{model::*, utils::prepare_websocket_request, xml2ass::xml2ass};
 
 pub mod protocol {
     pub mod data {
@@ -109,7 +109,7 @@ impl DanmakuClient {
         Ok(result)
     }
 
-    pub async fn recv_all(&mut self) -> anyhow::Result<Vec<DanmakuMessageChat>> {
+    pub async fn recv_all(&mut self) -> anyhow::Result<DanmakuList> {
         let mut result = BTreeSet::new();
 
         loop {
@@ -122,7 +122,7 @@ impl DanmakuClient {
             result.extend(danmaku.chats);
         }
 
-        Ok(result.into_iter().collect())
+        Ok(DanmakuList(result.into_iter().collect()))
     }
 
     async fn request_thread(&mut self) -> anyhow::Result<()> {
@@ -151,14 +151,6 @@ impl DanmakuClient {
         self.p += 5;
 
         Ok(())
-    }
-}
-
-pub struct DanmakuList(Vec<DanmakuMessageChat>);
-
-impl DanmakuList {
-    fn to_ass(&mut self) -> String {
-        todo!()
     }
 }
 
@@ -219,7 +211,7 @@ impl NewDanmakuClient {
         &self,
         uri: String,
         start_time: Option<i64>,
-    ) -> anyhow::Result<(Vec<DanmakuMessageChat>, Option<String>)> {
+    ) -> anyhow::Result<(DanmakuList, Option<String>)> {
         let data = self.client.get(uri).send().await?;
         let b = data.error_for_status()?.bytes().await?;
         let segment: PackedSegment = prost::Message::decode(b)?;
@@ -235,22 +227,22 @@ impl NewDanmakuClient {
                                     danmakus.push(DanmakuMessageChat::from_chat(chat, &meta))
                                 }
                                 Data::SimpleNotification(notification) => {
-                                    if let Some(message) = notification.message {
-                                        println!("notification: {message:?}");
-                                    }
+                                    eprintln!("unhandled simple_notification: {notification:?}");
                                 }
                                 Data::Gift(_) => {}
                                 Data::Nicoad(_) => {}
                                 Data::GameUpdate(game_update) => {
-                                    println!("game_update: {game_update:?}");
+                                    eprintln!("unhandled game_update: {game_update:?}");
                                 }
                                 Data::TagUpdated(tag_updated) => {
-                                    println!("tag_updated: {tag_updated:?}");
+                                    eprintln!("unhandled tag_updated: {tag_updated:?}");
                                 }
                                 Data::ModeratorUpdated(updated) => {
-                                    println!("moderator_updated: {updated:?}");
+                                    eprintln!("unhandled moderator_updated: {updated:?}");
                                 }
-                                Data::SsngUpdated(ssng_updated) => todo!(),
+                                Data::SsngUpdated(ssng_updated) => {
+                                    eprintln!("unhandled ssng_updated: {ssng_updated:?}")
+                                }
                             }
                         }
                     }
@@ -289,28 +281,27 @@ impl NewDanmakuClient {
                             continue;
                         }
 
-                        println!("unhandled state: {state:?}");
+                        eprintln!("unhandled state: {state:?}");
                     }
                     Payload::Signal(signal) => {
-                        println!("signal: {signal:?}");
-                        // TODO, but not important
+                        eprintln!("unhandled signal: {signal:?}");
                     }
                 }
             }
         }
 
-        Ok((danmakus, segment.next.map(|n| n.uri)))
+        Ok((DanmakuList(danmakus), segment.next.map(|n| n.uri)))
     }
 
     pub async fn recv_all(
         &self,
         mut url: String,
         start_time: Option<i64>,
-    ) -> anyhow::Result<Vec<DanmakuMessageChat>> {
+    ) -> anyhow::Result<DanmakuList> {
         let mut danmakus = Vec::new();
         loop {
             let (messages, next) = self.recv(url, start_time).await?;
-            danmakus.extend(messages);
+            danmakus.extend(messages.into_inner());
             if let Some(next) = next {
                 url = next;
             } else {
@@ -318,9 +309,33 @@ impl NewDanmakuClient {
             }
         }
 
-        danmakus.sort_by_key(|d| d.vpos.unwrap_or(0));
-
+        let mut danmakus = DanmakuList(danmakus);
+        danmakus.sort();
         Ok(danmakus)
+    }
+}
+
+pub struct DanmakuList(Vec<DanmakuMessageChat>);
+
+impl DanmakuList {
+    pub fn sort(&mut self) {
+        self.0.sort_by_key(|d| d.vpos.unwrap_or(0));
+    }
+
+    pub fn into_inner(self) -> Vec<DanmakuMessageChat> {
+        self.0
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, DanmakuMessageChat> {
+        self.0.iter()
+    }
+
+    pub fn to_json(&self) -> anyhow::Result<String> {
+        Ok(serde_json::to_string(&self.0)?)
+    }
+
+    pub fn to_ass(&mut self) -> anyhow::Result<String> {
+        xml2ass(self)
     }
 }
 
@@ -355,8 +370,7 @@ mod tests {
         let backward = client.get_backward_segment(at).await?;
         if let Some(segment) = backward.segment {
             let danmakus = client.recv_all(segment.uri, start_time).await?;
-            let json = serde_json::to_string(&danmakus)?;
-            std::fs::write("/tmp/test.json", json)?;
+            std::fs::write("/tmp/test.json", danmakus.to_json()?)?;
         }
         Ok(())
     }
