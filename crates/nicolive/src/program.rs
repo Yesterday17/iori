@@ -27,7 +27,13 @@ impl NicoEmbeddedData {
         );
         let client = Client::builder().default_headers(headers).build()?;
 
-        let response = client.get(live_url.as_ref()).send().await?;
+        let live_url = if live_url.as_ref().starts_with("lv") {
+            &format!("https://live.nicovideo.jp/watch/{}", live_url.as_ref())
+        } else {
+            live_url.as_ref()
+        };
+
+        let response = client.get(live_url).send().await?;
         let text = response.text().await?;
         let json = NICO_METADATA_REGEXP
             .captures(&text)

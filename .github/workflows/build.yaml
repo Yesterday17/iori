@@ -51,6 +51,9 @@ jobs:
           profile: minimal
           target: ${{ matrix.target }}
 
+      - name: Setup | Protoc
+        uses: arduino/setup-protoc@v3
+
       - name: Build | Build
         uses: actions-rs/cargo@v1
         with:
