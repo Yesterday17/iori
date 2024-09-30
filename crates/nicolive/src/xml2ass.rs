@@ -38,7 +38,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     let aa_high_adjust = 0; // AA弹幕行间间隔
     let office_size = 40; // 运营弹幕字体大小
     let office_bg_height = 72; // 运营弹幕背景遮盖高度
-    let font_name = "SourceHanSansJP-Bold"; // 弹幕字体
+    let font_name = "Source Han Sans JP"; // 弹幕字体
     let danmaku_size = 68; // 弹幕字体大小
     let danmaku_line_height = 64; // 弹幕行高度
     let danmaku_font_space = 2; // 弹幕行间间隔
@@ -117,7 +117,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
         // FIXME: round
         let start_time = sec2hms(vpos / 100.0);
         let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
-        let mut color = "ffffff".to_string();
+        let mut color = "FFFFFF".to_string();
         let mut color_important = None;
 
         let mut passageway_index = 0;
@@ -477,9 +477,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                     }
                 }
                 vote_check = false;
-            }
-
-            if !text.contains("/vote") {
+            } else {
                 // 处理非投票运营弹幕
                 start_time_w = start_time.clone();
                 end_time_w = end_time.clone();
@@ -544,11 +542,14 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 let ex = -(text.chars().count() as i64) * (danmaku_size + danmaku_font_space);
                 let ey = danmaku_line_height * passageway_index;
                 // 生成弹幕行并加入总弹幕
-                if matches!(premium, Some(24)) || matches!(premium, Some(25)) {
-                    danmaku_events.push(format!("Dialogue: 2,{start_time},{end_time},Danmaku,,0,0,0,,{{\\an7\\alpha80\\move({sx},{sy},{ex},{ey}){ass_color}}}{text}"));
-                } else {
-                    // no alpha 80
-                    danmaku_events.push(format!("Dialogue: 2,{start_time},{end_time},Danmaku,,0,0,0,,{{\\an7\\move({sx},{sy},{ex},{ey}){ass_color}}}{text}"));
+                match premium {
+                    Some(0) | Some(24) | Some(25) => {
+                        danmaku_events.push(format!("Dialogue: 2,{start_time},{end_time},Danmaku,,0,0,0,,{{\\an7\\alpha80\\move({sx},{sy},{ex},{ey}){ass_color}}}{text}"));
+                    }
+                    _ => {
+                        // no alpha 80
+                        danmaku_events.push(format!("Dialogue: 2,{start_time},{end_time},Danmaku,,0,0,0,,{{\\an7\\move({sx},{sy},{ex},{ey}){ass_color}}}{text}"));
+                    }
                 }
             }
         }
@@ -564,7 +565,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 let start_time = sec2hms(vpos / 100.0);
                 let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
 
-                let mut color = "ffffff";
+                let mut color = "FFFFFF";
                 let mut color_important = None;
 
                 for style in styles {
@@ -607,7 +608,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     writeln!(ass_data, "PlayResY: 720")?;
     writeln!(ass_data)?;
     writeln!(ass_data, "[V4+ Styles]")?;
-    writeln!(ass_data, "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, marginL, marginR, marginV, Encoding")?;
+    writeln!(ass_data, "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding")?;
     writeln!(ass_data, "Style: Default,微软雅黑,54,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,0,0,0,0")?;
     writeln!(ass_data, "Style: Alternate,微软雅黑,36,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,0,0,0,0")?;
     writeln!(ass_data, "Style: AA,黑体,{aa_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,0")?;
