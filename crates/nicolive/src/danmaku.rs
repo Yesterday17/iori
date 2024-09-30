@@ -334,7 +334,7 @@ impl DanmakuList {
         Ok(serde_json::to_string(&self.0)?)
     }
 
-    pub fn to_ass(&mut self) -> anyhow::Result<String> {
+    pub fn to_ass(&self) -> anyhow::Result<String> {
         xml2ass(self)
     }
 }
