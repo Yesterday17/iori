@@ -1,14 +1,15 @@
 use std::time::SystemTime;
 
+use fake_user_agent::get_chrome_rua;
 use futures_util::{sink::SinkExt, StreamExt};
+use reqwest::ClientBuilder;
+use reqwest_websocket::{Message, RequestBuilderExt, WebSocket};
 use serde_json::json;
-use tokio::net::TcpStream;
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
-use crate::{model::*, utils::prepare_websocket_request};
+use crate::model::*;
 
 pub struct WatchClient {
-    socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    websocket: WebSocket,
 
     keep_seat_interval: u64,
     last_keep_seat_time: SystemTime,
@@ -19,10 +20,15 @@ impl WatchClient {
     where
         S: AsRef<str>,
     {
-        let (socket, _) = connect_async(prepare_websocket_request(ws_url, Vec::new())?).await?;
+        let client = ClientBuilder::new()
+            .user_agent(get_chrome_rua())
+            .build()
+            .unwrap();
+        let response = client.get(ws_url.as_ref()).upgrade().send().await?;
+        let websocket = response.into_websocket().await?;
 
         Ok(Self {
-            socket,
+            websocket,
 
             keep_seat_interval: 30,
             last_keep_seat_time: SystemTime::now(),
@@ -38,7 +44,7 @@ impl WatchClient {
     }
 
     pub async fn recv(&mut self) -> anyhow::Result<Option<WatchResponse>> {
-        while let Some(msg) = self.socket.next().await {
+        while let Some(msg) = self.websocket.next().await {
             let msg = msg?;
             if let Message::Text(text) = msg {
                 let data: WatchResponse = serde_json::from_str(&text)?;
@@ -75,14 +81,14 @@ impl WatchClient {
     }
 
     async fn pong(&mut self) -> anyhow::Result<()> {
-        self.socket
+        self.websocket
             .send(Message::Text(json!({"type":"pong"}).to_string()))
             .await?;
         Ok(())
     }
 
     async fn keep_seat(&mut self) -> anyhow::Result<()> {
-        self.socket
+        self.websocket
             .send(Message::Text(json!({"type": "keepSeat"}).to_string()))
             .await?;
         self.last_keep_seat_time = SystemTime::now();
@@ -91,7 +97,7 @@ impl WatchClient {
 
     // Initialize messages
     async fn start_watching(&mut self) -> anyhow::Result<()> {
-        self.socket
+        self.websocket
             .send(Message::Text(
                 json!({
                     "type": "startWatching",
@@ -117,7 +123,7 @@ impl WatchClient {
     }
 
     async fn get_akashic(&mut self) -> anyhow::Result<()> {
-        self.socket
+        self.websocket
             .send(Message::Text(
                 json!({
                     "type": "getAkashic",
@@ -133,7 +139,7 @@ impl WatchClient {
     }
 
     async fn get_resume(&mut self) -> anyhow::Result<()> {
-        self.socket
+        self.websocket
             .send(Message::Text(json!({"type":"getResume"}).to_string()))
             .await?;
 

@@ -374,21 +374,3 @@ impl DanmakuMessageChat {
         }
     }
 }
-
-pub struct DanmakuThread {
-    pub thread: Option<DanmakuMessageThread>,
-    pub chats: Vec<DanmakuMessageChat>,
-}
-
-impl DanmakuThread {
-    pub(crate) fn new() -> Self {
-        Self {
-            thread: None,
-            chats: Vec::new(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.chats.is_empty()
-    }
-}
