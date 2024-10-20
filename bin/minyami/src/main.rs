@@ -114,9 +114,15 @@ pub struct MinyamiArgs {
     chunk_naming_strategy: u8,
 
     /// [Iori Argument]
-    /// Specify segment range to download in archive mode
+    /// Specify segment range to download in archive mode.
     #[clap(long, default_value = "-")]
     range: SegmentRange,
+
+    /// [Iori Argument]
+    /// Timeout seconds for each manifest/segment request.
+    /// Defaults to 10 seconds.
+    #[clap(long, default_value = "10")]
+    timeout: u64,
 
     /// [Iori Argument]
     /// Specify the resume folder path
@@ -158,8 +164,7 @@ impl MinyamiArgs {
         ClientBuilder::new()
             .default_headers(headers)
             .user_agent(get_chrome_rua())
-            // TODO: verify whether this is the correct timeout for both live and archive
-            .timeout(Duration::from_secs(60))
+            .timeout(Duration::from_secs(self.timeout))
             .build()
             .unwrap()
     }
