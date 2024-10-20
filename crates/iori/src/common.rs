@@ -45,11 +45,10 @@ where
         let bytes = if let Some(initial_segment) = segment.initial_segment() {
             let mut result = initial_segment.to_vec();
             result.extend_from_slice(&bytes);
-            result
+            decryptor.decrypt(&result)?
         } else {
-            bytes.to_vec()
+            decryptor.decrypt(&bytes)?
         };
-        let bytes = decryptor.decrypt(&bytes)?;
         tmp_file.write_all(&bytes).await?;
     } else {
         if let Some(initial_segment) = segment.initial_segment() {
