@@ -14,6 +14,7 @@ use iori::{
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
     merge::IoriMerger,
+    StreamingSegment,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
@@ -203,7 +204,10 @@ impl MinyamiArgs {
         Ok(output_dir)
     }
 
-    fn merger<S>(&self, output_dir: &PathBuf) -> IoriMerger<S> {
+    fn merger<S>(&self, output_dir: &PathBuf) -> IoriMerger<S>
+    where
+        S: StreamingSegment + Send + Sync + 'static,
+    {
         let target_file = current_dir().unwrap().join(&self.output);
 
         if self.live && self.pipe {

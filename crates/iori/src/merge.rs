@@ -45,7 +45,10 @@ pub enum IoriMerger<S> {
     Concat(ConcatAfterMerger<S>),
 }
 
-impl<S> IoriMerger<S> {
+impl<S> IoriMerger<S>
+where
+    S: StreamingSegment + Send + Sync + 'static,
+{
     pub fn pipe<P>(output_dir: P, recycle: bool) -> Self
     where
         P: Into<PathBuf>,
