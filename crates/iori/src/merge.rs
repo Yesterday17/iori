@@ -59,11 +59,11 @@ impl<S> IoriMerger<S> {
         Self::Skip(SkipMerger::new(output_dir))
     }
 
-    pub fn concat<T>(temp_dir: T, output_file: PathBuf) -> Self
+    pub fn concat<T>(temp_dir: T, output_file: PathBuf, keep_segments: bool) -> Self
     where
         T: Into<PathBuf>,
     {
-        Self::Concat(ConcatAfterMerger::new(temp_dir, output_file))
+        Self::Concat(ConcatAfterMerger::new(temp_dir, output_file, keep_segments))
     }
 }
 

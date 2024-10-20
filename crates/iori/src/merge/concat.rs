@@ -12,10 +12,12 @@ pub struct ConcatAfterMerger<S> {
     temp_dir: PathBuf,
     /// Final output file path.
     output_file: PathBuf,
+    /// Keep downloaded segments after merging.
+    keep_segments: bool,
 }
 
 impl<S> ConcatAfterMerger<S> {
-    pub fn new<T>(temp_dir: T, output_file: PathBuf) -> Self
+    pub fn new<T>(temp_dir: T, output_file: PathBuf, keep_segments: bool) -> Self
     where
         T: Into<PathBuf>,
     {
@@ -23,6 +25,7 @@ impl<S> ConcatAfterMerger<S> {
             segments: Vec::new(),
             temp_dir: temp_dir.into(),
             output_file,
+            keep_segments,
         }
     }
 }
@@ -68,6 +71,12 @@ where
     async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
         log::info!("Merging chunks...");
         concat_merge(&mut self.segments, &self.temp_dir, &self.output_file).await?;
+
+        if !self.keep_segments {
+            log::info!("End of merging.");
+            log::info!("Starting cleaning temporary files.");
+            tokio::fs::remove_dir_all(&self.temp_dir).await?;
+        }
 
         log::info!(
             "All finished. Please checkout your files at {}",

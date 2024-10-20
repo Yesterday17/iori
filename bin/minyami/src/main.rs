@@ -211,7 +211,7 @@ impl MinyamiArgs {
         } else if self.no_merge {
             IoriMerger::skip(output_dir)
         } else {
-            IoriMerger::concat(output_dir, target_file)
+            IoriMerger::concat(output_dir, target_file, self.keep)
         }
     }
 }
@@ -280,15 +280,5 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    if !args.keep {
-        log::info!("End of merging.");
-        log::info!("Starting cleaning temporary files.");
-        tokio::fs::remove_dir_all(&output_dir).await?;
-    }
-
-    // log::info!(
-    //     "All finished. Please checkout your files at {}",
-    //     target_file.display()
-    // );
     Ok(())
 }

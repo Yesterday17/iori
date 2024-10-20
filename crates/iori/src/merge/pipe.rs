@@ -122,6 +122,7 @@ where
     }
 
     async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
+        tokio::fs::remove_dir_all(&self.output_dir).await?;
         Ok(())
     }
 }
