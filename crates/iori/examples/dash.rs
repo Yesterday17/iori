@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use iori::{
-    consumer::Consumer, dash::archive::CommonDashArchiveSource, download::SequencialDownloader,
+    dash::archive::CommonDashArchiveSource, download::SequencialDownloader, merge::SkipMerger,
 };
 
 #[tokio::main]
@@ -20,10 +20,10 @@ async fn main() -> anyhow::Result<()> {
     let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
     let output_dir = std::env::temp_dir().join(format!("iori_save_{}", started_at));
 
-    let source =
-        CommonDashArchiveSource::new(Default::default(), url, key, Consumer::file(output_dir)?)?;
+    let source = CommonDashArchiveSource::new(Default::default(), url, key)?;
+    let merger = SkipMerger::new(output_dir);
 
-    let mut downloader = SequencialDownloader::new(source);
+    let mut downloader = SequencialDownloader::new(source, merger);
     downloader.download().await?;
 
     Ok(())

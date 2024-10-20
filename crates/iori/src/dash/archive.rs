@@ -8,13 +8,12 @@ use std::{
 };
 
 use reqwest::Client;
-use tokio::sync::mpsc;
+use tokio::{io::AsyncWrite, sync::mpsc};
 use url::Url;
 
 use crate::{
-    common::{CommonSegmentFetcher, SegmentType},
-    consumer::Consumer,
-    dash::segment::{DashSegment, DashSegmentInfo},
+    common::{fetch_segment, SegmentType},
+    dash::segment::DashSegment,
     decrypt::IoriKey,
     error::IoriResult,
     StreamingSource,
@@ -27,18 +26,11 @@ pub struct CommonDashArchiveSource {
     mpd: Url,
     key: Option<Arc<IoriKey>>,
     sequence: AtomicU64,
-    fetch: CommonSegmentFetcher,
 }
 
 impl CommonDashArchiveSource {
-    pub fn new(
-        client: Client,
-        mpd: String,
-        key: Option<String>,
-        consumer: Consumer,
-    ) -> IoriResult<Self> {
+    pub fn new(client: Client, mpd: String, key: Option<String>) -> IoriResult<Self> {
         let client = Arc::new(client);
-        let fetch = CommonSegmentFetcher::new(client.clone(), consumer);
         let key = if let Some(k) = key {
             Some(Arc::new(IoriKey::clear_key(k)?))
         } else {
@@ -50,14 +42,12 @@ impl CommonDashArchiveSource {
             mpd: Url::parse(&mpd)?,
             key,
             sequence: AtomicU64::new(0),
-            fetch,
         })
     }
 }
 
 impl StreamingSource for CommonDashArchiveSource {
     type Segment = DashSegment;
-    type SegmentInfo = DashSegmentInfo;
 
     async fn fetch_info(
         &self,
@@ -224,17 +214,16 @@ impl StreamingSource for CommonDashArchiveSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
-        self.fetch.fetch(segment, will_retry).await
-    }
-
-    async fn fetch_segment_info(&self, segment: &Self::Segment) -> Option<Self::SegmentInfo> {
-        Some(DashSegmentInfo {
-            url: segment.url.clone(),
-            filename: segment.filename.clone(),
-            r#type: segment.r#type,
-            sequence: segment.sequence,
-        })
+    async fn fetch_segment<MS>(
+        &self,
+        segment: &Self::Segment,
+        merger_segment: &mut MS,
+    ) -> IoriResult<()>
+    where
+        MS: AsyncWrite + Unpin + Send + Sync + 'static,
+    {
+        fetch_segment(self.client.clone(), segment, merger_segment).await?;
+        Ok(())
     }
 }
 

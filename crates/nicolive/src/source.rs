@@ -4,19 +4,18 @@ use std::sync::{
 };
 
 use iori::{
-    common::{CommonSegmentFetcher, SegmentType},
-    consumer::Consumer,
-    error::IoriResult,
-    hls::utils::load_m3u8,
-    merge::MergableSegmentInfo,
-    RemoteStreamingSegment, StreamingSegment, StreamingSource,
+    common::fetch_segment, error::IoriResult, hls::utils::load_m3u8, RemoteStreamingSegment,
+    StreamingSegment, StreamingSource,
 };
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+use tokio::{
+    io::AsyncWrite,
+    sync::{mpsc, OwnedSemaphorePermit, Semaphore},
+};
 use url::Url;
 
 use crate::model::WatchResponse;
@@ -81,27 +80,11 @@ pub struct NicoTimeshiftSegmentInfo {
     file_name: String,
 }
 
-impl MergableSegmentInfo for NicoTimeshiftSegmentInfo {
-    fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn file_name(&self) -> &str {
-        &self.file_name
-    }
-
-    fn r#type(&self) -> SegmentType {
-        SegmentType::Video
-    }
-}
-
 pub struct NicoTimeshiftSource {
     client: Arc<Client>,
 
     m3u8_url: String,
     sequence: Arc<AtomicU64>,
-
-    segment: Arc<CommonSegmentFetcher>,
 
     host: Arc<RwLock<Url>>,
     token: Arc<RwLock<String>>,
@@ -109,7 +92,7 @@ pub struct NicoTimeshiftSource {
 }
 
 impl NicoTimeshiftSource {
-    pub async fn new(client: Client, wss_url: String, consumer: Consumer) -> anyhow::Result<Self> {
+    pub async fn new(client: Client, wss_url: String) -> anyhow::Result<Self> {
         let client = Arc::new(client);
 
         let mut watcher = crate::watch::WatchClient::new(&wss_url).await?;
@@ -163,7 +146,6 @@ impl NicoTimeshiftSource {
             client: client.clone(),
             m3u8_url: stream.uri,
             sequence: Arc::new(AtomicU64::new(0)),
-            segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
             host,
             token,
             retry: 3,
@@ -180,7 +162,6 @@ const NICO_SEGMENT_OFFSET_REGEXP: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(\d{3
 
 impl StreamingSource for NicoTimeshiftSource {
     type Segment = NicoTimeshiftSegment;
-    type SegmentInfo = NicoTimeshiftSegmentInfo;
 
     async fn fetch_info(
         &self,
@@ -313,14 +294,15 @@ impl StreamingSource for NicoTimeshiftSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
-        self.segment.fetch(segment, will_retry).await
-    }
-
-    async fn fetch_segment_info(&self, segment: &Self::Segment) -> Option<Self::SegmentInfo> {
-        Some(NicoTimeshiftSegmentInfo {
-            sequence: segment.sequence(),
-            file_name: segment.file_name().to_string(),
-        })
+    async fn fetch_segment<MS>(
+        &self,
+        segment: &Self::Segment,
+        merger_segment: &mut MS,
+    ) -> IoriResult<()>
+    where
+        MS: AsyncWrite + Unpin + Send + Sync + 'static,
+    {
+        fetch_segment(self.client.clone(), segment, merger_segment).await?;
+        Ok(())
     }
 }

@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
-    consumer::Consumer,
     error::{IoriError, IoriResult},
     RemoteStreamingSegment, StreamingSegment, ToSegmentData,
 };
@@ -34,66 +33,45 @@ impl SegmentType {
     }
 }
 
-pub struct CommonSegmentFetcher {
+pub async fn fetch_segment<S, MS>(
     client: Arc<Client>,
-    consumer: Consumer,
-}
+    segment: &S,
+    tmp_file: &mut MS,
+) -> IoriResult<()>
+where
+    S: StreamingSegment + ToSegmentData,
+    MS: AsyncWrite + Unpin + Send + Sync + 'static,
+{
+    let bytes = segment.to_segment_data(client).await?;
 
-impl CommonSegmentFetcher {
-    pub fn new(client: Arc<Client>, consumer: Consumer) -> Self {
-        Self { client, consumer }
-    }
-
-    pub async fn fetch<S>(&self, segment: &S, will_retry: bool) -> IoriResult<()>
-    where
-        S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
-    {
-        let tmp_file = self.consumer.open_writer(segment).await?;
-        let mut tmp_file = match tmp_file {
-            Some(f) => f,
-            None => return Ok(()),
-        };
-
-        let bytes = match segment.to_segment(self.client.clone()).await {
-            Ok(b) => b,
-            Err(e) => {
-                if !will_retry {
-                    tmp_file.fail().await?;
-                }
-                return Err(e);
-            }
-        };
-
-        // TODO: use bytes_stream to improve performance
-        // .bytes_stream();
-        let decryptor = segment.key().map(|key| key.to_decryptor());
-        if let Some(decryptor) = decryptor {
-            let bytes = if let Some(initial_segment) = segment.initial_segment() {
-                let mut result = initial_segment.to_vec();
-                result.extend_from_slice(&bytes);
-                result
-            } else {
-                bytes.to_vec()
-            };
-            let bytes = decryptor.decrypt(&bytes)?;
-            tmp_file.write_all(&bytes).await?;
+    // TODO: use bytes_stream to improve performance
+    // .bytes_stream();
+    let decryptor = segment.key().map(|key| key.to_decryptor());
+    if let Some(decryptor) = decryptor {
+        let bytes = if let Some(initial_segment) = segment.initial_segment() {
+            let mut result = initial_segment.to_vec();
+            result.extend_from_slice(&bytes);
+            result
         } else {
-            if let Some(initial_segment) = segment.initial_segment() {
-                tmp_file.write_all(&initial_segment).await?;
-            }
-            tmp_file.write_all(&bytes).await?;
+            bytes.to_vec()
+        };
+        let bytes = decryptor.decrypt(&bytes)?;
+        tmp_file.write_all(&bytes).await?;
+    } else {
+        if let Some(initial_segment) = segment.initial_segment() {
+            tmp_file.write_all(&initial_segment).await?;
         }
-
-        tmp_file.finish().await?;
-        Ok(())
+        tmp_file.write_all(&bytes).await?;
     }
+
+    Ok(())
 }
 
 impl<T> ToSegmentData for T
 where
     T: RemoteStreamingSegment,
 {
-    fn to_segment(
+    fn to_segment_data(
         &self,
         client: Arc<Client>,
     ) -> impl std::future::Future<Output = IoriResult<bytes::Bytes>> + Send {

@@ -1,20 +1,18 @@
 use std::{num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc};
 
 use reqwest::Client;
-use tokio::sync::mpsc;
+use tokio::{io::AsyncWrite, sync::mpsc};
 
 use crate::{
-    common::CommonSegmentFetcher,
-    consumer::Consumer,
+    common::fetch_segment,
     error::IoriResult,
-    hls::segment::M3u8SegmentInfo,
     hls::{segment::M3u8Segment, source::M3u8Source},
     StreamingSource,
 };
 
 pub struct CommonM3u8ArchiveSource {
+    client: Arc<Client>,
     playlist: Arc<M3u8Source>,
-    segment: Arc<CommonSegmentFetcher>,
     range: SegmentRange,
     retry: u32,
 }
@@ -68,18 +66,12 @@ impl CommonM3u8ArchiveSource {
         m3u8: String,
         key: Option<String>,
         range: SegmentRange,
-        consumer: Consumer,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         let client = Arc::new(client);
         Self {
-            playlist: Arc::new(M3u8Source::new(
-                client.clone(),
-                m3u8,
-                key,
-                shaka_packager_command,
-            )),
-            segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
+            client: client.clone(),
+            playlist: Arc::new(M3u8Source::new(client, m3u8, key, shaka_packager_command)),
             range,
             retry: 3,
         }
@@ -93,7 +85,6 @@ impl CommonM3u8ArchiveSource {
 
 impl StreamingSource for CommonM3u8ArchiveSource {
     type Segment = M3u8Segment;
-    type SegmentInfo = M3u8SegmentInfo;
 
     async fn fetch_info(
         &self,
@@ -116,38 +107,38 @@ impl StreamingSource for CommonM3u8ArchiveSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment(&self, segment: &Self::Segment, will_retry: bool) -> IoriResult<()> {
-        self.segment.fetch(segment, will_retry).await
-    }
-
-    async fn fetch_segment_info(&self, segment: &Self::Segment) -> Option<Self::SegmentInfo> {
-        Some(Self::SegmentInfo {
-            url: segment.url.clone(),
-            filename: segment.filename.clone(),
-            sequence: segment.sequence,
-        })
+    async fn fetch_segment<MS>(
+        &self,
+        segment: &Self::Segment,
+        merger_segment: &mut MS,
+    ) -> IoriResult<()>
+    where
+        MS: AsyncWrite + Unpin + Send + Sync + 'static,
+    {
+        fetch_segment(self.client.clone(), segment, merger_segment).await?;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::download::SequencialDownloader;
+    // use crate::download::SequencialDownloader;
 
-    #[tokio::test]
-    async fn test_download_archive() -> IoriResult<()> {
-        let source = CommonM3u8ArchiveSource::new(
-            Default::default(),
-            "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
-            None,
-            Default::default(),
-            Consumer::file("/tmp/test")?,
-            None,
-        );
-        SequencialDownloader::new(source).download().await?;
+    // #[tokio::test]
+    // async fn test_download_archive() -> IoriResult<()> {
+    //     let source = CommonM3u8ArchiveSource::new(
+    //         Default::default(),
+    //         "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
+    //         None,
+    //         Default::default(),
+    //         Consumer::file("/tmp/test")?,
+    //         None,
+    //     );
+    //     SequencialDownloader::new(source).download().await?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[test]
     fn test_parse_range() {

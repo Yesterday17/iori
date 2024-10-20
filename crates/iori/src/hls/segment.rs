@@ -1,10 +1,5 @@
+use crate::{decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
 use std::sync::Arc;
-
-use serde::{Deserialize, Serialize};
-
-use crate::{
-    decrypt::IoriKey, merge::MergableSegmentInfo, RemoteStreamingSegment, StreamingSegment,
-};
 
 pub struct M3u8Segment {
     pub url: reqwest::Url,
@@ -46,26 +41,5 @@ impl RemoteStreamingSegment for M3u8Segment {
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
         self.byte_range.clone()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct M3u8SegmentInfo {
-    pub url: reqwest::Url,
-    pub filename: String,
-    pub sequence: u64,
-}
-
-impl MergableSegmentInfo for M3u8SegmentInfo {
-    fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn file_name(&self) -> &str {
-        self.filename.as_str()
-    }
-
-    fn r#type(&self) -> crate::common::SegmentType {
-        crate::common::SegmentType::Video
     }
 }

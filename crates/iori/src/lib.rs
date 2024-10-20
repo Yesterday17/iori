@@ -1,5 +1,4 @@
 pub mod common;
-pub mod consumer;
 pub mod dash;
 pub mod decrypt;
 pub mod download;
@@ -32,7 +31,6 @@ pub mod util;
 /// └───────────────────────┘                └────────────────────┘
 pub trait StreamingSource {
     type Segment: StreamingSegment + Send + 'static;
-    type SegmentInfo: serde::Serialize + serde::de::DeserializeOwned + Send + 'static;
 
     // TODO: maybe this method can be sync?
     fn fetch_info(
@@ -43,18 +41,13 @@ pub trait StreamingSource {
         >,
     > + Send;
 
-    fn fetch_segment(
+    fn fetch_segment<MS>(
         &self,
         segment: &Self::Segment,
-        will_retry: bool,
-    ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send;
-
-    fn fetch_segment_info(
-        &self,
-        _segment: &Self::Segment,
-    ) -> impl std::future::Future<Output = Option<Self::SegmentInfo>> + Send {
-        async move { None }
-    }
+        merger_segment: &mut MS,
+    ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send
+    where
+        MS: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static;
 }
 
 pub trait StreamingSegment {
@@ -84,7 +77,7 @@ pub trait RemoteStreamingSegment {
 }
 
 pub trait ToSegmentData {
-    fn to_segment(
+    fn to_segment_data(
         &self,
         client: std::sync::Arc<reqwest::Client>,
     ) -> impl std::future::Future<Output = error::IoriResult<bytes::Bytes>> + Send;

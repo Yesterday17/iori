@@ -1,9 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-use crate::{
-    common::SegmentType, decrypt::IoriKey, merge::MergableSegmentInfo, RemoteStreamingSegment,
-    StreamingSegment,
-};
+use crate::{common::SegmentType, decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
 use std::sync::Arc;
 
 pub struct DashSegment {
@@ -46,27 +41,5 @@ impl RemoteStreamingSegment for DashSegment {
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
         self.byte_range.clone()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DashSegmentInfo {
-    pub url: reqwest::Url,
-    pub filename: String,
-    pub r#type: SegmentType,
-    pub sequence: u64,
-}
-
-impl MergableSegmentInfo for DashSegmentInfo {
-    fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn file_name(&self) -> &str {
-        self.filename.as_str()
-    }
-
-    fn r#type(&self) -> SegmentType {
-        self.r#type
     }
 }

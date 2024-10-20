@@ -10,11 +10,10 @@ use anyhow::bail;
 use clap::Parser;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    consumer::Consumer,
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
-    merge::{merge, MergableSegmentInfo},
+    merge::IoriMerger,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
@@ -41,6 +40,9 @@ pub struct MinyamiArgs {
     /// Retry limit
     #[clap(long, default_value = "5")]
     retries: u32,
+
+    #[clap(long, default_value = "3")]
+    manifest_retries: u32,
 
     /// [Unimplemented]
     /// Output file path
@@ -187,6 +189,29 @@ impl MinyamiArgs {
             None => std::env::temp_dir(),
         })
     }
+
+    fn output_dir(&self) -> anyhow::Result<PathBuf> {
+        let output_dir = if let Some(ref dir) = self.resume_dir {
+            dir.clone()
+        } else {
+            let temp_path = self.temp_dir()?;
+            let started_at = SystemTime::now();
+            let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
+            temp_path.join(format!("minyami_{started_at}"))
+        };
+        Ok(output_dir)
+    }
+
+    fn merger<S>(&self, output_dir: &PathBuf) -> anyhow::Result<IoriMerger<S>> {
+        let target_file = current_dir().unwrap().join(&self.output);
+        if self.live && self.pipe {
+            Ok(IoriMerger::pipe(output_dir, self.keep)?)
+        } else if self.no_merge {
+            Ok(IoriMerger::skip(output_dir))
+        } else {
+            Ok(IoriMerger::concat(output_dir, target_file))
+        }
+    }
 }
 
 #[tokio::main]
@@ -197,39 +222,19 @@ async fn main() -> anyhow::Result<()> {
 
     let args = MinyamiArgs::parse();
     let client = args.client();
+    let output_dir = args.output_dir()?;
 
-    let output_dir = if let Some(dir) = args.resume_dir {
-        dir
-    } else {
-        let temp_path = args.temp_dir()?;
-        let started_at = SystemTime::now();
-        let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
-        temp_path.join(format!("minyami_{started_at}"))
-    };
-
-    let segments: Option<Vec<_>> = if args.live {
+    if args.live {
+        let merger = args.merger(&output_dir)?;
         // Live Downloader
-        let consumer = if args.pipe {
-            Consumer::pipe(&output_dir, args.keep)?
-        } else {
-            Consumer::file(&output_dir)?
-        };
-        let source =
-            CommonM3u8LiveSource::new(client, args.m3u8, args.key, consumer, args.shaka_packager)
-                .with_retry(args.retries);
-        let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-        let segments = downloader.download().await?;
-        Some(
-            segments
-                .into_iter()
-                .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
-                .collect(),
-        )
+        let source = CommonM3u8LiveSource::new(client, args.m3u8, args.key, args.shaka_packager)
+            .with_retry(args.manifest_retries);
+        let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+        downloader.download().await?;
     } else {
         // Archive Downloader
-        let consumer = Consumer::file(&output_dir)?;
-
         if args.m3u8.contains("dmc.nico") {
+            let merger = args.merger(&output_dir)?;
             log::info!("Enhanced mode for Nico-TS enabled");
 
             let key = args.key.expect("Key is required for Nico-TS");
@@ -247,64 +252,30 @@ async fn main() -> anyhow::Result<()> {
                 format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
             };
 
-            let source = NicoTimeshiftSource::new(client, wss_url, consumer)
+            let source = NicoTimeshiftSource::new(client, wss_url)
                 .await?
-                .with_retry(args.retries);
-            let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-            let segments = downloader.download().await?;
-
-            Some(
-                segments
-                    .into_iter()
-                    .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
-                    .collect(),
-            )
+                .with_retry(args.manifest_retries);
+            let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+            downloader.download().await?;
         } else if args.dash {
-            let source = CommonDashArchiveSource::new(client, args.m3u8, args.key, consumer)?;
-            let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-            let segments = downloader.download().await?;
-
-            Some(
-                segments
-                    .into_iter()
-                    .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
-                    .collect(),
-            )
+            let merger = args.merger(&output_dir)?;
+            let source = CommonDashArchiveSource::new(client, args.m3u8, args.key)?;
+            let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+            downloader.download().await?;
         } else {
+            let merger = args.merger(&output_dir)?;
             let source = CommonM3u8ArchiveSource::new(
                 client,
                 args.m3u8,
                 args.key,
                 args.range,
-                consumer,
                 args.shaka_packager,
             )
-            .with_retry(args.retries);
-            let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
-            let segments = downloader.download().await?;
-            Some(
-                segments
-                    .into_iter()
-                    .map(|r| Box::new(r) as Box<dyn MergableSegmentInfo>)
-                    .collect(),
-            )
+            .with_retry(args.manifest_retries);
+            let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+            downloader.download().await?;
         }
     };
-
-    let Some(segments) = segments else {
-        log::warn!("Segments are not mergable. Skipping merge step.");
-        return Ok(());
-    };
-
-    if args.no_merge {
-        log::info!("Skip merging. Please merge video chunks manually.");
-        log::info!("Temporary files are located at {}", output_dir.display());
-        return Ok(());
-    }
-
-    log::info!("Merging chunks...");
-    let target_file = current_dir()?.join(args.output);
-    merge(segments, &output_dir, &target_file).await?;
 
     if !args.keep {
         log::info!("End of merging.");
@@ -312,9 +283,9 @@ async fn main() -> anyhow::Result<()> {
         tokio::fs::remove_dir_all(&output_dir).await?;
     }
 
-    log::info!(
-        "All finished. Please checkout your files at {}",
-        target_file.display()
-    );
+    // log::info!(
+    //     "All finished. Please checkout your files at {}",
+    //     target_file.display()
+    // );
     Ok(())
 }

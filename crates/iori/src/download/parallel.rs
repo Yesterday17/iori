@@ -1,3 +1,4 @@
+use crate::{error::IoriResult, merge::Merger, StreamingSegment, StreamingSource};
 use std::{
     num::NonZeroU32,
     sync::{
@@ -5,14 +6,12 @@ use std::{
         Arc, RwLock,
     },
 };
+use tokio::sync::{Mutex, Semaphore};
 
-use tokio::sync::Semaphore;
-
-use crate::{error::IoriResult, StreamingSegment, StreamingSource};
-
-pub struct ParallelDownloader<S>
+pub struct ParallelDownloader<S, M>
 where
     S: StreamingSource,
+    M: Merger<Segment = S::Segment>,
 {
     source: Arc<S>,
     concurrency: NonZeroU32,
@@ -22,18 +21,22 @@ where
     downloaded: Arc<AtomicUsize>,
     failed: Arc<RwLock<Vec<String>>>,
 
+    merger: Arc<Mutex<M>>,
+
     retries: u32,
 }
 
-impl<S> ParallelDownloader<S>
+impl<S, M> ParallelDownloader<S, M>
 where
     S: StreamingSource + Send + Sync + 'static,
+    M: Merger<Segment = S::Segment> + Send + Sync + 'static,
 {
-    pub fn new(source: S, concurrency: NonZeroU32, retries: u32) -> Self {
+    pub fn new(source: S, merger: M, concurrency: NonZeroU32, retries: u32) -> Self {
         let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
             source: Arc::new(source),
+            merger: Arc::new(Mutex::new(merger)),
             concurrency,
             permits,
 
@@ -45,14 +48,13 @@ where
         }
     }
 
-    pub async fn download(&mut self) -> IoriResult<Vec<S::SegmentInfo>> {
+    pub async fn download(self) -> IoriResult<M::MergeResult> {
         log::info!(
             "Start downloading with {} thread(s).",
             self.concurrency.get()
         );
 
         let mut receiver = self.source.fetch_info().await?;
-        let mut segments_info = Vec::new();
 
         // ctrl-c handler
         let is_closed = Arc::new(AtomicBool::new(false));
@@ -81,20 +83,24 @@ where
             log::info!("{} new segments were added to queue.", segments.len());
 
             for segment in segments {
-                if let Some(segment_info) = self.source.fetch_segment_info(&segment).await {
-                    segments_info.push(segment_info);
-                }
-
                 let permit = self.permits.clone().acquire_owned().await.unwrap();
                 let segments_downloaded = self.downloaded.clone();
                 let segments_failed = self.failed.clone();
                 let segments_total = self.total.clone();
+
                 let source = self.source.clone();
+                let merger = self.merger.clone();
+                let merge_segment = merger.lock().await.open_writer(&segment).await?;
+                let Some(mut merge_segment) = merge_segment else {
+                    continue;
+                };
+
                 let mut retries = self.retries;
                 tokio::spawn(async move {
                     let filename = segment.file_name();
+
                     loop {
-                        let result = source.fetch_segment(&segment, retries > 0).await;
+                        let result = source.fetch_segment(&segment, &mut merge_segment).await;
                         match result {
                             Ok(_) => break,
                             Err(e) => {
@@ -106,6 +112,7 @@ where
                                         .write()
                                         .unwrap()
                                         .push(segment.file_name().to_string());
+                                    _ = merger.lock().await.fail(segment).await;
                                     return;
                                 }
 
@@ -131,6 +138,8 @@ where
                     log::info!(
                         "Processing {filename} finished. ({downloaded} / {total} or {percentage:.2}%)"
                     );
+
+                    _ = merger.lock().await.update(segment).await;
                 });
             }
 
@@ -155,6 +164,6 @@ where
         }
 
         ctrlc_handler.abort();
-        Ok(segments_info)
+        self.merger.lock().await.finish().await
     }
 }

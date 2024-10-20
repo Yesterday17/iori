@@ -1,4 +1,3 @@
-use iori::consumer::Consumer;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::Client;
@@ -103,7 +102,6 @@ impl NicoEmbeddedData {
     pub async fn get_source(
         &self,
         // title: Option<String>,
-        consumer: Consumer,
     ) -> anyhow::Result<NicoTimeshiftSource> {
         // let title = title.unwrap_or_else(|| self.program_title());
         let wss_url = self
@@ -113,7 +111,7 @@ impl NicoEmbeddedData {
         //     .split_once('=')
         //     .ok_or_else(|| anyhow::anyhow!("can not extract audience token from url: {wss_url}"))?;
 
-        let source = NicoTimeshiftSource::new(Default::default(), wss_url, consumer).await?;
+        let source = NicoTimeshiftSource::new(Default::default(), wss_url).await?;
         Ok(source)
     }
 }
