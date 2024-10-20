@@ -2,6 +2,7 @@ mod concat;
 mod mkvmerge;
 mod pipe;
 mod skip;
+mod utils;
 
 pub use concat::ConcatAfterMerger;
 pub use pipe::PipeMerger;

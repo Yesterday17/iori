@@ -14,7 +14,10 @@ use tokio::{
 
 use crate::{error::IoriResult, StreamingSegment, ToSegmentData};
 
-use super::{concat::segment_path, Merger};
+use super::{
+    utils::{open_writer, segment_path},
+    Merger,
+};
 
 pub struct PipeMerger<S> {
     output_dir: PathBuf,
@@ -72,22 +75,8 @@ where
     type MergeSegment = File;
     type MergeResult = ();
 
-    async fn open_writer(
-        &self,
-        segment: &Self::Segment,
-    ) -> crate::error::IoriResult<Option<Self::MergeSegment>> {
-        let path = segment_path(segment, &self.output_dir);
-        if path
-            .metadata()
-            .map(|p| p.is_file() && p.len() > 0)
-            .unwrap_or_default()
-        {
-            log::warn!("File {} already exists, ignoring.", path.display());
-            return Ok(None);
-        }
-
-        let tmp_file = File::create(path).await?;
-        Ok(Some(tmp_file))
+    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::MergeSegment>> {
+        open_writer(segment, &self.output_dir).await
     }
 
     async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {

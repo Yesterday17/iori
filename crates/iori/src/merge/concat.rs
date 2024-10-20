@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use super::Merger;
+use super::{
+    utils::{open_writer, segment_path},
+    Merger,
+};
 use crate::{error::IoriResult, StreamingSegment, ToSegmentData};
 use tokio::fs::File;
 
@@ -39,18 +42,7 @@ where
     type MergeResult = ();
 
     async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::MergeSegment>> {
-        let path = self.segment_path(segment);
-        if path
-            .metadata()
-            .map(|p| p.is_file() && p.len() > 0)
-            .unwrap_or_default()
-        {
-            log::warn!("File {} already exists, ignoring.", path.display());
-            return Ok(None);
-        }
-
-        let tmp_file = File::create(path).await?;
-        Ok(Some(tmp_file))
+        open_writer(segment, &self.temp_dir).await
     }
 
     async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
@@ -59,7 +51,7 @@ where
     }
 
     async fn fail(&mut self, segment: Self::Segment) -> IoriResult<()> {
-        let path = self.segment_path(&segment);
+        let path = segment_path(&segment, &self.temp_dir);
         if path.exists() {
             tokio::fs::remove_file(path).await?;
         }
@@ -83,15 +75,6 @@ where
             self.output_file.display()
         );
         Ok(())
-    }
-}
-
-impl<S> ConcatAfterMerger<S>
-where
-    S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
-{
-    fn segment_path(&self, segment: &S) -> PathBuf {
-        segment_path(segment, &self.temp_dir)
     }
 }
 
@@ -138,15 +121,4 @@ where
         tokio::io::copy(&mut file, &mut output).await?;
     }
     Ok(())
-}
-
-pub fn segment_path<S, P>(segment: &S, cwd: P) -> PathBuf
-where
-    S: StreamingSegment,
-    P: AsRef<Path>,
-{
-    let filename = segment.file_name();
-    let sequence = segment.sequence();
-    let filename = format!("{sequence:06}_{filename}");
-    cwd.as_ref().join(filename)
 }
