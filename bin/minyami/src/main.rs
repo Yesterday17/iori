@@ -18,7 +18,7 @@ use iori::{
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client, ClientBuilder,
+    Client,
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -46,7 +46,7 @@ pub struct MinyamiArgs {
 
     /// [Unimplemented]
     /// Output file path
-    #[clap(short, long, default_value = "./output.mkv")]
+    #[clap(short, long, default_value = "./output.ts")]
     output: PathBuf,
 
     /// Temporary file path
@@ -163,7 +163,7 @@ impl MinyamiArgs {
             );
         }
 
-        ClientBuilder::new()
+        Client::builder()
             .default_headers(headers)
             .user_agent(get_chrome_rua())
             .timeout(Duration::from_secs(self.timeout))
@@ -199,17 +199,19 @@ impl MinyamiArgs {
             let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
             temp_path.join(format!("minyami_{started_at}"))
         };
+        std::fs::create_dir_all(&output_dir)?;
         Ok(output_dir)
     }
 
-    fn merger<S>(&self, output_dir: &PathBuf) -> anyhow::Result<IoriMerger<S>> {
+    fn merger<S>(&self, output_dir: &PathBuf) -> IoriMerger<S> {
         let target_file = current_dir().unwrap().join(&self.output);
+
         if self.live && self.pipe {
-            Ok(IoriMerger::pipe(output_dir, self.keep)?)
+            IoriMerger::pipe(output_dir, self.keep)
         } else if self.no_merge {
-            Ok(IoriMerger::skip(output_dir))
+            IoriMerger::skip(output_dir)
         } else {
-            Ok(IoriMerger::concat(output_dir, target_file))
+            IoriMerger::concat(output_dir, target_file)
         }
     }
 }
@@ -218,6 +220,7 @@ impl MinyamiArgs {
 async fn main() -> anyhow::Result<()> {
     pretty_env_logger::formatted_builder()
         .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
         .init();
 
     let args = MinyamiArgs::parse();
@@ -225,7 +228,7 @@ async fn main() -> anyhow::Result<()> {
     let output_dir = args.output_dir()?;
 
     if args.live {
-        let merger = args.merger(&output_dir)?;
+        let merger = args.merger(&output_dir);
         // Live Downloader
         let source = CommonM3u8LiveSource::new(client, args.m3u8, args.key, args.shaka_packager)
             .with_retry(args.manifest_retries);
@@ -234,7 +237,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         // Archive Downloader
         if args.m3u8.contains("dmc.nico") {
-            let merger = args.merger(&output_dir)?;
+            let merger = args.merger(&output_dir);
             log::info!("Enhanced mode for Nico-TS enabled");
 
             let key = args.key.expect("Key is required for Nico-TS");
@@ -258,12 +261,12 @@ async fn main() -> anyhow::Result<()> {
             let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
             downloader.download().await?;
         } else if args.dash {
-            let merger = args.merger(&output_dir)?;
+            let merger = args.merger(&output_dir);
             let source = CommonDashArchiveSource::new(client, args.m3u8, args.key)?;
             let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
             downloader.download().await?;
         } else {
-            let merger = args.merger(&output_dir)?;
+            let merger = args.merger(&output_dir);
             let source = CommonM3u8ArchiveSource::new(
                 client,
                 args.m3u8,

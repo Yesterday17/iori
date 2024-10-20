@@ -25,20 +25,17 @@ pub struct PipeMerger<S> {
 }
 
 impl<S> PipeMerger<S> {
-    pub fn new<P>(output_dir: P, recycle: bool) -> IoriResult<Self>
+    pub fn new<P>(output_dir: P, recycle: bool) -> Self
     where
         P: Into<PathBuf>,
     {
-        let output_dir = output_dir.into();
-        std::fs::create_dir_all(&output_dir)?;
-
-        Ok(Self {
-            output_dir,
+        Self {
+            output_dir: output_dir.into(),
             recycle,
 
             next: Arc::new(AtomicU64::new(0)),
             segments: Arc::new(Mutex::new(HashMap::new())),
-        })
+        }
     }
 }
 

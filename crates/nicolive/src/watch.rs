@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use fake_user_agent::get_chrome_rua;
 use futures_util::{sink::SinkExt, StreamExt};
-use reqwest::ClientBuilder;
+use reqwest::Client;
 use reqwest_websocket::{Message, RequestBuilderExt, WebSocket};
 use serde_json::json;
 
@@ -20,7 +20,7 @@ impl WatchClient {
     where
         S: AsRef<str>,
     {
-        let client = ClientBuilder::new()
+        let client = Client::builder()
             .user_agent(get_chrome_rua())
             .build()
             .unwrap();

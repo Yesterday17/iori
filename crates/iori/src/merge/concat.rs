@@ -68,6 +68,11 @@ where
     async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
         log::info!("Merging chunks...");
         concat_merge(&mut self.segments, &self.temp_dir, &self.output_file).await?;
+
+        log::info!(
+            "All finished. Please checkout your files at {}",
+            self.output_file.display()
+        );
         Ok(())
     }
 }

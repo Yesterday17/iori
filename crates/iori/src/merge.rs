@@ -45,11 +45,11 @@ pub enum IoriMerger<S> {
 }
 
 impl<S> IoriMerger<S> {
-    pub fn pipe<P>(output_dir: P, recycle: bool) -> IoriResult<Self>
+    pub fn pipe<P>(output_dir: P, recycle: bool) -> Self
     where
         P: Into<PathBuf>,
     {
-        Ok(Self::Pipe(PipeMerger::new(output_dir, recycle)?))
+        Self::Pipe(PipeMerger::new(output_dir, recycle))
     }
 
     pub fn skip<P>(output_dir: P) -> Self

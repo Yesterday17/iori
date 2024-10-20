@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use reqwest::Client;
 use tokio::{io::AsyncWrite, sync::mpsc};
@@ -54,6 +54,7 @@ impl StreamingSource for CommonM3u8LiveSource {
                     break;
                 }
 
+                let before_load = tokio::time::Instant::now();
                 let (segments, _, playlist) = match playlist
                     .load_segments(Some(latest_media_sequence), retry)
                     .await
@@ -87,10 +88,8 @@ impl StreamingSource for CommonM3u8LiveSource {
                         / playlist.segments.len() as f32) as u64;
 
                 // playlist does not end, wait for a while and fetch again
-                tokio::time::sleep(std::time::Duration::from_secs(
-                    segment_average_duration.min(5),
-                ))
-                .await;
+                let seconds_to_wait = segment_average_duration.min(5);
+                tokio::time::sleep_until(before_load + Duration::from_secs(seconds_to_wait)).await;
             }
         });
 
