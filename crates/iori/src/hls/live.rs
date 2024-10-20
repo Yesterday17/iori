@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use crate::{
     common::CommonSegmentFetcher,
     consumer::Consumer,
-    error::IoriResult,
+    error::{IoriError, IoriResult},
     hls::{
         segment::{M3u8Segment, M3u8SegmentInfo},
         source::M3u8Source,
@@ -17,6 +17,7 @@ use crate::{
 pub struct CommonM3u8LiveSource {
     playlist: Arc<M3u8Source>,
     segment: Arc<CommonSegmentFetcher>,
+    retry: u32,
 }
 
 impl CommonM3u8LiveSource {
@@ -36,7 +37,13 @@ impl CommonM3u8LiveSource {
                 shaka_packager_command,
             )),
             segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
+            retry: 3,
         }
+    }
+
+    pub fn with_retry(mut self, retry: u32) -> Self {
+        self.retry = retry;
+        self
     }
 }
 
@@ -49,6 +56,7 @@ impl StreamingSource for CommonM3u8LiveSource {
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
+        let retry = self.retry;
         let playlist = self.playlist.clone();
         tokio::spawn(async move {
             let mut latest_media_sequence = 0;
@@ -57,10 +65,20 @@ impl StreamingSource for CommonM3u8LiveSource {
                     break;
                 }
 
-                let (segments, _, playlist) = playlist
-                    .load_segments(Some(latest_media_sequence))
+                let (segments, _, playlist) = match playlist
+                    .load_segments(Some(latest_media_sequence), retry)
                     .await
-                    .unwrap();
+                {
+                    Ok(v) => v,
+                    Err(IoriError::M3u8FetchError) => {
+                        log::error!("Exceeded retry limit for fetching segments, exiting...");
+                        break;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to fetch segments: {e}");
+                        break;
+                    }
+                };
                 let new_latest_media_sequence = segments
                     .last()
                     .map(|r| r.media_sequence)

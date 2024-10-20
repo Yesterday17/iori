@@ -215,7 +215,8 @@ async fn main() -> anyhow::Result<()> {
             Consumer::file(&output_dir)?
         };
         let source =
-            CommonM3u8LiveSource::new(client, args.m3u8, args.key, consumer, args.shaka_packager);
+            CommonM3u8LiveSource::new(client, args.m3u8, args.key, consumer, args.shaka_packager)
+                .with_retry(args.retries);
         let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
         let segments = downloader.download().await?;
         Some(
@@ -246,7 +247,9 @@ async fn main() -> anyhow::Result<()> {
                 format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
             };
 
-            let source = NicoTimeshiftSource::new(client, wss_url, consumer).await?;
+            let source = NicoTimeshiftSource::new(client, wss_url, consumer)
+                .await?
+                .with_retry(args.retries);
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
             let segments = downloader.download().await?;
 
@@ -275,7 +278,8 @@ async fn main() -> anyhow::Result<()> {
                 args.range,
                 consumer,
                 args.shaka_packager,
-            );
+            )
+            .with_retry(args.retries);
             let mut downloader = ParallelDownloader::new(source, args.threads, args.retries);
             let segments = downloader.download().await?;
             Some(

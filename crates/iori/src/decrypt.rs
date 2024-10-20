@@ -64,7 +64,9 @@ impl IoriKey {
                         .to_vec()
                 };
                 Some(Self::Aes128 {
-                    key: key_bytes.try_into().unwrap(),
+                    key: key_bytes
+                        .try_into()
+                        .map_err(|v| IoriError::InvalidAes128Key(v))?,
                     iv: key
                         .iv
                         .clone()

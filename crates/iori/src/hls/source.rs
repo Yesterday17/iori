@@ -44,13 +44,13 @@ impl M3u8Source {
         }
     }
 
-    // TODO: return an iterator instead of a Vec
     pub async fn load_segments(
         &self,
         latest_media_sequence: Option<u64>,
+        retry: u32,
     ) -> IoriResult<(Vec<M3u8Segment>, Url, MediaPlaylist)> {
         let (playlist_url, playlist) =
-            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?).await?;
+            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?;
 
         let mut key = None;
         let mut initial_block = None;

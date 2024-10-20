@@ -16,6 +16,7 @@ pub struct CommonM3u8ArchiveSource {
     playlist: Arc<M3u8Source>,
     segment: Arc<CommonSegmentFetcher>,
     range: SegmentRange,
+    retry: u32,
 }
 
 /// A subrange for m3u8 archive sources to choose which segment to use
@@ -80,7 +81,13 @@ impl CommonM3u8ArchiveSource {
             )),
             segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
             range,
+            retry: 3,
         }
+    }
+
+    pub fn with_retry(mut self, retry: u32) -> Self {
+        self.retry = retry;
+        self
     }
 }
 
@@ -93,7 +100,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (segments, _, _) = self.playlist.load_segments(None).await?;
+        let (segments, _, _) = self.playlist.load_segments(None, self.retry).await?;
         let segments = segments
             .into_iter()
             .filter_map(|segment| {

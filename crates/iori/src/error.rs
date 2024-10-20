@@ -12,6 +12,9 @@ pub enum IoriError {
     #[error("Invalid clear key: {0}")]
     InvalidClearKey(String),
 
+    #[error("Invalid AES-128 key: {0:?}")]
+    InvalidAes128Key(Vec<u8>),
+
     #[error("mp4decrypt error: {0}")]
     Mp4DecryptError(String),
 

@@ -105,6 +105,7 @@ pub struct NicoTimeshiftSource {
 
     host: Arc<RwLock<Url>>,
     token: Arc<RwLock<String>>,
+    retry: u32,
 }
 
 impl NicoTimeshiftSource {
@@ -165,7 +166,13 @@ impl NicoTimeshiftSource {
             segment: Arc::new(CommonSegmentFetcher::new(client, consumer)),
             host,
             token,
+            retry: 3,
         })
+    }
+
+    pub fn with_retry(mut self, retry: u32) -> Self {
+        self.retry = retry;
+        self
     }
 }
 
@@ -180,7 +187,8 @@ impl StreamingSource for NicoTimeshiftSource {
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (playlist_url, playlist) = load_m3u8(&self.client, Url::parse(&self.m3u8_url)?).await?;
+        let (playlist_url, playlist) =
+            load_m3u8(&self.client, Url::parse(&self.m3u8_url)?, self.retry).await?;
         let chunk_length = (playlist.segments.iter().map(|s| s.duration).sum::<f32>()
             / playlist.segments.len() as f32) as u64;
 
