@@ -31,10 +31,10 @@ impl SegmentType {
     }
 }
 
-pub async fn fetch_segment<S, MS>(client: Client, segment: &S, tmp_file: &mut MS) -> IoriResult<()>
+pub async fn fetch_segment<S, W>(client: Client, segment: &S, tmp_file: &mut W) -> IoriResult<()>
 where
     S: StreamingSegment + ToSegmentData,
-    MS: AsyncWrite + Unpin + Send + Sync + 'static,
+    W: AsyncWrite + Unpin + Send + Sync + 'static,
 {
     let bytes = segment.to_segment_data(client).await?;
 

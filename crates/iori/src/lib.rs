@@ -41,13 +41,13 @@ pub trait StreamingSource {
         >,
     > + Send;
 
-    fn fetch_segment<MS>(
+    fn fetch_segment<W>(
         &self,
         segment: &Self::Segment,
-        merger_segment: &mut MS,
+        writer: &mut W,
     ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send
     where
-        MS: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static;
+        W: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static;
 }
 
 pub trait StreamingSegment {

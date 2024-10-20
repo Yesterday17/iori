@@ -25,13 +25,13 @@ where
     S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
 {
     type Segment = S;
-    type MergeSegment = File;
-    type MergeResult = ();
+    type Sink = File;
+    type Result = ();
 
     async fn open_writer(
         &self,
         segment: &Self::Segment,
-    ) -> crate::error::IoriResult<Option<Self::MergeSegment>> {
+    ) -> crate::error::IoriResult<Option<Self::Sink>> {
         open_writer(segment, &self.output_dir).await
     }
 
@@ -43,7 +43,7 @@ where
         Ok(())
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
+    async fn finish(&mut self) -> IoriResult<Self::Result> {
         log::info!("Skip merging. Please merge video chunks manually.");
         log::info!(
             "Temporary files are located at {}",

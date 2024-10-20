@@ -38,10 +38,10 @@ where
     S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
 {
     type Segment = S;
-    type MergeSegment = File;
-    type MergeResult = ();
+    type Sink = File;
+    type Result = ();
 
-    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::MergeSegment>> {
+    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::Sink>> {
         open_writer(segment, &self.temp_dir).await
     }
 
@@ -60,7 +60,7 @@ where
         Ok(())
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
+    async fn finish(&mut self) -> IoriResult<Self::Result> {
         log::info!("Merging chunks...");
         concat_merge(&mut self.segments, &self.temp_dir, &self.output_file).await?;
 

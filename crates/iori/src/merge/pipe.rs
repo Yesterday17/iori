@@ -85,10 +85,10 @@ where
     S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
 {
     type Segment = S;
-    type MergeSegment = File;
-    type MergeResult = ();
+    type Sink = File;
+    type Result = ();
 
-    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::MergeSegment>> {
+    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::Sink>> {
         open_writer(segment, &self.output_dir).await
     }
 
@@ -123,7 +123,7 @@ where
         Ok(())
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
+    async fn finish(&mut self) -> IoriResult<Self::Result> {
         if self.recycle {
             tokio::fs::remove_dir_all(&self.output_dir).await?;
         }

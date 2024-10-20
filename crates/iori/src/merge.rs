@@ -15,15 +15,16 @@ use tokio::{fs::File, io::AsyncWrite};
 pub trait Merger {
     /// Segment to be merged
     type Segment: StreamingSegment + ToSegmentData + Send + Sync + 'static;
-    type MergeSegment: AsyncWrite + Unpin + Send + Sync + 'static;
-    /// Result of the merge
-    type MergeResult: Send + Sync + 'static;
+    /// Sink for downloader to write segment data.
+    type Sink: AsyncWrite + Unpin + Send + Sync + 'static;
+    /// Result of the merge.
+    type Result: Send + Sync + 'static;
 
     /// Open a writer for the merged file.
     fn open_writer(
         &self,
         segment: &Self::Segment,
-    ) -> impl std::future::Future<Output = IoriResult<Option<Self::MergeSegment>>> + Send;
+    ) -> impl std::future::Future<Output = IoriResult<Option<Self::Sink>>> + Send;
 
     /// Add a segment to the merger.
     ///
@@ -35,8 +36,7 @@ pub trait Merger {
     /// Tell the merger that a segment has failed to download.
     fn fail(&mut self, segment: Self::Segment) -> impl Future<Output = IoriResult<()>> + Send;
 
-    fn finish(&mut self)
-        -> impl std::future::Future<Output = IoriResult<Self::MergeResult>> + Send;
+    fn finish(&mut self) -> impl std::future::Future<Output = IoriResult<Self::Result>> + Send;
 }
 
 pub enum IoriMerger<S> {
@@ -76,10 +76,10 @@ where
     S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
 {
     type Segment = S;
-    type MergeSegment = File; // TODO: not all mergers need to write to file
-    type MergeResult = (); // TODO: merger might have different result types
+    type Sink = File; // TODO: not all mergers need to write to file
+    type Result = (); // TODO: merger might have different result types
 
-    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::MergeSegment>> {
+    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::Sink>> {
         match self {
             Self::Pipe(merger) => merger.open_writer(segment).await,
             Self::Skip(merger) => merger.open_writer(segment).await,
@@ -103,7 +103,7 @@ where
         }
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::MergeResult> {
+    async fn finish(&mut self) -> IoriResult<Self::Result> {
         match self {
             Self::Pipe(merger) => merger.finish().await,
             Self::Skip(merger) => merger.finish().await,

@@ -213,15 +213,11 @@ impl StreamingSource for CommonDashArchiveSource {
         Ok(receiver)
     }
 
-    async fn fetch_segment<MS>(
-        &self,
-        segment: &Self::Segment,
-        merger_segment: &mut MS,
-    ) -> IoriResult<()>
+    async fn fetch_segment<W>(&self, segment: &Self::Segment, writer: &mut W) -> IoriResult<()>
     where
-        MS: AsyncWrite + Unpin + Send + Sync + 'static,
+        W: AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        fetch_segment(self.client.clone(), segment, merger_segment).await?;
+        fetch_segment(self.client.clone(), segment, writer).await?;
         Ok(())
     }
 }

@@ -48,7 +48,7 @@ where
         }
     }
 
-    pub async fn download(self) -> IoriResult<M::MergeResult> {
+    pub async fn download(self) -> IoriResult<M::Result> {
         log::info!(
             "Start downloading with {} thread(s).",
             self.concurrency.get()
@@ -91,7 +91,7 @@ where
                 let source = self.source.clone();
                 let merger = self.merger.clone();
                 let merge_segment = merger.lock().await.open_writer(&segment).await?;
-                let Some(mut merge_segment) = merge_segment else {
+                let Some(mut writer) = merge_segment else {
                     continue;
                 };
 
@@ -100,7 +100,7 @@ where
                     let filename = segment.file_name();
 
                     loop {
-                        let result = source.fetch_segment(&segment, &mut merge_segment).await;
+                        let result = source.fetch_segment(&segment, &mut writer).await;
                         match result {
                             Ok(_) => break,
                             Err(e) => {
