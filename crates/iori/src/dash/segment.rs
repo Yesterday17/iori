@@ -32,6 +32,10 @@ impl StreamingSegment for DashSegment {
     fn key(&self) -> Option<Arc<IoriKey>> {
         self.key.clone()
     }
+
+    fn r#type(&self) -> SegmentType {
+        self.r#type
+    }
 }
 
 impl RemoteStreamingSegment for DashSegment {

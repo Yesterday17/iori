@@ -1,4 +1,4 @@
-use crate::{decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
+use crate::{common::SegmentType, decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
 use std::sync::Arc;
 
 pub struct M3u8Segment {
@@ -31,6 +31,10 @@ impl StreamingSegment for M3u8Segment {
 
     fn key(&self) -> Option<Arc<IoriKey>> {
         self.key.clone()
+    }
+
+    fn r#type(&self) -> SegmentType {
+        SegmentType::Video
     }
 }
 

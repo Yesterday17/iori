@@ -66,6 +66,8 @@ pub trait StreamingSegment {
     ///
     /// If a segment does not need to be decrypted, it must return `None` explicitly.
     fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>>;
+
+    fn r#type(&self) -> common::SegmentType;
 }
 
 pub trait RemoteStreamingSegment {
