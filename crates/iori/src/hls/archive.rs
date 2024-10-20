@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub struct CommonM3u8ArchiveSource {
-    client: Arc<Client>,
+    client: Client,
     playlist: Arc<M3u8Source>,
     range: SegmentRange,
     retry: u32,
@@ -68,7 +68,6 @@ impl CommonM3u8ArchiveSource {
         range: SegmentRange,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
-        let client = Arc::new(client);
         Self {
             client: client.clone(),
             playlist: Arc::new(M3u8Source::new(client, m3u8, key, shaka_packager_command)),

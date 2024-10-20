@@ -87,7 +87,7 @@ pub struct NicoTimeshiftSegmentInfo {
 }
 
 pub struct NicoTimeshiftSource {
-    client: Arc<Client>,
+    client: Client,
 
     m3u8_url: String,
     sequence: Arc<AtomicU64>,
@@ -99,8 +99,6 @@ pub struct NicoTimeshiftSource {
 
 impl NicoTimeshiftSource {
     pub async fn new(client: Client, wss_url: String) -> anyhow::Result<Self> {
-        let client = Arc::new(client);
-
         let mut watcher = crate::watch::WatchClient::new(&wss_url).await?;
         watcher.init().await?;
 

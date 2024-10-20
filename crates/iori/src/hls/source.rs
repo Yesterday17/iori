@@ -24,12 +24,12 @@ pub struct M3u8Source {
     shaka_packager_command: Option<PathBuf>,
 
     sequence: AtomicU64,
-    client: Arc<Client>,
+    client: Client,
 }
 
 impl M3u8Source {
     pub fn new(
-        client: Arc<Client>,
+        client: Client,
         m3u8_url: String,
         key: Option<String>,
         shaka_packager_command: Option<PathBuf>,

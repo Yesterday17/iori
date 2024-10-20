@@ -22,7 +22,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 pub struct CommonDashArchiveSource {
-    client: Arc<Client>,
+    client: Client,
     mpd: Url,
     key: Option<Arc<IoriKey>>,
     sequence: AtomicU64,
@@ -30,7 +30,6 @@ pub struct CommonDashArchiveSource {
 
 impl CommonDashArchiveSource {
     pub fn new(client: Client, mpd: String, key: Option<String>) -> IoriResult<Self> {
-        let client = Arc::new(client);
         let key = if let Some(k) = key {
             Some(Arc::new(IoriKey::clear_key(k)?))
         } else {

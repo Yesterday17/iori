@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
@@ -33,11 +31,7 @@ impl SegmentType {
     }
 }
 
-pub async fn fetch_segment<S, MS>(
-    client: Arc<Client>,
-    segment: &S,
-    tmp_file: &mut MS,
-) -> IoriResult<()>
+pub async fn fetch_segment<S, MS>(client: Client, segment: &S, tmp_file: &mut MS) -> IoriResult<()>
 where
     S: StreamingSegment + ToSegmentData,
     MS: AsyncWrite + Unpin + Send + Sync + 'static,
@@ -73,7 +67,7 @@ where
 {
     fn to_segment_data(
         &self,
-        client: Arc<Client>,
+        client: Client,
     ) -> impl std::future::Future<Output = IoriResult<bytes::Bytes>> + Send {
         let url = self.url();
         let byte_range = self.byte_range();

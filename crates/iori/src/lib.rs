@@ -81,6 +81,6 @@ pub trait RemoteStreamingSegment {
 pub trait ToSegmentData {
     fn to_segment_data(
         &self,
-        client: std::sync::Arc<reqwest::Client>,
+        client: reqwest::Client,
     ) -> impl std::future::Future<Output = error::IoriResult<bytes::Bytes>> + Send;
 }
