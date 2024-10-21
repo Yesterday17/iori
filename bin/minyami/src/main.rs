@@ -214,9 +214,9 @@ impl MinyamiArgs {
         if self.live && self.pipe {
             IoriMerger::pipe(output_dir, self.keep)
         } else if self.no_merge {
-            IoriMerger::skip(output_dir)
+            IoriMerger::skip()
         } else {
-            IoriMerger::concat(output_dir, target_file, self.keep)
+            IoriMerger::concat(target_file, self.keep)
         }
     }
 }

@@ -1,15 +1,13 @@
 use std::path::{Path, PathBuf};
 
-use super::{utils::segment_path, Merger};
-use crate::{error::IoriResult, StreamingSegment};
+use super::Merger;
+use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 use tokio::fs::File;
 
 /// Concat all segments into a single file after all segments are downloaded.
 pub struct ConcatAfterMerger<S> {
     segments: Vec<ConcatSegment<S>>,
 
-    /// Temporary directory to store downloaded segments.
-    temp_dir: PathBuf,
     /// Final output file path.
     output_file: PathBuf,
     /// Keep downloaded segments after merging.
@@ -17,13 +15,9 @@ pub struct ConcatAfterMerger<S> {
 }
 
 impl<S> ConcatAfterMerger<S> {
-    pub fn new<T>(temp_dir: T, output_file: PathBuf, keep_segments: bool) -> Self
-    where
-        T: Into<PathBuf>,
-    {
+    pub fn new(output_file: PathBuf, keep_segments: bool) -> Self {
         Self {
             segments: Vec::new(),
-            temp_dir: temp_dir.into(),
             output_file,
             keep_segments,
         }
@@ -37,29 +31,29 @@ where
     type Segment = S;
     type Result = ();
 
-    async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
+    async fn update(
+        &mut self,
+        segment: Self::Segment,
+        _cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         self.segments.push(ConcatSegment(segment, true));
         Ok(())
     }
 
-    async fn fail(&mut self, segment: Self::Segment) -> IoriResult<()> {
-        let path = segment_path(&segment, &self.temp_dir);
-        if path.exists() {
-            tokio::fs::remove_file(path).await?;
-        }
-
+    async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+        cache.invalidate(&segment).await?;
         self.segments.push(ConcatSegment(segment, false));
         Ok(())
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
         log::info!("Merging chunks...");
-        concat_merge(&mut self.segments, &self.temp_dir, &self.output_file).await?;
+        concat_merge(&mut self.segments, cache, &self.output_file).await?;
 
         if !self.keep_segments {
             log::info!("End of merging.");
             log::info!("Starting cleaning temporary files.");
-            tokio::fs::remove_dir_all(&self.temp_dir).await?;
+            cache.clear().await?;
         }
 
         log::info!(
@@ -72,14 +66,13 @@ where
 
 struct ConcatSegment<S>(S, bool /* success */);
 
-async fn concat_merge<S, P, O>(
+async fn concat_merge<S, O>(
     segments: &mut Vec<ConcatSegment<S>>,
-    cwd: P,
+    cache: &impl CacheSource,
     output_path: O,
 ) -> IoriResult<()>
 where
     S: StreamingSegment,
-    P: AsRef<Path>,
     O: AsRef<Path>,
 {
     segments.sort_by(|a, b| a.0.sequence().cmp(&b.0.sequence()));
@@ -107,10 +100,8 @@ where
             .await?;
         }
 
-        let filename = format!("{:06}_{}", segment.sequence(), segment.file_name());
-        let path = cwd.as_ref().join(filename);
-        let mut file = File::open(path).await?;
-        tokio::io::copy(&mut file, &mut output).await?;
+        let mut reader = cache.open_reader(segment).await?;
+        tokio::io::copy(&mut reader, &mut output).await?;
     }
     Ok(())
 }

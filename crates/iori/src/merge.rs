@@ -8,7 +8,7 @@ pub use concat::ConcatAfterMerger;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
 
-use crate::{error::IoriResult, StreamingSegment};
+use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 use std::{future::Future, path::PathBuf};
 
 pub trait Merger {
@@ -22,12 +22,23 @@ pub trait Merger {
     /// This method might not be called in order of segment sequence.
     /// Implementations should handle order of segments by calling
     /// [StreamingSegment::sequence].
-    fn update(&mut self, segment: Self::Segment) -> impl Future<Output = IoriResult<()>> + Send;
+    fn update(
+        &mut self,
+        segment: Self::Segment,
+        cache: &impl CacheSource,
+    ) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Tell the merger that a segment has failed to download.
-    fn fail(&mut self, segment: Self::Segment) -> impl Future<Output = IoriResult<()>> + Send;
+    fn fail(
+        &mut self,
+        segment: Self::Segment,
+        cache: &impl CacheSource,
+    ) -> impl Future<Output = IoriResult<()>> + Send;
 
-    fn finish(&mut self) -> impl std::future::Future<Output = IoriResult<Self::Result>> + Send;
+    fn finish(
+        &mut self,
+        cache: &impl CacheSource,
+    ) -> impl std::future::Future<Output = IoriResult<Self::Result>> + Send;
 }
 
 pub enum IoriMerger<S> {
@@ -47,18 +58,12 @@ where
         Self::Pipe(PipeMerger::new(output_dir, recycle))
     }
 
-    pub fn skip<P>(output_dir: P) -> Self
-    where
-        P: Into<PathBuf>,
-    {
-        Self::Skip(SkipMerger::new(output_dir))
+    pub fn skip() -> Self {
+        Self::Skip(SkipMerger::new())
     }
 
-    pub fn concat<T>(temp_dir: T, output_file: PathBuf, keep_segments: bool) -> Self
-    where
-        T: Into<PathBuf>,
-    {
-        Self::Concat(ConcatAfterMerger::new(temp_dir, output_file, keep_segments))
+    pub fn concat(output_file: PathBuf, keep_segments: bool) -> Self {
+        Self::Concat(ConcatAfterMerger::new(output_file, keep_segments))
     }
 }
 
@@ -69,27 +74,27 @@ where
     type Segment = S;
     type Result = (); // TODO: merger might have different result types
 
-    async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
+    async fn update(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
         match self {
-            Self::Pipe(merger) => merger.update(segment).await,
-            Self::Skip(merger) => merger.update(segment).await,
-            Self::Concat(merger) => merger.update(segment).await,
+            Self::Pipe(merger) => merger.update(segment, cache).await,
+            Self::Skip(merger) => merger.update(segment, cache).await,
+            Self::Concat(merger) => merger.update(segment, cache).await,
         }
     }
 
-    async fn fail(&mut self, segment: Self::Segment) -> IoriResult<()> {
+    async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
         match self {
-            Self::Pipe(merger) => merger.fail(segment).await,
-            Self::Skip(merger) => merger.fail(segment).await,
-            Self::Concat(merger) => merger.fail(segment).await,
+            Self::Pipe(merger) => merger.fail(segment, cache).await,
+            Self::Skip(merger) => merger.fail(segment, cache).await,
+            Self::Concat(merger) => merger.fail(segment, cache).await,
         }
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
         match self {
-            Self::Pipe(merger) => merger.finish().await,
-            Self::Skip(merger) => merger.finish().await,
-            Self::Concat(merger) => merger.finish().await,
+            Self::Pipe(merger) => merger.finish(cache).await,
+            Self::Skip(merger) => merger.finish(cache).await,
+            Self::Concat(merger) => merger.finish(cache).await,
         }
     }
 }

@@ -47,4 +47,21 @@ impl CacheSource for FileCacheSource {
         let file = File::open(path).await?;
         Ok(file)
     }
+
+    async fn invalidate(&self, segment: &impl crate::StreamingSegment) -> IoriResult<()> {
+        let path = self.segment_path(segment);
+        if path.exists() {
+            tokio::fs::remove_file(path).await?;
+        }
+        Ok(())
+    }
+
+    async fn clear(&self) -> IoriResult<()> {
+        tokio::fs::remove_dir_all(&self.cache_dir).await?;
+        Ok(())
+    }
+
+    fn location_hint(&self) -> Option<String> {
+        Some(self.cache_dir.display().to_string())
+    }
 }

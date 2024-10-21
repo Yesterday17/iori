@@ -24,7 +24,7 @@ where
     downloaded: Arc<AtomicUsize>,
     failed: Arc<RwLock<Vec<String>>>,
 
-    cache: C,
+    cache: Arc<C>,
     merger: Arc<Mutex<M>>,
 
     retries: u32,
@@ -42,7 +42,7 @@ where
         Self {
             source: Arc::new(source),
             merger: Arc::new(Mutex::new(merger)),
-            cache,
+            cache: Arc::new(cache),
             concurrency,
             permits,
 
@@ -96,7 +96,8 @@ where
 
                 let source = self.source.clone();
                 let merger = self.merger.clone();
-                let merge_segment = self.cache.open_writer(&segment).await?;
+                let cache = self.cache.clone();
+                let merge_segment = cache.open_writer(&segment).await?;
                 let Some(mut writer) = merge_segment else {
                     continue;
                 };
@@ -118,7 +119,7 @@ where
                                         .write()
                                         .unwrap()
                                         .push(segment.file_name().to_string());
-                                    _ = merger.lock().await.fail(segment).await;
+                                    _ = merger.lock().await.fail(segment, &cache).await;
                                     return;
                                 }
 
@@ -145,7 +146,7 @@ where
                         "Processing {filename} finished. ({downloaded} / {total} or {percentage:.2}%)"
                     );
 
-                    _ = merger.lock().await.update(segment).await;
+                    _ = merger.lock().await.update(segment, &cache).await;
                 });
             }
 
@@ -170,6 +171,6 @@ where
         }
 
         ctrlc_handler.abort();
-        self.merger.lock().await.finish().await
+        self.merger.lock().await.finish(&self.cache).await
     }
 }

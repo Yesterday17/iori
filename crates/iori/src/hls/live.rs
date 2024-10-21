@@ -117,7 +117,7 @@ mod tests {
             None,
             None,
         );
-        let merger = SkipMerger::new("/tmp/test");
+        let merger = SkipMerger::new();
         let cache = FileCacheSource::new("/tmp/test".into());
         SequencialDownloader::new(source, merger, cache)
             .download()

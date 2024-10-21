@@ -12,7 +12,7 @@ use tokio::{
     sync::{mpsc, Mutex, MutexGuard},
 };
 
-use crate::{error::IoriResult, StreamingSegment};
+use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 
 use super::{utils::segment_path, Merger};
 
@@ -40,6 +40,7 @@ where
         tokio::spawn(async move {
             let stdout = &mut tokio::io::stdout();
             while let Some(segment) = receiver.recv().await {
+                // TODO: use cache instead of segment_path
                 let path = segment_path(&segment, &output_dir_receiver);
                 let mut file = File::open(&path).await.unwrap();
                 tokio::io::copy(&mut file, stdout).await.unwrap();
@@ -84,7 +85,7 @@ where
     type Segment = S;
     type Result = ();
 
-    async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
+    async fn update(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
         // Hold the lock so that no one would be able to write new segments and modify `next`
         let mut segments = self.segments.lock().await;
         let sequence = segment.sequence();
@@ -99,7 +100,7 @@ where
         Ok(())
     }
 
-    async fn fail(&mut self, segment: Self::Segment) -> IoriResult<()> {
+    async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
         // Hold the lock so that no one would be able to write new segments and modify `next`
         let mut segments = self.segments.lock().await;
         let sequence = segment.sequence();
@@ -115,9 +116,9 @@ where
         Ok(())
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
         if self.recycle {
-            tokio::fs::remove_dir_all(&self.output_dir).await?;
+            cache.clear().await?;
         }
 
         Ok(())

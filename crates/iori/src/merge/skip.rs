@@ -1,19 +1,14 @@
 use super::Merger;
-use crate::{error::IoriResult, StreamingSegment};
-use std::{marker::PhantomData, path::PathBuf};
+use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
+use std::marker::PhantomData;
 
 pub struct SkipMerger<S> {
-    output_dir: PathBuf,
     _phantom: PhantomData<S>,
 }
 
 impl<S> SkipMerger<S> {
-    pub fn new<P>(output_dir: P) -> Self
-    where
-        P: Into<PathBuf>,
-    {
+    pub fn new() -> Self {
         Self {
-            output_dir: output_dir.into(),
             _phantom: PhantomData,
         }
     }
@@ -26,20 +21,21 @@ where
     type Segment = S;
     type Result = ();
 
-    async fn update(&mut self, _segment: Self::Segment) -> IoriResult<()> {
+    async fn update(
+        &mut self,
+        _segment: Self::Segment,
+        _cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         Ok(())
     }
 
-    async fn fail(&mut self, _segment: Self::Segment) -> IoriResult<()> {
+    async fn fail(&mut self, _segment: Self::Segment, _cache: &impl CacheSource) -> IoriResult<()> {
         Ok(())
     }
 
-    async fn finish(&mut self) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
         log::info!("Skip merging. Please merge video chunks manually.");
-        log::info!(
-            "Temporary files are located at {}",
-            self.output_dir.display()
-        );
+        log::info!("Temporary files are located at {:?}", cache.location_hint());
         Ok(())
     }
 }

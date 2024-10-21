@@ -38,12 +38,13 @@ where
                 let fetch_result = self.source.fetch_segment(&segment, &mut writer).await;
 
                 match fetch_result {
-                    Ok(_) => self.merger.update(segment).await?,
-                    Err(_) => self.merger.fail(segment).await?,
+                    Ok(_) => self.merger.update(segment, &self.cache).await?,
+                    Err(_) => self.merger.fail(segment, &self.cache).await?,
                 }
             }
         }
 
+        self.merger.finish(&self.cache).await?;
         Ok(())
     }
 }
