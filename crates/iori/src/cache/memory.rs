@@ -138,8 +138,8 @@ mod tests {
             None
         }
 
-        fn r#type(&self) -> crate::common::SegmentType {
-            crate::common::SegmentType::Video
+        fn r#type(&self) -> crate::SegmentType {
+            crate::SegmentType::Video
         }
     }
 

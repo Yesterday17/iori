@@ -1,12 +1,11 @@
 pub mod cache;
-pub mod common;
 pub mod dash;
 pub mod decrypt;
 pub mod download;
 pub mod error;
+pub mod fetch;
 pub mod hls;
 pub mod merge;
-pub mod util;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -68,7 +67,31 @@ pub trait StreamingSegment: Sync {
     /// If a segment does not need to be decrypted, it must return `None` explicitly.
     fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>>;
 
-    fn r#type(&self) -> common::SegmentType;
+    fn r#type(&self) -> SegmentType;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SegmentType {
+    Video,
+    Audio,
+    Subtitle,
+}
+
+impl SegmentType {
+    pub fn from_mime_type(mime_type: Option<&str>) -> Self {
+        let mime_type = mime_type.unwrap_or("video");
+
+        if mime_type.starts_with("video") {
+            return Self::Video;
+        } else if mime_type.starts_with("audio") {
+            return Self::Audio;
+        } else if mime_type.starts_with("text") {
+            return Self::Subtitle;
+        } else {
+            panic!("Unknown mime type: {}", mime_type);
+        }
+    }
 }
 
 pub trait RemoteStreamingSegment {

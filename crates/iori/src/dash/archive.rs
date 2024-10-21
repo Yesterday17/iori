@@ -12,11 +12,8 @@ use tokio::{io::AsyncWrite, sync::mpsc};
 use url::Url;
 
 use crate::{
-    common::{fetch_segment, SegmentType},
-    dash::segment::DashSegment,
-    decrypt::IoriKey,
-    error::IoriResult,
-    StreamingSource,
+    dash::segment::DashSegment, decrypt::IoriKey, error::IoriResult, fetch::fetch_segment,
+    SegmentType, StreamingSource,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;

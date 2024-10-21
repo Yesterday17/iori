@@ -1,4 +1,4 @@
-use crate::{common::SegmentType, error::IoriResult, StreamingSegment};
+use crate::{error::IoriResult, SegmentType, StreamingSegment};
 use std::path::Path;
 use tokio::process::Command;
 

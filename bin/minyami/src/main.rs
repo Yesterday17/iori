@@ -210,7 +210,7 @@ impl MinyamiArgs {
         S: StreamingSegment + Send + 'static,
     {
         if self.live && self.pipe {
-            IoriMerger::pipe(self.keep)
+            IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
             IoriMerger::skip()
         } else {

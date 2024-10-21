@@ -1,4 +1,4 @@
-use crate::{common::SegmentType, decrypt::IoriKey, RemoteStreamingSegment, StreamingSegment};
+use crate::{decrypt::IoriKey, RemoteStreamingSegment, SegmentType, StreamingSegment};
 use std::sync::Arc;
 
 pub struct DashSegment {

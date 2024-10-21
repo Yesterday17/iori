@@ -5,6 +5,7 @@ use crate::{error::IoriResult, StreamingSegment};
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+/// A cache source for storing the downloaded but not merged segments.
 pub trait CacheSource: Sync {
     /// Open a writer for writing data of the segment.
     fn open_writer(

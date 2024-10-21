@@ -4,10 +4,8 @@ use std::sync::{
 };
 
 use iori::{
-    common::{fetch_segment, SegmentType},
-    error::IoriResult,
-    hls::utils::load_m3u8,
-    RemoteStreamingSegment, StreamingSegment, StreamingSource,
+    error::IoriResult, fetch::fetch_segment, hls::utils::load_m3u8, RemoteStreamingSegment,
+    SegmentType, StreamingSegment, StreamingSource,
 };
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;

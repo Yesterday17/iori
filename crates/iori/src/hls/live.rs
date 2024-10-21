@@ -4,8 +4,8 @@ use reqwest::Client;
 use tokio::{io::AsyncWrite, sync::mpsc};
 
 use crate::{
-    common::fetch_segment,
     error::{IoriError, IoriResult},
+    fetch::fetch_segment,
     hls::{segment::M3u8Segment, source::M3u8Source},
     StreamingSource,
 };
