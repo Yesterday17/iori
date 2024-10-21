@@ -1,26 +1,17 @@
+use super::Merger;
+use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 use std::{
     collections::HashMap,
-    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
 };
-
-use tokio::{
-    fs::File,
-    sync::{mpsc, Mutex, MutexGuard},
-};
-
-use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
-
-use super::{utils::segment_path, Merger};
+use tokio::sync::{Mutex, MutexGuard};
 
 pub struct PipeMerger<S> {
-    output_dir: PathBuf,
     recycle: bool,
 
-    sender: mpsc::UnboundedSender<S>,
     next: Arc<AtomicU64>,
     segments: Arc<Mutex<HashMap<u64, Option<S>>>>,
 }
@@ -29,33 +20,10 @@ impl<S> PipeMerger<S>
 where
     S: StreamingSegment + Send + 'static,
 {
-    pub fn new<P>(output_dir: P, recycle: bool) -> Self
-    where
-        P: Into<PathBuf>,
-    {
-        let output_dir = output_dir.into();
-
-        let (sender, mut receiver) = mpsc::unbounded_channel::<S>();
-        let output_dir_receiver = output_dir.clone();
-        tokio::spawn(async move {
-            let stdout = &mut tokio::io::stdout();
-            while let Some(segment) = receiver.recv().await {
-                // TODO: use cache instead of segment_path
-                let path = segment_path(&segment, &output_dir_receiver);
-                let mut file = File::open(&path).await.unwrap();
-                tokio::io::copy(&mut file, stdout).await.unwrap();
-
-                if recycle {
-                    tokio::fs::remove_file(&path).await.unwrap();
-                }
-            }
-        });
-
+    pub fn new(recycle: bool) -> Self {
         Self {
-            output_dir,
             recycle,
 
-            sender,
             next: Arc::new(AtomicU64::new(0)),
             segments: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -64,12 +32,15 @@ where
     async fn pipe_segments(
         &self,
         mut segments: MutexGuard<'_, HashMap<u64, Option<S>>>,
+        cache: &impl CacheSource,
     ) -> IoriResult<()> {
         while let Some(segment) = segments.remove(&self.next.load(Ordering::Relaxed)) {
             if let Some(segment) = segment {
-                let Ok(_) = self.sender.send(segment) else {
-                    break;
-                };
+                let mut reader = cache.open_reader(&segment).await?;
+                _ = tokio::io::copy(&mut reader, &mut tokio::io::stdout()).await;
+                if self.recycle {
+                    cache.invalidate(&segment).await?;
+                }
             }
 
             self.next.fetch_add(1, Ordering::Relaxed);
@@ -94,7 +65,7 @@ where
         segments.insert(sequence, Some(segment));
 
         if sequence == self.next.load(Ordering::Relaxed) {
-            self.pipe_segments(segments).await?;
+            self.pipe_segments(segments, cache).await?;
         }
 
         Ok(())
@@ -107,13 +78,9 @@ where
         let mut segments = self.segments.lock().await;
         let sequence = segment.sequence();
 
-        // try to remove segment
-        let path = segment_path(&segment, &self.output_dir);
-        let _ = tokio::fs::remove_file(&path).await;
-
         // ignore the result
         segments.insert(sequence, None);
-        self.pipe_segments(segments).await?;
+        self.pipe_segments(segments, cache).await?;
 
         Ok(())
     }

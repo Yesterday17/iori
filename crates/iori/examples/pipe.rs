@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let output_dir = std::env::temp_dir().join(format!("iori_pipe_{}", started_at));
 
     let source = CommonM3u8LiveSource::new(Default::default(), url, key, None);
-    let merger = PipeMerger::new(output_dir.clone(), true);
+    let merger = PipeMerger::new(true);
     let cache = FileCacheSource::new(output_dir);
 
     let downloader = ParallelDownloader::new(source, merger, cache, NonZeroU32::new(8).unwrap(), 8);

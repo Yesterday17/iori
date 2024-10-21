@@ -2,7 +2,6 @@ mod concat;
 mod mkvmerge;
 mod pipe;
 mod skip;
-mod utils;
 
 pub use concat::ConcatAfterMerger;
 pub use pipe::PipeMerger;
@@ -51,11 +50,8 @@ impl<S> IoriMerger<S>
 where
     S: StreamingSegment + Send + 'static,
 {
-    pub fn pipe<P>(output_dir: P, recycle: bool) -> Self
-    where
-        P: Into<PathBuf>,
-    {
-        Self::Pipe(PipeMerger::new(output_dir, recycle))
+    pub fn pipe(recycle: bool) -> Self {
+        Self::Pipe(PipeMerger::new(recycle))
     }
 
     pub fn skip() -> Self {

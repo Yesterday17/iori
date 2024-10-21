@@ -10,7 +10,7 @@ use anyhow::bail;
 use clap::Parser;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::file::FileCacheSource,
+    cache::{file::FileCacheSource, memory::MemoryCacheSource},
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
@@ -205,17 +205,16 @@ impl MinyamiArgs {
         Ok(output_dir)
     }
 
-    fn merger<S>(&self, output_dir: &PathBuf) -> IoriMerger<S>
+    fn merger<S>(&self) -> IoriMerger<S>
     where
         S: StreamingSegment + Send + 'static,
     {
-        let target_file = current_dir().unwrap().join(&self.output);
-
         if self.live && self.pipe {
-            IoriMerger::pipe(output_dir, self.keep)
+            IoriMerger::pipe(self.keep)
         } else if self.no_merge {
             IoriMerger::skip()
         } else {
+            let target_file = current_dir().unwrap().join(&self.output);
             IoriMerger::concat(target_file, self.keep)
         }
     }
@@ -234,16 +233,24 @@ async fn main() -> anyhow::Result<()> {
     let cache = FileCacheSource::new(output_dir.clone());
 
     if args.live {
-        let merger = args.merger(&output_dir);
+        let merger = args.merger();
         // Live Downloader
         let source = CommonM3u8LiveSource::new(client, args.m3u8, args.key, args.shaka_packager)
             .with_retry(args.manifest_retries);
-        let downloader = ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
-        downloader.download().await?;
+        if args.pipe {
+            let cache = MemoryCacheSource::new();
+            let downloader =
+                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
+            downloader.download().await?;
+        } else {
+            let downloader =
+                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
+            downloader.download().await?;
+        }
     } else {
         // Archive Downloader
         if args.m3u8.contains("dmc.nico") {
-            let merger = args.merger(&output_dir);
+            let merger = args.merger();
             log::info!("Enhanced mode for Nico-TS enabled");
 
             let key = args.key.expect("Key is required for Nico-TS");
@@ -268,13 +275,13 @@ async fn main() -> anyhow::Result<()> {
                 ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
             downloader.download().await?;
         } else if args.dash {
-            let merger = args.merger(&output_dir);
+            let merger = args.merger();
             let source = CommonDashArchiveSource::new(client, args.m3u8, args.key)?;
             let downloader =
                 ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
             downloader.download().await?;
         } else {
-            let merger = args.merger(&output_dir);
+            let merger = args.merger();
             let source = CommonM3u8ArchiveSource::new(
                 client,
                 args.m3u8,
