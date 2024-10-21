@@ -36,6 +36,7 @@ where
                 };
 
                 let fetch_result = self.source.fetch_segment(&segment, &mut writer).await;
+                drop(writer);
 
                 match fetch_result {
                     Ok(_) => self.merger.update(segment, &self.cache).await?,

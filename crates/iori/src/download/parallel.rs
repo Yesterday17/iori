@@ -129,6 +129,9 @@ where
                         }
                     }
 
+                    // drop writer to flush and save the data
+                    drop(writer);
+
                     // semaphore is only used to limit download concurrency, so drop it directly after fetching
                     drop(permit);
 

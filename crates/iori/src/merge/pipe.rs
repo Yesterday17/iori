@@ -101,6 +101,8 @@ where
     }
 
     async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+        cache.invalidate(&segment).await?;
+
         // Hold the lock so that no one would be able to write new segments and modify `next`
         let mut segments = self.segments.lock().await;
         let sequence = segment.sequence();

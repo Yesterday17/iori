@@ -1,4 +1,5 @@
 pub mod file;
+pub mod memory;
 
 use crate::{error::IoriResult, StreamingSegment};
 use std::sync::Arc;
