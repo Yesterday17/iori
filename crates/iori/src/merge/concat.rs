@@ -1,10 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use super::{
-    utils::{open_writer, segment_path},
-    Merger,
-};
-use crate::{error::IoriResult, StreamingSegment, ToSegmentData};
+use super::{utils::segment_path, Merger};
+use crate::{error::IoriResult, StreamingSegment};
 use tokio::fs::File;
 
 /// Concat all segments into a single file after all segments are downloaded.
@@ -35,15 +32,10 @@ impl<S> ConcatAfterMerger<S> {
 
 impl<S> Merger for ConcatAfterMerger<S>
 where
-    S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
+    S: StreamingSegment + Send + 'static,
 {
     type Segment = S;
-    type Sink = File;
     type Result = ();
-
-    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::Sink>> {
-        open_writer(segment, &self.temp_dir).await
-    }
 
     async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
         self.segments.push(ConcatSegment(segment, true));

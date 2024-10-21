@@ -152,8 +152,11 @@ impl IoriDecryptor {
                     let temp_output_file =
                         temp_dir.path().join(format!("output_{rand_suffix}.mp4"));
 
-                    let mut input = File::create(&temp_input_file)?;
-                    input.write_all(data)?;
+                    {
+                        let mut input = File::create(&temp_input_file)?;
+                        input.write_all(data)?;
+                        input.flush()?;
+                    }
 
                     let mut command = Command::new(shaka_packager_command);
                     command

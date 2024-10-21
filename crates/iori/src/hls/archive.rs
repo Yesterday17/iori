@@ -118,22 +118,25 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::download::SequencialDownloader;
+    use crate::{cache::file::FileCacheSource, download::SequencialDownloader, merge::SkipMerger};
 
-    // #[tokio::test]
-    // async fn test_download_archive() -> IoriResult<()> {
-    //     let source = CommonM3u8ArchiveSource::new(
-    //         Default::default(),
-    //         "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
-    //         None,
-    //         Default::default(),
-    //         Consumer::file("/tmp/test")?,
-    //         None,
-    //     );
-    //     SequencialDownloader::new(source).download().await?;
+    #[tokio::test]
+    async fn test_download_archive() -> IoriResult<()> {
+        let source = CommonM3u8ArchiveSource::new(
+            Default::default(),
+            "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
+            None,
+            Default::default(),
+            None,
+        );
+        let merger = SkipMerger::new("/tmp/test");
+        let cache = FileCacheSource::new("/tmp/test".into());
+        SequencialDownloader::new(source, merger, cache)
+            .download()
+            .await?;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     #[test]
     fn test_parse_range() {

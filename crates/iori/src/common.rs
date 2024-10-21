@@ -56,6 +56,7 @@ where
         }
         tmp_file.write_all(&bytes).await?;
     }
+    tmp_file.flush().await?;
 
     Ok(())
 }

@@ -3,7 +3,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use iori::{download::ParallelDownloader, hls::CommonM3u8LiveSource, merge::PipeMerger};
+use iori::{
+    cache::file::FileCacheSource, download::ParallelDownloader, hls::CommonM3u8LiveSource,
+    merge::PipeMerger,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,9 +25,10 @@ async fn main() -> anyhow::Result<()> {
     let output_dir = std::env::temp_dir().join(format!("iori_pipe_{}", started_at));
 
     let source = CommonM3u8LiveSource::new(Default::default(), url, key, None);
-    let merger = PipeMerger::new(output_dir, true);
+    let merger = PipeMerger::new(output_dir.clone(), true);
+    let cache = FileCacheSource::new(output_dir);
 
-    let downloader = ParallelDownloader::new(source, merger, NonZeroU32::new(8).unwrap(), 8);
+    let downloader = ParallelDownloader::new(source, merger, cache, NonZeroU32::new(8).unwrap(), 8);
     downloader.download().await?;
 
     Ok(())

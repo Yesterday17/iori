@@ -104,21 +104,25 @@ impl StreamingSource for CommonM3u8LiveSource {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::download::SequencialDownloader;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{cache::file::FileCacheSource, download::SequencialDownloader, merge::SkipMerger};
 
-//     #[tokio::test]
-//     async fn test_download_live() -> IoriResult<()> {
-//         let source = CommonM3u8LiveSource::new(
-//             Default::default(),
-//             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
-//             None,
-//             None,
-//         );
-//         SequencialDownloader::new(source).download().await?;
+    #[tokio::test]
+    async fn test_download_live() -> IoriResult<()> {
+        let source = CommonM3u8LiveSource::new(
+            Default::default(),
+            "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
+            None,
+            None,
+        );
+        let merger = SkipMerger::new("/tmp/test");
+        let cache = FileCacheSource::new("/tmp/test".into());
+        SequencialDownloader::new(source, merger, cache)
+            .download()
+            .await?;
 
-//         Ok(())
-//     }
-// }
+        Ok(())
+    }
+}

@@ -10,6 +10,7 @@ use anyhow::bail;
 use clap::Parser;
 use fake_user_agent::get_chrome_rua;
 use iori::{
+    cache::file::FileCacheSource,
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
@@ -206,7 +207,7 @@ impl MinyamiArgs {
 
     fn merger<S>(&self, output_dir: &PathBuf) -> IoriMerger<S>
     where
-        S: StreamingSegment + Send + Sync + 'static,
+        S: StreamingSegment + Send + 'static,
     {
         let target_file = current_dir().unwrap().join(&self.output);
 
@@ -230,13 +231,14 @@ async fn main() -> anyhow::Result<()> {
     let args = MinyamiArgs::parse();
     let client = args.client();
     let output_dir = args.output_dir()?;
+    let cache = FileCacheSource::new(output_dir.clone());
 
     if args.live {
         let merger = args.merger(&output_dir);
         // Live Downloader
         let source = CommonM3u8LiveSource::new(client, args.m3u8, args.key, args.shaka_packager)
             .with_retry(args.manifest_retries);
-        let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+        let downloader = ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
         downloader.download().await?;
     } else {
         // Archive Downloader
@@ -262,12 +264,14 @@ async fn main() -> anyhow::Result<()> {
             let source = NicoTimeshiftSource::new(client, wss_url)
                 .await?
                 .with_retry(args.manifest_retries);
-            let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+            let downloader =
+                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
             downloader.download().await?;
         } else if args.dash {
             let merger = args.merger(&output_dir);
             let source = CommonDashArchiveSource::new(client, args.m3u8, args.key)?;
-            let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+            let downloader =
+                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
             downloader.download().await?;
         } else {
             let merger = args.merger(&output_dir);
@@ -279,7 +283,8 @@ async fn main() -> anyhow::Result<()> {
                 args.shaka_packager,
             )
             .with_retry(args.manifest_retries);
-            let downloader = ParallelDownloader::new(source, merger, args.threads, args.retries);
+            let downloader =
+                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
             downloader.download().await?;
         }
     };

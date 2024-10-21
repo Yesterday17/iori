@@ -1,21 +1,28 @@
-use crate::{error::IoriResult, merge::Merger, StreamingSource};
+use crate::{cache::CacheSource, error::IoriResult, merge::Merger, StreamingSource};
 
-pub struct SequencialDownloader<S, M>
+pub struct SequencialDownloader<S, M, C>
 where
     S: StreamingSource,
     M: Merger<Segment = S::Segment>,
+    C: CacheSource,
 {
     source: S,
     merger: M,
+    cache: C,
 }
 
-impl<S, M> SequencialDownloader<S, M>
+impl<S, M, C> SequencialDownloader<S, M, C>
 where
     S: StreamingSource,
     M: Merger<Segment = S::Segment>,
+    C: CacheSource,
 {
-    pub fn new(source: S, merger: M) -> Self {
-        Self { source, merger }
+    pub fn new(source: S, merger: M, cache: C) -> Self {
+        Self {
+            source,
+            merger,
+            cache,
+        }
     }
 
     pub async fn download(&mut self) -> IoriResult<()> {
@@ -23,7 +30,7 @@ where
 
         while let Some(segment) = receiver.recv().await {
             for segment in segment? {
-                let writer = self.merger.open_writer(&segment).await?;
+                let writer = self.cache.open_writer(&segment).await?;
                 let Some(mut writer) = writer else {
                     continue;
                 };

@@ -1,4 +1,6 @@
-use crate::{error::IoriResult, merge::Merger, StreamingSegment, StreamingSource};
+use crate::{
+    cache::CacheSource, error::IoriResult, merge::Merger, StreamingSegment, StreamingSource,
+};
 use std::{
     num::NonZeroU32,
     sync::{
@@ -8,10 +10,11 @@ use std::{
 };
 use tokio::sync::{Mutex, Semaphore};
 
-pub struct ParallelDownloader<S, M>
+pub struct ParallelDownloader<S, M, C>
 where
     S: StreamingSource,
     M: Merger<Segment = S::Segment>,
+    C: CacheSource,
 {
     source: Arc<S>,
     concurrency: NonZeroU32,
@@ -21,22 +24,25 @@ where
     downloaded: Arc<AtomicUsize>,
     failed: Arc<RwLock<Vec<String>>>,
 
+    cache: C,
     merger: Arc<Mutex<M>>,
 
     retries: u32,
 }
 
-impl<S, M> ParallelDownloader<S, M>
+impl<S, M, C> ParallelDownloader<S, M, C>
 where
     S: StreamingSource + Send + Sync + 'static,
     M: Merger<Segment = S::Segment> + Send + Sync + 'static,
+    C: CacheSource + Send + Sync + 'static,
 {
-    pub fn new(source: S, merger: M, concurrency: NonZeroU32, retries: u32) -> Self {
+    pub fn new(source: S, merger: M, cache: C, concurrency: NonZeroU32, retries: u32) -> Self {
         let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
             source: Arc::new(source),
             merger: Arc::new(Mutex::new(merger)),
+            cache,
             concurrency,
             permits,
 
@@ -90,7 +96,7 @@ where
 
                 let source = self.source.clone();
                 let merger = self.merger.clone();
-                let merge_segment = merger.lock().await.open_writer(&segment).await?;
+                let merge_segment = self.cache.open_writer(&segment).await?;
                 let Some(mut writer) = merge_segment else {
                     continue;
                 };

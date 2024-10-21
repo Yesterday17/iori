@@ -8,23 +8,14 @@ pub use concat::ConcatAfterMerger;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
 
-use crate::{error::IoriResult, StreamingSegment, ToSegmentData};
+use crate::{error::IoriResult, StreamingSegment};
 use std::{future::Future, path::PathBuf};
-use tokio::{fs::File, io::AsyncWrite};
 
 pub trait Merger {
     /// Segment to be merged
-    type Segment: StreamingSegment + ToSegmentData + Send + Sync + 'static;
-    /// Sink for downloader to write segment data.
-    type Sink: AsyncWrite + Unpin + Send + Sync + 'static;
+    type Segment: StreamingSegment + Send + 'static;
     /// Result of the merge.
     type Result: Send + Sync + 'static;
-
-    /// Open a writer for the merged file.
-    fn open_writer(
-        &self,
-        segment: &Self::Segment,
-    ) -> impl std::future::Future<Output = IoriResult<Option<Self::Sink>>> + Send;
 
     /// Add a segment to the merger.
     ///
@@ -47,7 +38,7 @@ pub enum IoriMerger<S> {
 
 impl<S> IoriMerger<S>
 where
-    S: StreamingSegment + Send + Sync + 'static,
+    S: StreamingSegment + Send + 'static,
 {
     pub fn pipe<P>(output_dir: P, recycle: bool) -> Self
     where
@@ -73,19 +64,10 @@ where
 
 impl<S> Merger for IoriMerger<S>
 where
-    S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
+    S: StreamingSegment + Send + 'static,
 {
     type Segment = S;
-    type Sink = File; // TODO: not all mergers need to write to file
     type Result = (); // TODO: merger might have different result types
-
-    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::Sink>> {
-        match self {
-            Self::Pipe(merger) => merger.open_writer(segment).await,
-            Self::Skip(merger) => merger.open_writer(segment).await,
-            Self::Concat(merger) => merger.open_writer(segment).await,
-        }
-    }
 
     async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
         match self {

@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod common;
 pub mod dash;
 pub mod decrypt;
@@ -50,7 +51,7 @@ pub trait StreamingSource {
         W: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static;
 }
 
-pub trait StreamingSegment {
+pub trait StreamingSegment: Sync {
     /// Sequence ID of the segment, starts from 0
     fn sequence(&self) -> u64;
 

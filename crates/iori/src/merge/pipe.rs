@@ -12,12 +12,9 @@ use tokio::{
     sync::{mpsc, Mutex, MutexGuard},
 };
 
-use crate::{error::IoriResult, StreamingSegment, ToSegmentData};
+use crate::{error::IoriResult, StreamingSegment};
 
-use super::{
-    utils::{open_writer, segment_path},
-    Merger,
-};
+use super::{utils::segment_path, Merger};
 
 pub struct PipeMerger<S> {
     output_dir: PathBuf,
@@ -30,7 +27,7 @@ pub struct PipeMerger<S> {
 
 impl<S> PipeMerger<S>
 where
-    S: StreamingSegment + Send + Sync + 'static,
+    S: StreamingSegment + Send + 'static,
 {
     pub fn new<P>(output_dir: P, recycle: bool) -> Self
     where
@@ -82,15 +79,10 @@ where
 
 impl<S> Merger for PipeMerger<S>
 where
-    S: StreamingSegment + ToSegmentData + Send + Sync + 'static,
+    S: StreamingSegment + Send + 'static,
 {
     type Segment = S;
-    type Sink = File;
     type Result = ();
-
-    async fn open_writer(&self, segment: &Self::Segment) -> IoriResult<Option<Self::Sink>> {
-        open_writer(segment, &self.output_dir).await
-    }
 
     async fn update(&mut self, segment: Self::Segment) -> IoriResult<()> {
         // Hold the lock so that no one would be able to write new segments and modify `next`
