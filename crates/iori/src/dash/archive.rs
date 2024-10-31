@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -15,8 +14,8 @@ use crate::{
     dash::segment::DashSegment, decrypt::IoriKey, error::IoriResult, fetch::fetch_segment,
     SegmentType, StreamingSource,
 };
-use once_cell::sync::Lazy;
-use regex::Regex;
+
+use super::template::Template;
 
 pub struct CommonDashArchiveSource {
     client: Client,
@@ -123,11 +122,11 @@ impl StreamingSource for CommonDashArchiveSource {
                     .and_then(|w| representation.height.map(|h| (w, h)))
                     .map(|(w, h)| format!("{w}x{h}"));
 
-                let mut params = HashMap::new();
+                let mut template = Template::new();
                 if let Some(representation_id) = representation.id.clone() {
-                    params.insert("RepresentationID", representation_id);
+                    template.insert(Template::REPRESENTATION_ID, representation_id);
                 }
-                params.insert("Bandwidth", bandwidth.to_string());
+                template.insert(Template::BANDWIDTH, bandwidth.to_string());
 
                 let mut segments = Vec::new();
 
@@ -153,7 +152,7 @@ impl StreamingSource for CommonDashArchiveSource {
                     let time_scale = segment_template.timescale.unwrap_or(1);
                     let initial_segment =
                         if let Some(ref initialization) = segment_template.initialization {
-                            let initialization = resolve_url_template(&initialization, &params);
+                            let initialization = template.resolve(&initialization);
                             let url = merge_baseurls(&base_url, &initialization)?;
                             let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
                             Some(Arc::new(bytes))
@@ -174,9 +173,9 @@ impl StreamingSource for CommonDashArchiveSource {
                                 let duration = segment.d;
                                 let repeat = segment.r.unwrap_or(0);
                                 for _ in 0..(repeat + 1) {
-                                    params.insert("Time", current_time.to_string());
-                                    params.insert("Number", segment_number.to_string());
-                                    let filename = resolve_url_template(&media_template, &params);
+                                    template.insert(Template::TIME, current_time.to_string());
+                                    template.insert(Template::NUMBER, segment_number.to_string());
+                                    let filename = template.resolve(&media_template);
                                     let url = merge_baseurls(&base_url, &filename)?;
 
                                     let segment = DashSegment {
@@ -248,47 +247,4 @@ fn merge_baseurls(current: &Url, new: &str) -> IoriResult<Url> {
         }
         Ok(merged)
     }
-}
-
-// From https://dashif.org/docs/DASH-IF-IOP-v4.3.pdf:
-// "For the avoidance of doubt, only %0[width]d is permitted and no other identifiers. The reason
-// is that such a string replacement can be easily implemented without requiring a specific library."
-//
-// Instead of pulling in C printf() or a reimplementation such as the printf_compat crate, we reimplement
-// this functionality directly.
-//
-// Example template: "$RepresentationID$/$Number%06d$.m4s"
-static URL_TEMPLATE_IDS: Lazy<Vec<(&'static str, String, Regex)>> = Lazy::new(|| {
-    vec!["RepresentationID", "Number", "Time", "Bandwidth"]
-        .into_iter()
-        .map(|k| {
-            (
-                k,
-                format!("${k}$"),
-                Regex::new(&format!("\\${k}%0([\\d])d\\$")).unwrap(),
-            )
-        })
-        .collect()
-});
-
-fn resolve_url_template(template: &str, params: &HashMap<&str, String>) -> String {
-    let mut result = template.to_string();
-    for (k, ident, rx) in URL_TEMPLATE_IDS.iter() {
-        // first check for simple cases such as $Number$
-        if result.contains(ident) {
-            if let Some(value) = params.get(k as &str) {
-                result = result.replace(ident, value);
-            }
-        }
-        // now check for complex cases such as $Number%06d$
-        if let Some(cap) = rx.captures(&result) {
-            if let Some(value) = params.get(k as &str) {
-                let width: usize = cap[1].parse::<usize>().unwrap();
-                let count = format!("{value:0>width$}");
-                let m = rx.find(&result).unwrap();
-                result = result[..m.start()].to_owned() + &count + &result[m.end()..];
-            }
-        }
-    }
-    result
 }
