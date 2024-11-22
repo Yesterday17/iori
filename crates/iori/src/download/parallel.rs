@@ -5,7 +5,7 @@ use std::{
     num::NonZeroU32,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc, RwLock,
+        Arc,
     },
 };
 use tokio::sync::{Mutex, Semaphore};
@@ -22,7 +22,8 @@ where
 
     total: Arc<AtomicUsize>,
     downloaded: Arc<AtomicUsize>,
-    failed: Arc<RwLock<Vec<String>>>,
+    failed: Arc<AtomicUsize>,
+    failed_segments_name: Arc<Mutex<Vec<String>>>,
 
     cache: Arc<C>,
     merger: Arc<Mutex<M>>,
@@ -48,7 +49,8 @@ where
 
             total: Arc::new(AtomicUsize::new(0)),
             downloaded: Arc::new(AtomicUsize::new(0)),
-            failed: Arc::new(RwLock::new(Vec::new())),
+            failed: Arc::new(AtomicUsize::new(0)),
+            failed_segments_name: Arc::new(Mutex::new(Vec::new())),
 
             retries,
         }
@@ -92,6 +94,7 @@ where
                 let permit = self.permits.clone().acquire_owned().await.unwrap();
                 let segments_downloaded = self.downloaded.clone();
                 let segments_failed = self.failed.clone();
+                let failed_segments_name = self.failed_segments_name.clone();
                 let segments_total = self.total.clone();
 
                 let source = self.source.clone();
@@ -115,10 +118,11 @@ where
                                     log::error!(
                                         "Processing {filename} failed, max retries exceed, drop. {e}"
                                     );
-                                    segments_failed
-                                        .write()
-                                        .unwrap()
+                                    failed_segments_name
+                                        .lock()
+                                        .await
                                         .push(segment.file_name().to_string());
+                                    segments_failed.fetch_add(1, Ordering::Relaxed);
                                     _ = merger.lock().await.fail(segment, &cache).await;
                                     return;
                                 }
@@ -137,7 +141,7 @@ where
 
                     let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed)
                         + 1
-                        + segments_failed.read().unwrap().len();
+                        + segments_failed.load(Ordering::Relaxed);
                     let total = segments_total.load(Ordering::Relaxed);
                     let percentage = if total == 0 {
                         0.
@@ -165,7 +169,7 @@ where
             .await
             .unwrap();
 
-        let failed = self.failed.read().unwrap();
+        let failed = self.failed_segments_name.lock().await;
         if !failed.is_empty() {
             log::error!("Failed to download {} segments:", failed.len());
             for segment in failed.iter() {
