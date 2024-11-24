@@ -1,4 +1,4 @@
-use super::CacheSource;
+use super::{CacheSource, CacheSourceReader, CacheSourceWriter};
 use crate::error::IoriResult;
 use std::path::PathBuf;
 use tokio::fs::File;
@@ -24,7 +24,7 @@ impl CacheSource for FileCacheSource {
     async fn open_writer(
         &self,
         segment: &impl crate::StreamingSegment,
-    ) -> IoriResult<Option<impl tokio::io::AsyncWrite + Unpin + Send + Sync + 'static>> {
+    ) -> IoriResult<Option<CacheSourceWriter>> {
         let path = self.segment_path(segment);
         if path
             .metadata()
@@ -35,17 +35,17 @@ impl CacheSource for FileCacheSource {
             return Ok(None);
         }
 
-        let tmp_file = File::create(path).await?;
-        Ok(Some(tmp_file))
+        let tmp_file: File = File::create(path).await?;
+        Ok(Some(Box::new(tmp_file)))
     }
 
     async fn open_reader(
         &self,
         segment: &impl crate::StreamingSegment,
-    ) -> IoriResult<impl tokio::io::AsyncRead + Unpin + Send + Sync + 'static> {
+    ) -> IoriResult<CacheSourceReader> {
         let path = self.segment_path(segment);
         let file = File::open(path).await?;
-        Ok(file)
+        Ok(Box::new(file))
     }
 
     async fn invalidate(&self, segment: &impl crate::StreamingSegment) -> IoriResult<()> {

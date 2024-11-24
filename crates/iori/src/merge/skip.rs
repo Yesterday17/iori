@@ -1,35 +1,30 @@
 use super::Merger;
 use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
-use std::marker::PhantomData;
 
-pub struct SkipMerger<S> {
-    _phantom: PhantomData<S>,
-}
+pub struct SkipMerger;
 
-impl<S> SkipMerger<S> {
+impl SkipMerger {
     pub fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
+        Self
     }
 }
 
-impl<S> Merger for SkipMerger<S>
-where
-    S: StreamingSegment + Send + 'static,
-{
-    type Segment = S;
+impl Merger for SkipMerger {
     type Result = ();
 
     async fn update(
         &mut self,
-        _segment: Self::Segment,
+        _segment: impl StreamingSegment,
         _cache: &impl CacheSource,
     ) -> IoriResult<()> {
         Ok(())
     }
 
-    async fn fail(&mut self, _segment: Self::Segment, _cache: &impl CacheSource) -> IoriResult<()> {
+    async fn fail(
+        &mut self,
+        _segment: impl StreamingSegment,
+        _cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         Ok(())
     }
 

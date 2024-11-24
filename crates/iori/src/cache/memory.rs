@@ -1,4 +1,4 @@
-use super::CacheSource;
+use super::{CacheSource, CacheSourceReader, CacheSourceWriter};
 use crate::error::IoriResult;
 use std::{
     collections::HashMap,
@@ -25,7 +25,7 @@ impl CacheSource for MemoryCacheSource {
     async fn open_writer(
         &self,
         segment: &impl crate::StreamingSegment,
-    ) -> IoriResult<Option<impl tokio::io::AsyncWrite + Unpin + Send + Sync + 'static>> {
+    ) -> IoriResult<Option<CacheSourceWriter>> {
         let key = segment.sequence();
         let cache = self.cache.lock().unwrap();
         if cache.contains_key(&key) {
@@ -33,24 +33,26 @@ impl CacheSource for MemoryCacheSource {
             return Ok(None);
         }
 
-        Ok(Some(MemoryWriter {
+        let writer = MemoryWriter {
             key,
             cache: self.cache.clone(),
             inner: Cursor::new(Vec::new()),
-        }))
+        };
+        Ok(Some(Box::new(writer)))
     }
 
     async fn open_reader(
         &self,
         segment: &impl crate::StreamingSegment,
-    ) -> IoriResult<impl tokio::io::AsyncRead + Unpin + Send + Sync + 'static> {
+    ) -> IoriResult<CacheSourceReader> {
         let data = self
             .cache
             .lock()
             .unwrap()
             .remove(&segment.sequence())
             .unwrap_or_default();
-        Ok(Cursor::new(data))
+        let reader = Cursor::new(data);
+        Ok(Box::new(reader))
     }
 
     async fn invalidate(&self, segment: &impl crate::StreamingSegment) -> IoriResult<()> {

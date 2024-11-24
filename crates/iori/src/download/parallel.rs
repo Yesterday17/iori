@@ -2,7 +2,9 @@ use crate::{
     cache::CacheSource, error::IoriResult, merge::Merger, StreamingSegment, StreamingSource,
 };
 use std::{
+    future::Future,
     num::NonZeroU32,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -13,7 +15,7 @@ use tokio::sync::{Mutex, Semaphore};
 pub struct ParallelDownloader<S, M, C>
 where
     S: StreamingSource,
-    M: Merger<Segment = S::Segment>,
+    M: Merger,
     C: CacheSource,
 {
     source: Arc<S>,
@@ -34,7 +36,7 @@ where
 impl<S, M, C> ParallelDownloader<S, M, C>
 where
     S: StreamingSource + Send + Sync + 'static,
-    M: Merger<Segment = S::Segment> + Send + Sync + 'static,
+    M: Merger + Send + Sync + 'static,
     C: CacheSource + Send + Sync + 'static,
 {
     pub fn new(source: S, merger: M, cache: C, concurrency: NonZeroU32, retries: u32) -> Self {
@@ -110,7 +112,13 @@ where
                     let filename = segment.file_name();
 
                     loop {
-                        let result = source.fetch_segment(&segment, &mut writer).await;
+                        // Workaround for `higher-ranked lifetime error`
+                        //
+                        // TODO: remove this when this issue is fixed
+                        // https://github.com/rust-lang/rust/issues/102211
+                        let f: Pin<Box<dyn Future<Output = _> + Send>> =
+                            Box::pin(source.fetch_segment(&segment, &mut writer));
+                        let result = f.await;
                         match result {
                             Ok(_) => break,
                             Err(e) => {

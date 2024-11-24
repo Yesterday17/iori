@@ -25,10 +25,10 @@ pub enum IoriKey {
 }
 
 impl IoriKey {
-    pub fn clear_key(key: String) -> IoriResult<Self> {
+    pub fn clear_key(key: &str) -> IoriResult<Self> {
         let (kid, key) = key
             .split_once(':')
-            .ok_or_else(|| IoriError::InvalidClearKey(key.clone()))?;
+            .ok_or_else(|| IoriError::InvalidClearKey(key.to_string()))?;
 
         let mut keys = HashMap::new();
         keys.insert(kid.to_string(), key.to_string());

@@ -11,8 +11,6 @@ use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 use std::{future::Future, path::PathBuf};
 
 pub trait Merger {
-    /// Segment to be merged
-    type Segment: StreamingSegment + Send + 'static;
     /// Result of the merge.
     type Result: Send + Sync + 'static;
 
@@ -23,14 +21,14 @@ pub trait Merger {
     /// [StreamingSegment::sequence].
     fn update(
         &mut self,
-        segment: Self::Segment,
+        segment: impl StreamingSegment + Send + Sync + 'static,
         cache: &impl CacheSource,
     ) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Tell the merger that a segment has failed to download.
     fn fail(
         &mut self,
-        segment: Self::Segment,
+        segment: impl StreamingSegment + Send + Sync + 'static,
         cache: &impl CacheSource,
     ) -> impl Future<Output = IoriResult<()>> + Send;
 
@@ -40,22 +38,21 @@ pub trait Merger {
     ) -> impl std::future::Future<Output = IoriResult<Self::Result>> + Send;
 }
 
-pub enum IoriMerger<S> {
-    Pipe(PipeMerger<S>),
-    Skip(SkipMerger<S>),
-    Concat(ConcatAfterMerger<S>),
+pub(crate) type BoxedStreamingSegment<'a> = Box<dyn StreamingSegment + Send + Sync + 'a>;
+
+pub enum IoriMerger {
+    Pipe(PipeMerger),
+    Skip(SkipMerger),
+    Concat(ConcatAfterMerger),
 }
 
-impl<S> IoriMerger<S>
-where
-    S: StreamingSegment + Send + 'static,
-{
+impl IoriMerger {
     pub fn pipe(recycle: bool) -> Self {
         Self::Pipe(PipeMerger::new(recycle))
     }
 
     pub fn skip() -> Self {
-        Self::Skip(SkipMerger::new())
+        Self::Skip(SkipMerger)
     }
 
     pub fn concat(output_file: PathBuf, keep_segments: bool) -> Self {
@@ -63,14 +60,14 @@ where
     }
 }
 
-impl<S> Merger for IoriMerger<S>
-where
-    S: StreamingSegment + Send + 'static,
-{
-    type Segment = S;
+impl Merger for IoriMerger {
     type Result = (); // TODO: merger might have different result types
 
-    async fn update(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+    async fn update(
+        &mut self,
+        segment: impl StreamingSegment + Send + Sync + 'static,
+        cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         match self {
             Self::Pipe(merger) => merger.update(segment, cache).await,
             Self::Skip(merger) => merger.update(segment, cache).await,
@@ -78,7 +75,11 @@ where
         }
     }
 
-    async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+    async fn fail(
+        &mut self,
+        segment: impl StreamingSegment + Send + Sync + 'static,
+        cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         match self {
             Self::Pipe(merger) => merger.fail(segment, cache).await,
             Self::Skip(merger) => merger.fail(segment, cache).await,

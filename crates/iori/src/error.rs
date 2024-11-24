@@ -36,8 +36,12 @@ pub enum IoriError {
     #[error(transparent)]
     RequestError(#[from] reqwest::Error),
 
+    // MPEG-DASH errors
     #[error(transparent)]
     MpdParseError(#[from] dash_mpd::DashMpdError),
+
+    #[error("Invalid timing schema: {0:?}")]
+    InvalidTimingSchema(Option<String>),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

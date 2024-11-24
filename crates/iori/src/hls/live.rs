@@ -20,7 +20,7 @@ impl CommonM3u8LiveSource {
     pub fn new(
         client: Client,
         m3u8: String,
-        key: Option<String>,
+        key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {

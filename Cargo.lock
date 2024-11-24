@@ -832,6 +832,7 @@ dependencies = [
  "block-buffer",
  "bytes",
  "cbc",
+ "chrono",
  "dash-mpd",
  "data-url",
  "futures-util",

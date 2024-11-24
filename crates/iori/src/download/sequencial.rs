@@ -3,7 +3,7 @@ use crate::{cache::CacheSource, error::IoriResult, merge::Merger, StreamingSourc
 pub struct SequencialDownloader<S, M, C>
 where
     S: StreamingSource,
-    M: Merger<Segment = S::Segment>,
+    M: Merger,
     C: CacheSource,
 {
     source: S,
@@ -14,7 +14,7 @@ where
 impl<S, M, C> SequencialDownloader<S, M, C>
 where
     S: StreamingSource,
-    M: Merger<Segment = S::Segment>,
+    M: Merger,
     C: CacheSource,
 {
     pub fn new(source: S, merger: M, cache: C) -> Self {

@@ -25,7 +25,7 @@ pub struct CommonDashArchiveSource {
 }
 
 impl CommonDashArchiveSource {
-    pub fn new(client: Client, mpd: String, key: Option<String>) -> IoriResult<Self> {
+    pub fn new(client: Client, mpd: String, key: Option<&str>) -> IoriResult<Self> {
         let key = if let Some(k) = key {
             Some(Arc::new(IoriKey::clear_key(k)?))
         } else {
@@ -123,7 +123,7 @@ impl StreamingSource for CommonDashArchiveSource {
                     .map(|(w, h)| format!("{w}x{h}"));
 
                 let mut template = Template::new();
-                if let Some(representation_id) = representation.id.clone() {
+                if let Some(representation_id) = representation.id {
                     template.insert(Template::REPRESENTATION_ID, representation_id);
                 }
                 template.insert(Template::BANDWIDTH, bandwidth.to_string());
@@ -145,26 +145,27 @@ impl StreamingSource for CommonDashArchiveSource {
                     }
                 }
 
-                let inner_segment_template = representation.SegmentTemplate.as_ref();
-                let outer_segment_template = adaptation.SegmentTemplate.as_ref();
-
-                if let Some(segment_template) = inner_segment_template.or(outer_segment_template) {
+                if let Some(segment_template) = representation
+                    .SegmentTemplate
+                    .or(adaptation.SegmentTemplate)
+                {
                     let time_scale = segment_template.timescale.unwrap_or(1);
                     let initial_segment =
-                        if let Some(ref initialization) = segment_template.initialization {
+                        if let Some(initialization) = segment_template.initialization {
                             let initialization = template.resolve(&initialization);
                             let url = merge_baseurls(&base_url, &initialization)?;
                             let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
                             Some(Arc::new(bytes))
-                            // todo!("fetch initialization segment");
                         } else {
                             None
                         };
 
                     if let Some(ref media_template) = segment_template.media {
                         let mut current_time = 0;
-                        let mut segment_number = 1;
-                        if let Some(ref segment_timeline) = segment_template.SegmentTimeline {
+                        let mut segment_number = segment_template.startNumber.unwrap_or(1);
+
+                        // SegmentTemplate + SegmentTimeline
+                        if let Some(segment_timeline) = segment_template.SegmentTimeline {
                             for segment in segment_timeline.segments.iter() {
                                 if let Some(t) = segment.t {
                                     current_time = t;
@@ -180,7 +181,7 @@ impl StreamingSource for CommonDashArchiveSource {
 
                                     let segment = DashSegment {
                                         url,
-                                        filename: filename.replace("/", "__"),
+                                        filename,
                                         r#type: SegmentType::from_mime_type(mime_type.as_deref()),
                                         initial_segment: initial_segment.clone(),
                                         key: self.key.clone(),
@@ -193,9 +194,32 @@ impl StreamingSource for CommonDashArchiveSource {
                                     current_time += duration;
                                 }
                             }
+                        } else if let Some(segment_duration) = segment_template.duration {
+                            // SegmentTemplate + SegmentDuration
+                            let segment_duration = segment_duration / time_scale as f64;
+                            let total_segments = (period.duration.clone().unwrap().as_millis()
+                                as f64
+                                / segment_duration)
+                                .round() as u64;
+                            for _ in 1..total_segments {
+                                template.insert(Template::NUMBER, segment_number.to_string());
+                                let filename = template.resolve(&media_template);
+                                let url = merge_baseurls(&base_url, &filename)?;
+
+                                let segment = DashSegment {
+                                    url,
+                                    filename,
+                                    r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                    initial_segment: initial_segment.clone(),
+                                    key: self.key.clone(),
+                                    byte_range: None,
+                                    sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+                                };
+                                segments.push(segment);
+
+                                segment_number += 1;
+                            }
                         }
-                    } else {
-                        todo!()
                     }
 
                     // segment.url =

@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use super::Merger;
+use super::{BoxedStreamingSegment, Merger};
 use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 use tokio::fs::File;
 
 /// Concat all segments into a single file after all segments are downloaded.
-pub struct ConcatAfterMerger<S> {
-    segments: Vec<ConcatSegment<S>>,
+pub struct ConcatAfterMerger {
+    segments: Vec<ConcatSegment<BoxedStreamingSegment<'static>>>,
 
     /// Final output file path.
     output_file: PathBuf,
@@ -14,7 +14,7 @@ pub struct ConcatAfterMerger<S> {
     keep_segments: bool,
 }
 
-impl<S> ConcatAfterMerger<S> {
+impl ConcatAfterMerger {
     pub fn new(output_file: PathBuf, keep_segments: bool) -> Self {
         Self {
             segments: Vec::new(),
@@ -24,25 +24,25 @@ impl<S> ConcatAfterMerger<S> {
     }
 }
 
-impl<S> Merger for ConcatAfterMerger<S>
-where
-    S: StreamingSegment + Send + 'static,
-{
-    type Segment = S;
+impl Merger for ConcatAfterMerger {
     type Result = ();
 
     async fn update(
         &mut self,
-        segment: Self::Segment,
+        segment: impl StreamingSegment + Send + Sync + 'static,
         _cache: &impl CacheSource,
     ) -> IoriResult<()> {
-        self.segments.push(ConcatSegment(segment, true));
+        self.segments.push(ConcatSegment(Box::new(segment), true));
         Ok(())
     }
 
-    async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+    async fn fail(
+        &mut self,
+        segment: impl StreamingSegment + Send + Sync + 'static,
+        cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
-        self.segments.push(ConcatSegment(segment, false));
+        self.segments.push(ConcatSegment(Box::new(segment), false));
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-use super::Merger;
+use super::{BoxedStreamingSegment, Merger};
 use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
 use std::{
     collections::HashMap,
@@ -9,17 +9,14 @@ use std::{
 };
 use tokio::sync::{Mutex, MutexGuard};
 
-pub struct PipeMerger<S> {
+pub struct PipeMerger {
     recycle: bool,
 
     next: Arc<AtomicU64>,
-    segments: Arc<Mutex<HashMap<u64, Option<S>>>>,
+    segments: Arc<Mutex<HashMap<u64, Option<BoxedStreamingSegment<'static>>>>>,
 }
 
-impl<S> PipeMerger<S>
-where
-    S: StreamingSegment + Send + 'static,
-{
+impl PipeMerger {
     pub fn new(recycle: bool) -> Self {
         Self {
             recycle,
@@ -31,7 +28,7 @@ where
 
     async fn pipe_segments(
         &self,
-        mut segments: MutexGuard<'_, HashMap<u64, Option<S>>>,
+        mut segments: MutexGuard<'_, HashMap<u64, Option<BoxedStreamingSegment<'static>>>>,
         cache: &impl CacheSource,
     ) -> IoriResult<()> {
         while let Some(segment) = segments.remove(&self.next.load(Ordering::Relaxed)) {
@@ -49,20 +46,20 @@ where
     }
 }
 
-impl<S> Merger for PipeMerger<S>
-where
-    S: StreamingSegment + Send + 'static,
-{
-    type Segment = S;
+impl Merger for PipeMerger {
     type Result = ();
 
-    async fn update(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+    async fn update(
+        &mut self,
+        segment: impl StreamingSegment + Send + Sync + 'static,
+        cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         // Hold the lock so that no one would be able to write new segments and modify `next`
         let mut segments = self.segments.lock().await;
         let sequence = segment.sequence();
 
         // write file path to HashMap
-        segments.insert(sequence, Some(segment));
+        segments.insert(sequence, Some(Box::new(segment)));
 
         if sequence == self.next.load(Ordering::Relaxed) {
             self.pipe_segments(segments, cache).await?;
@@ -71,7 +68,11 @@ where
         Ok(())
     }
 
-    async fn fail(&mut self, segment: Self::Segment, cache: &impl CacheSource) -> IoriResult<()> {
+    async fn fail(
+        &mut self,
+        segment: impl StreamingSegment + Send + Sync + 'static,
+        cache: &impl CacheSource,
+    ) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
 
         // Hold the lock so that no one would be able to write new segments and modify `next`

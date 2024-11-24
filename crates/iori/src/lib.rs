@@ -2,10 +2,12 @@ pub mod cache;
 pub mod dash;
 pub mod decrypt;
 pub mod download;
-pub mod error;
 pub mod fetch;
 pub mod hls;
 pub mod merge;
+
+mod error;
+pub use error::*;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -37,7 +39,7 @@ pub trait StreamingSource {
         &self,
     ) -> impl std::future::Future<
         Output = error::IoriResult<
-            tokio::sync::mpsc::UnboundedReceiver<error::IoriResult<Vec<Self::Segment>>>,
+            tokio::sync::mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>,
         >,
     > + Send;
 
@@ -45,7 +47,7 @@ pub trait StreamingSource {
         &self,
         segment: &Self::Segment,
         writer: &mut W,
-    ) -> impl std::future::Future<Output = error::IoriResult<()>> + Send
+    ) -> impl std::future::Future<Output = IoriResult<()>> + Send
     where
         W: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static;
 }
@@ -68,6 +70,28 @@ pub trait StreamingSegment: Sync {
     fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>>;
 
     fn r#type(&self) -> SegmentType;
+}
+
+impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
+    fn sequence(&self) -> u64 {
+        self.as_ref().sequence()
+    }
+
+    fn file_name(&self) -> &str {
+        self.as_ref().file_name()
+    }
+
+    fn initial_segment(&self) -> Option<std::sync::Arc<Vec<u8>>> {
+        self.as_ref().initial_segment()
+    }
+
+    fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>> {
+        self.as_ref().key()
+    }
+
+    fn r#type(&self) -> SegmentType {
+        self.as_ref().r#type()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

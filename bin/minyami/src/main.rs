@@ -1,3 +1,5 @@
+mod types;
+
 use std::{
     env::current_dir,
     num::NonZeroU32,
@@ -15,13 +17,14 @@ use iori::{
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
     merge::IoriMerger,
-    StreamingSegment,
+    StreamingSource,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
 };
+use types::MinyamiCache;
 
 #[derive(Parser, Debug, Clone)]
 pub struct MinyamiArgs {
@@ -205,10 +208,7 @@ impl MinyamiArgs {
         Ok(output_dir)
     }
 
-    fn merger<S>(&self) -> IoriMerger<S>
-    where
-        S: StreamingSegment + Send + 'static,
-    {
+    fn merger(&self) -> IoriMerger {
         if self.live && self.pipe {
             IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
@@ -217,6 +217,16 @@ impl MinyamiArgs {
             let target_file = current_dir().unwrap().join(&self.output);
             IoriMerger::concat(target_file, self.keep)
         }
+    }
+
+    async fn download<S>(&self, source: S, cache: MinyamiCache) -> anyhow::Result<()>
+    where
+        S: StreamingSource + Send + Sync + 'static,
+    {
+        let downloader =
+            ParallelDownloader::new(source, self.merger(), cache, self.threads, self.retries);
+        downloader.download().await?;
+        Ok(())
     }
 }
 
@@ -230,69 +240,59 @@ async fn main() -> anyhow::Result<()> {
     let args = MinyamiArgs::parse();
     let client = args.client();
     let output_dir = args.output_dir()?;
-    let cache = FileCacheSource::new(output_dir.clone());
+
+    let cache: MinyamiCache = match (args.live, args.pipe) {
+        (true, true) => MinyamiCache::Memory(MemoryCacheSource::new()),
+        (true, false) => MinyamiCache::File(FileCacheSource::new(output_dir.clone())),
+        _ => MinyamiCache::File(FileCacheSource::new(output_dir.clone())),
+    };
 
     if args.live {
-        let merger = args.merger();
-        // Live Downloader
-        let source = CommonM3u8LiveSource::new(client, args.m3u8, args.key, args.shaka_packager)
-            .with_retry(args.manifest_retries);
-        if args.pipe {
-            let cache = MemoryCacheSource::new();
-            let downloader =
-                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
-            downloader.download().await?;
+        let source = CommonM3u8LiveSource::new(
+            client,
+            args.m3u8.clone(),
+            args.key.as_deref(),
+            args.shaka_packager.clone(),
+        )
+        .with_retry(args.manifest_retries);
+        args.download(source, cache).await?;
+    } else if args.m3u8.contains("dmc.nico") {
+        log::info!("Enhanced mode for Nico-TS enabled");
+
+        let key = args.key.as_deref().expect("Key is required for Nico-TS");
+        let (audience_token, quality) = key.split_once(',').unwrap_or_else(|| (&key, "super_high"));
+        log::debug!("audience_token: {audience_token}, quality: {quality}");
+
+        let (live_id, _) = audience_token
+            .split_once('_')
+            .unwrap_or((audience_token, ""));
+        let is_channel_live = !live_id.starts_with("lv");
+        let wss_url = if is_channel_live {
+            format!("wss://a.live2.nicovideo.jp/unama/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
         } else {
-            let downloader =
-                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
-            downloader.download().await?;
-        }
+            format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
+        };
+
+        let source = NicoTimeshiftSource::new(client, wss_url)
+            .await?
+            .with_retry(args.manifest_retries);
+        args.download(source, cache).await?;
     } else {
         // Archive Downloader
-        if args.m3u8.contains("dmc.nico") {
-            let merger = args.merger();
-            log::info!("Enhanced mode for Nico-TS enabled");
-
-            let key = args.key.expect("Key is required for Nico-TS");
-            let (audience_token, quality) =
-                key.split_once(',').unwrap_or_else(|| (&key, "super_high"));
-            log::debug!("audience_token: {audience_token}, quality: {quality}");
-
-            let (live_id, _) = audience_token
-                .split_once('_')
-                .unwrap_or((audience_token, ""));
-            let is_channel_live = !live_id.starts_with("lv");
-            let wss_url = if is_channel_live {
-                format!("wss://a.live2.nicovideo.jp/unama/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
-            } else {
-                format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
-            };
-
-            let source = NicoTimeshiftSource::new(client, wss_url)
-                .await?
-                .with_retry(args.manifest_retries);
-            let downloader =
-                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
-            downloader.download().await?;
-        } else if args.dash {
-            let merger = args.merger();
-            let source = CommonDashArchiveSource::new(client, args.m3u8, args.key)?;
-            let downloader =
-                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
-            downloader.download().await?;
+        if args.dash {
+            let source =
+                CommonDashArchiveSource::new(client, args.m3u8.clone(), args.key.as_deref())?;
+            args.download(source, cache).await?;
         } else {
-            let merger = args.merger();
             let source = CommonM3u8ArchiveSource::new(
                 client,
-                args.m3u8,
-                args.key,
+                args.m3u8.clone(),
+                args.key.as_deref(),
                 args.range,
-                args.shaka_packager,
+                args.shaka_packager.clone(),
             )
             .with_retry(args.manifest_retries);
-            let downloader =
-                ParallelDownloader::new(source, merger, cache, args.threads, args.retries);
-            downloader.download().await?;
+            args.download(source, cache).await?;
         }
     };
 

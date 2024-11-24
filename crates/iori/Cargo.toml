@@ -34,6 +34,7 @@ once_cell.workspace = true
 regex.workspace = true
 bytes = "1.6.0"
 serde = { workspace = true, features = ["derive"] }
+chrono = "0.4.38"
 
 [dev-dependencies]
 anyhow.workspace = true

@@ -31,12 +31,12 @@ impl M3u8Source {
     pub fn new(
         client: Client,
         m3u8_url: String,
-        key: Option<String>,
+        key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
             m3u8_url,
-            key,
+            key: key.map(str::to_string),
             shaka_packager_command,
 
             sequence: AtomicU64::new(0),
