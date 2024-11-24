@@ -2,9 +2,7 @@ use crate::{
     cache::CacheSource, error::IoriResult, merge::Merger, StreamingSegment, StreamingSource,
 };
 use std::{
-    future::Future,
     num::NonZeroU32,
-    pin::Pin,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -113,12 +111,7 @@ where
 
                     loop {
                         // Workaround for `higher-ranked lifetime error`
-                        //
-                        // TODO: remove this when this issue is fixed
-                        // https://github.com/rust-lang/rust/issues/102211
-                        let f: Pin<Box<dyn Future<Output = _> + Send>> =
-                            Box::pin(source.fetch_segment(&segment, &mut writer));
-                        let result = f.await;
+                        let result = assert_send(source.fetch_segment(&segment, &mut writer)).await;
                         match result {
                             Ok(_) => break,
                             Err(e) => {
@@ -188,4 +181,12 @@ where
         ctrlc_handler.abort();
         self.merger.lock().await.finish(&self.cache).await
     }
+}
+
+// https://github.com/rust-lang/rust/issues/102211#issuecomment-1371414544
+// TODO: remove this when this issue is fixed
+fn assert_send<'a, T>(
+    fut: impl std::future::Future<Output = T> + Send + 'a,
+) -> impl std::future::Future<Output = T> + Send + 'a {
+    fut
 }
