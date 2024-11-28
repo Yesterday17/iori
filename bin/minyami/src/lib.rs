@@ -28,87 +28,87 @@ use types::MinyamiCache;
 #[derive(clap::Parser, Debug, Clone)]
 pub struct MinyamiArgs {
     #[clap(short, long, hide = true)]
-    download: bool,
+    pub download: bool,
 
     #[clap(long, hide = true)]
-    shaka_packager: Option<PathBuf>,
+    pub shaka_packager: Option<PathBuf>,
 
     /// Debug output
     #[clap(long, alias = "debug")]
-    verbose: bool,
+    pub verbose: bool,
 
     /// Threads limit
     #[clap(long, default_value = "5")]
-    threads: NonZeroU32,
+    pub threads: NonZeroU32,
 
     /// Retry limit
     #[clap(long, default_value = "5")]
-    retries: u32,
+    pub retries: u32,
 
     #[clap(long, default_value = "3")]
-    manifest_retries: u32,
+    pub manifest_retries: u32,
 
     /// [Unimplemented]
     /// Output file path
     #[clap(short, long, default_value = "./output.ts")]
-    output: PathBuf,
+    pub output: PathBuf,
 
     /// Temporary file path
     #[clap(long, env = "TEMP")]
-    temp_dir: Option<PathBuf>,
+    pub temp_dir: Option<PathBuf>,
 
     /// Set key manually (Internal use)
     ///
     /// (Optional) Key for decrypt video.
     #[clap(long)]
-    key: Option<String>,
+    pub key: Option<String>,
 
     /// Cookies used to download
     #[clap(long)]
-    cookies: Option<String>,
+    pub cookies: Option<String>,
 
     /// HTTP Header used to download
     ///
     /// Custom header. eg. "User-Agent: xxxxx". This option will override --cookies.
     #[clap(short = 'H', long)]
-    headers: Vec<String>,
+    pub headers: Vec<String>,
 
     /// Download live
     #[clap(long)]
-    live: bool,
+    pub live: bool,
 
     /// [Unimplemented]
     /// (Optional) Set output format. default: ts
     /// Format name. ts or mkv.
     #[clap(long)]
-    format: Option<String>,
+    pub format: Option<String>,
 
     /// [Unimplemented]
     /// Use the specified HTTP/HTTPS/SOCKS5 proxy
     ///
     /// Set proxy in [protocol://<host>:<port>] format. eg. --proxy "http://127.0.0.1:1080".
     #[clap(long)]
-    proxy: Option<String>,
+    pub proxy: Option<String>,
 
     /// [Unimplemented]
     /// Download specified part of the stream
     ///
     /// Set time range in [<hh:mm:ss>-<hh:mm:ss> format]. eg. --slice "45:00-53:00"
     #[clap(long)]
-    slice: Option<String>,
+    pub slice: Option<String>,
 
     /// Do not merge m3u8 chunks.
     #[clap(long)]
-    no_merge: bool,
+    pub no_merge: bool,
 
     /// Keep temporary files.
     #[clap(short, long)]
-    keep: bool,
+    pub keep: bool,
 
     /// [Unimplemented]
     /// Do not delete encrypted chunks after decryption.
     #[clap(long)]
-    keep_encrypted_chunks: bool,
+    pub keep_encrypted_chunks: bool,
 
     /// [Unimplemented]
     /// Temporary file naming strategy. Defaults to 1.
@@ -117,36 +117,36 @@ pub struct MinyamiArgs {
     /// USE_FILE_SEQUENCE = 1,
     /// USE_FILE_PATH = 2,
     #[clap(long, default_value = "1")]
-    chunk_naming_strategy: u8,
+    pub chunk_naming_strategy: u8,
 
     /// [Iori Argument]
     /// Specify segment range to download in archive mode.
     #[clap(long, default_value = "-")]
-    range: SegmentRange,
+    pub range: SegmentRange,
 
     /// [Iori Argument]
     /// Timeout seconds for each manifest/segment request.
     /// Defaults to 10 seconds.
     #[clap(long, default_value = "10")]
-    timeout: u64,
+    pub timeout: u64,
 
     /// [Iori Argument]
     /// Specify the resume folder path
     #[clap(long)]
-    resume_dir: Option<PathBuf>,
+    pub resume_dir: Option<PathBuf>,
 
     /// [Iori Argument]
     /// Pipe live streaming to stdout. Only takes effect in live mode.
     #[clap(long)]
-    pipe: bool,
+    pub pipe: bool,
 
     /// [Iori Argument]
     /// Download with dash format
     #[clap(long)]
-    dash: bool,
+    pub dash: bool,
 
     /// m3u8 file path
-    m3u8: String,
+    pub m3u8: String,
 }
 
 impl MinyamiArgs {
