@@ -48,7 +48,11 @@ pub enum IoriMerger {
 
 impl IoriMerger {
     pub fn pipe(recycle: bool) -> Self {
-        Self::Pipe(PipeMerger::new(recycle))
+        Self::Pipe(PipeMerger::stdout(recycle))
+    }
+
+    pub fn pipe_to_file(recycle: bool, output_file: PathBuf) -> Self {
+        Self::Pipe(PipeMerger::file(recycle, output_file))
     }
 
     pub fn skip() -> Self {

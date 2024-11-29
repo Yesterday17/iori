@@ -1,8 +1,8 @@
-use super::Merger;
+use super::{concat::ConcatMergeNamer, Merger};
 use crate::{
     cache::CacheSource, error::IoriResult, util::ordered_stream::OrderedStream, StreamingSegment,
 };
-use std::{future::Future, pin::Pin};
+use std::{future::Future, path::PathBuf, pin::Pin};
 use tokio::{io::AsyncRead, sync::mpsc, task::JoinHandle};
 
 type SendSegment = (
@@ -18,21 +18,59 @@ pub struct PipeMerger {
 }
 
 impl PipeMerger {
-    pub fn new(recycle: bool) -> Self {
+    pub fn stdout(recycle: bool) -> Self {
+        Self::new(recycle, None)
+    }
+
+    pub fn file(recycle: bool, target_path: PathBuf) -> Self {
+        Self::new(recycle, Some(target_path))
+    }
+
+    pub fn new(recycle: bool, target_path: Option<PathBuf>) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
         let mut stream: OrderedStream<Option<SendSegment>> = OrderedStream::new(rx);
-        let mut stdout = tokio::io::stdout();
-        let future = tokio::spawn(async move {
-            while let Some(segment) = stream.next().await {
-                if let Some((mut reader, invalidate)) = segment {
-                    _ = tokio::io::copy(&mut reader, &mut stdout).await;
-                    if recycle {
-                        _ = invalidate.await;
+        let future = if let Some(target_path) = target_path {
+            tokio::spawn(async move {
+                let mut namer = ConcatMergeNamer::new(&target_path);
+                let mut target = Some(
+                    tokio::fs::File::create(&target_path)
+                        .await
+                        .expect("Failed to create file"),
+                );
+                while let Some(segment) = stream.next().await {
+                    if let Some((mut reader, invalidate)) = segment {
+                        if target.is_none() {
+                            let file = tokio::fs::File::create(namer.next())
+                                .await
+                                .expect("Failed to create file");
+                            target = Some(file);
+                        }
+
+                        if let Some(target) = &mut target {
+                            _ = tokio::io::copy(&mut reader, target).await;
+                        }
+                        if recycle {
+                            _ = invalidate.await;
+                        }
+                    } else {
+                        target = None;
                     }
                 }
-            }
-        });
+            })
+        } else {
+            tokio::spawn(async move {
+                let mut stdout = tokio::io::stdout();
+                while let Some(segment) = stream.next().await {
+                    if let Some((mut reader, invalidate)) = segment {
+                        _ = tokio::io::copy(&mut reader, &mut stdout).await;
+                        if recycle {
+                            _ = invalidate.await;
+                        }
+                    }
+                }
+            })
+        };
 
         Self {
             recycle,

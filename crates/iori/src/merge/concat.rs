@@ -77,6 +77,36 @@ fn trim_end<T>(input: &[T], should_skip: fn(&T) -> bool) -> &[T] {
     &input[..end]
 }
 
+pub(crate) struct ConcatMergeNamer {
+    file_count: u32,
+    file_extension: String,
+}
+
+impl ConcatMergeNamer {
+    pub fn new<P>(output_path: P) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        let file_extension = output_path
+            .as_ref()
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default()
+            .to_string();
+
+        Self {
+            file_count: 0,
+            file_extension,
+        }
+    }
+
+    pub fn next(&mut self) -> PathBuf {
+        self.file_count += 1;
+        PathBuf::from(format!("{}.{}", self.file_count, self.file_extension))
+    }
+}
+
 struct ConcatSegment<S> {
     segment: S,
     success: bool,
@@ -94,26 +124,13 @@ where
     segments.sort_by(|a, b| a.segment.sequence().cmp(&b.segment.sequence()));
     let segments = trim_end(&segments, |s| !s.success);
 
-    let mut file_count = 0;
-    let file_extension = output_path
-        .as_ref()
-        .extension()
-        .unwrap_or_default()
-        .to_str()
-        .unwrap_or_default();
-
+    let mut namer = ConcatMergeNamer::new(&output_path);
     let mut output = File::create(output_path.as_ref()).await?;
     for segment in segments {
         let success = segment.success;
         let segment = &segment.segment;
         if !success {
-            file_count += 1;
-            output = File::create(
-                output_path
-                    .as_ref()
-                    .with_extension(format!("{file_count}.{file_extension}")),
-            )
-            .await?;
+            output = File::create(namer.next()).await?;
         }
 
         let mut reader = cache.open_reader(segment).await?;

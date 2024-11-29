@@ -48,10 +48,11 @@ pub struct MinyamiArgs {
     #[clap(long, default_value = "3")]
     pub manifest_retries: u32,
 
-    /// [Unimplemented]
     /// Output file path
-    #[clap(short, long, default_value = "./output.ts")]
-    pub output: PathBuf,
+    ///
+    /// Default: output.ts
+    #[clap(short, long)]
+    pub output: Option<PathBuf>,
 
     /// Temporary file path
     #[clap(long, env = "TEMP")]
@@ -136,7 +137,10 @@ pub struct MinyamiArgs {
     pub resume_dir: Option<PathBuf>,
 
     /// [Iori Argument]
-    /// Pipe live streaming to stdout. Only takes effect in live mode.
+    /// If set, the program will try to work in a pipe mode.
+    ///
+    /// The pipe mode will pipe the downloaded segments to a specified file or stdout,
+    /// depending on whether the --output option is explicitly set.
     #[clap(long)]
     pub pipe: bool,
 
@@ -208,13 +212,18 @@ impl MinyamiArgs {
     }
 
     fn merger(&self) -> IoriMerger {
-        if self.live && self.pipe {
+        if self.live && self.pipe && self.output.is_none() {
             IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
             IoriMerger::skip()
         } else {
-            let target_file = current_dir().unwrap().join(&self.output);
-            IoriMerger::concat(target_file, self.keep)
+            let output = self.output.clone().unwrap_or("output.ts".into());
+            let target_file = current_dir().unwrap().join(output);
+            if self.pipe {
+                IoriMerger::pipe_to_file(!self.keep, target_file)
+            } else {
+                IoriMerger::concat(target_file, self.keep)
+            }
         }
     }
 
@@ -233,7 +242,7 @@ impl MinyamiArgs {
         let output_dir = self.output_dir()?;
 
         let cache: MinyamiCache = match (self.live, self.pipe) {
-            (true, true) => MinyamiCache::Memory(MemoryCacheSource::new()),
+            (_, true) => MinyamiCache::Memory(MemoryCacheSource::new()),
             (true, false) => MinyamiCache::File(FileCacheSource::new(output_dir.clone())),
             _ => MinyamiCache::File(FileCacheSource::new(output_dir.clone())),
         };
