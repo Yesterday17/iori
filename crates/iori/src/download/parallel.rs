@@ -163,6 +163,9 @@ where
             }
         }
 
+        // drop receiver to stop the source from fetching more segments
+        drop(receiver);
+
         // wait for all tasks to finish
         let _ = self
             .permits

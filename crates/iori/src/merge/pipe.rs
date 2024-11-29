@@ -13,7 +13,7 @@ type SendSegment = (
 pub struct PipeMerger {
     recycle: bool,
 
-    sender: mpsc::UnboundedSender<(u64, Option<SendSegment>)>,
+    sender: Option<mpsc::UnboundedSender<(u64, Option<SendSegment>)>>,
     future: Option<JoinHandle<()>>,
 }
 
@@ -37,8 +37,14 @@ impl PipeMerger {
         Self {
             recycle,
 
-            sender: tx,
+            sender: Some(tx),
             future: Some(future),
+        }
+    }
+
+    fn send(&self, message: (u64, Option<SendSegment>)) {
+        if let Some(sender) = &self.sender {
+            sender.send(message).expect("Failed to send segment");
         }
     }
 }
@@ -55,9 +61,7 @@ impl Merger for PipeMerger {
         let reader = cache.open_reader(&segment).await?;
         let invalidate = async move { cache.invalidate(&segment).await };
 
-        self.sender
-            .send((sequence, Some((Box::pin(reader), Box::pin(invalidate)))))
-            .expect("Failed to send segment");
+        self.send((sequence, Some((Box::pin(reader), Box::pin(invalidate)))));
 
         Ok(())
     }
@@ -69,19 +73,21 @@ impl Merger for PipeMerger {
     ) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
 
-        self.sender
-            .send((segment.sequence(), None))
-            .expect("Failed to send segment");
+        self.send((segment.sequence(), None));
 
         Ok(())
     }
 
     async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
+        // drop the sender so that the future can finish
+        drop(self.sender.take());
+
         self.future
             .take()
             .unwrap()
             .await
             .expect("Failed to join pipe");
+
         if self.recycle {
             cache.clear().await?;
         }
