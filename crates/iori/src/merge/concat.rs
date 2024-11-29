@@ -32,7 +32,10 @@ impl Merger for ConcatAfterMerger {
         segment: impl StreamingSegment + Send + Sync + 'static,
         _cache: &impl CacheSource,
     ) -> IoriResult<()> {
-        self.segments.push(ConcatSegment(Box::new(segment), true));
+        self.segments.push(ConcatSegment {
+            segment: Box::new(segment),
+            success: true,
+        });
         Ok(())
     }
 
@@ -42,7 +45,10 @@ impl Merger for ConcatAfterMerger {
         cache: &impl CacheSource,
     ) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
-        self.segments.push(ConcatSegment(Box::new(segment), false));
+        self.segments.push(ConcatSegment {
+            segment: Box::new(segment),
+            success: false,
+        });
         Ok(())
     }
 
@@ -64,7 +70,18 @@ impl Merger for ConcatAfterMerger {
     }
 }
 
-struct ConcatSegment<S>(S, bool /* success */);
+fn trim_end<T>(input: &[T], should_skip: fn(&T) -> bool) -> &[T] {
+    let mut end = input.len();
+    while end > 0 && should_skip(&input[end - 1]) {
+        end -= 1;
+    }
+    &input[..end]
+}
+
+struct ConcatSegment<S> {
+    segment: S,
+    success: bool,
+}
 
 async fn concat_merge<S, O>(
     segments: &mut Vec<ConcatSegment<S>>,
@@ -75,7 +92,8 @@ where
     S: StreamingSegment,
     O: AsRef<Path>,
 {
-    segments.sort_by(|a, b| a.0.sequence().cmp(&b.0.sequence()));
+    segments.sort_by(|a, b| a.segment.sequence().cmp(&b.segment.sequence()));
+    let segments = trim_end(&segments, |s| !s.success);
 
     let mut file_count = 0;
     let file_extension = output_path
@@ -87,10 +105,9 @@ where
 
     let mut output = File::create(output_path.as_ref()).await?;
     for segment in segments {
-        let success = segment.1;
-        let segment = &segment.0;
+        let success = segment.success;
+        let segment = &segment.segment;
         if !success {
-            // FIXME: may create an empty file if it is the last segment
             file_count += 1;
             output = File::create(
                 output_path
@@ -104,4 +121,22 @@ where
         tokio::io::copy(&mut reader, &mut output).await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_trim_end() {
+        let input = [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0];
+        let output = super::trim_end(&input, |&x| x == 0);
+        assert_eq!(output, [1, 2, 3]);
+
+        let input = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3];
+        let output = super::trim_end(&input, |&x| x == 0);
+        assert_eq!(output, input);
+
+        let input = [1, 2, 3, 0, 0, 3, 0, 0, 0];
+        let output = super::trim_end(&input, |&x| x == 0);
+        assert_eq!(output, [1, 2, 3, 0, 0, 3]);
+    }
 }
