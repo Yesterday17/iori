@@ -95,7 +95,7 @@ where
             output = File::create(
                 output_path
                     .as_ref()
-                    .with_extension(format!(".{file_count}.{file_extension}")),
+                    .with_extension(format!("{file_count}.{file_extension}")),
             )
             .await?;
         }
