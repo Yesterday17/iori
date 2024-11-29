@@ -8,6 +8,7 @@ pub mod merge;
 
 mod error;
 pub use error::*;
+pub(crate) mod util;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │

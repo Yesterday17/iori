@@ -1,48 +1,36 @@
-use super::{BoxedStreamingSegment, Merger};
-use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+use super::Merger;
+use crate::{
+    cache::CacheSource, error::IoriResult, util::ordered_stream::OrderedStream, StreamingSegment,
 };
-use tokio::sync::{Mutex, MutexGuard};
+use std::pin::Pin;
+use tokio::{io::AsyncRead, sync::mpsc, task::JoinHandle};
 
 pub struct PipeMerger {
     recycle: bool,
 
-    next: Arc<AtomicU64>,
-    segments: Arc<Mutex<HashMap<u64, Option<BoxedStreamingSegment<'static>>>>>,
+    sender: mpsc::UnboundedSender<(u64, Option<Pin<Box<dyn AsyncRead + Send + Send + 'static>>>)>,
+    future: Option<JoinHandle<()>>,
 }
 
 impl PipeMerger {
     pub fn new(recycle: bool) -> Self {
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        let mut stream = OrderedStream::new(rx);
+        let future = tokio::spawn(async move {
+            while let Some(segment) = stream.next().await {
+                if let Some(mut reader) = segment {
+                    _ = tokio::io::copy(&mut reader, &mut tokio::io::stdout()).await;
+                }
+            }
+        });
+
         Self {
             recycle,
 
-            next: Arc::new(AtomicU64::new(0)),
-            segments: Arc::new(Mutex::new(HashMap::new())),
+            sender: tx,
+            future: Some(future),
         }
-    }
-
-    async fn pipe_segments(
-        &self,
-        mut segments: MutexGuard<'_, HashMap<u64, Option<BoxedStreamingSegment<'static>>>>,
-        cache: &impl CacheSource,
-    ) -> IoriResult<()> {
-        while let Some(segment) = segments.remove(&self.next.load(Ordering::Relaxed)) {
-            if let Some(segment) = segment {
-                let mut reader = cache.open_reader(&segment).await?;
-                _ = tokio::io::copy(&mut reader, &mut tokio::io::stdout()).await;
-                if self.recycle {
-                    cache.invalidate(&segment).await?;
-                }
-            }
-
-            self.next.fetch_add(1, Ordering::Relaxed);
-        }
-        Ok(())
     }
 }
 
@@ -54,16 +42,10 @@ impl Merger for PipeMerger {
         segment: impl StreamingSegment + Send + Sync + 'static,
         cache: &impl CacheSource,
     ) -> IoriResult<()> {
-        // Hold the lock so that no one would be able to write new segments and modify `next`
-        let mut segments = self.segments.lock().await;
-        let sequence = segment.sequence();
-
-        // write file path to HashMap
-        segments.insert(sequence, Some(Box::new(segment)));
-
-        if sequence == self.next.load(Ordering::Relaxed) {
-            self.pipe_segments(segments, cache).await?;
-        }
+        let reader = cache.open_reader(&segment).await?;
+        self.sender
+            .send((segment.sequence(), Some(Box::pin(reader))))
+            .expect("Failed to send segment");
 
         Ok(())
     }
@@ -75,18 +57,19 @@ impl Merger for PipeMerger {
     ) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
 
-        // Hold the lock so that no one would be able to write new segments and modify `next`
-        let mut segments = self.segments.lock().await;
-        let sequence = segment.sequence();
-
-        // ignore the result
-        segments.insert(sequence, None);
-        self.pipe_segments(segments, cache).await?;
+        self.sender
+            .send((segment.sequence(), None))
+            .expect("Failed to send segment");
 
         Ok(())
     }
 
     async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
+        self.future
+            .take()
+            .unwrap()
+            .await
+            .expect("Failed to join pipe");
         if self.recycle {
             cache.clear().await?;
         }
