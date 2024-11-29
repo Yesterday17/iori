@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{cache::CacheSource, error::IoriResult, merge::Merger, StreamingSource};
 
 pub struct SequencialDownloader<S, M, C>
@@ -8,7 +10,7 @@ where
 {
     source: S,
     merger: M,
-    cache: C,
+    cache: Arc<C>,
 }
 
 impl<S, M, C> SequencialDownloader<S, M, C>
@@ -21,7 +23,7 @@ where
         Self {
             source,
             merger,
-            cache,
+            cache: Arc::new(cache),
         }
     }
 
@@ -39,13 +41,13 @@ where
                 drop(writer);
 
                 match fetch_result {
-                    Ok(_) => self.merger.update(segment, &self.cache).await?,
-                    Err(_) => self.merger.fail(segment, &self.cache).await?,
+                    Ok(_) => self.merger.update(segment, self.cache.clone()).await?,
+                    Err(_) => self.merger.fail(segment, self.cache.clone()).await?,
                 }
             }
         }
 
-        self.merger.finish(&self.cache).await?;
+        self.merger.finish(self.cache.clone()).await?;
         Ok(())
     }
 }

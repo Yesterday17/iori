@@ -9,7 +9,7 @@ pub type CacheSourceReader = Box<dyn AsyncRead + Unpin + Send + Sync + 'static>;
 pub type CacheSourceWriter = Box<dyn AsyncWrite + Unpin + Send + Sync + 'static>;
 
 /// A cache source for storing the downloaded but not merged segments.
-pub trait CacheSource: Sync {
+pub trait CacheSource: Send + Sync + 'static {
     /// Open a writer for writing data of the segment.
     fn open_writer(
         &self,

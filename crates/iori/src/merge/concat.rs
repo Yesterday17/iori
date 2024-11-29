@@ -1,7 +1,6 @@
-use std::path::{Path, PathBuf};
-
 use super::{BoxedStreamingSegment, Merger};
 use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
+use std::path::{Path, PathBuf};
 use tokio::fs::File;
 
 /// Concat all segments into a single file after all segments are downloaded.
@@ -30,7 +29,7 @@ impl Merger for ConcatAfterMerger {
     async fn update(
         &mut self,
         segment: impl StreamingSegment + Send + Sync + 'static,
-        _cache: &impl CacheSource,
+        _cache: impl CacheSource,
     ) -> IoriResult<()> {
         self.segments.push(ConcatSegment {
             segment: Box::new(segment),
@@ -42,7 +41,7 @@ impl Merger for ConcatAfterMerger {
     async fn fail(
         &mut self,
         segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: &impl CacheSource,
+        cache: impl CacheSource,
     ) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
         self.segments.push(ConcatSegment {
@@ -52,9 +51,9 @@ impl Merger for ConcatAfterMerger {
         Ok(())
     }
 
-    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
         log::info!("Merging chunks...");
-        concat_merge(&mut self.segments, cache, &self.output_file).await?;
+        concat_merge(&mut self.segments, &cache, &self.output_file).await?;
 
         if !self.keep_segments {
             log::info!("End of merging.");

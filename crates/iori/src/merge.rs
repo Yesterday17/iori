@@ -22,19 +22,19 @@ pub trait Merger {
     fn update(
         &mut self,
         segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: &impl CacheSource,
+        cache: impl CacheSource,
     ) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Tell the merger that a segment has failed to download.
     fn fail(
         &mut self,
         segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: &impl CacheSource,
+        cache: impl CacheSource,
     ) -> impl Future<Output = IoriResult<()>> + Send;
 
     fn finish(
         &mut self,
-        cache: &impl CacheSource,
+        cache: impl CacheSource,
     ) -> impl std::future::Future<Output = IoriResult<Self::Result>> + Send;
 }
 
@@ -66,7 +66,7 @@ impl Merger for IoriMerger {
     async fn update(
         &mut self,
         segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: &impl CacheSource,
+        cache: impl CacheSource,
     ) -> IoriResult<()> {
         match self {
             Self::Pipe(merger) => merger.update(segment, cache).await,
@@ -78,7 +78,7 @@ impl Merger for IoriMerger {
     async fn fail(
         &mut self,
         segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: &impl CacheSource,
+        cache: impl CacheSource,
     ) -> IoriResult<()> {
         match self {
             Self::Pipe(merger) => merger.fail(segment, cache).await,
@@ -87,7 +87,7 @@ impl Merger for IoriMerger {
         }
     }
 
-    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
         match self {
             Self::Pipe(merger) => merger.finish(cache).await,
             Self::Skip(merger) => merger.finish(cache).await,

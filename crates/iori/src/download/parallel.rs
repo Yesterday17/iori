@@ -124,7 +124,7 @@ where
                                         .await
                                         .push(segment.file_name().to_string());
                                     segments_failed.fetch_add(1, Ordering::Relaxed);
-                                    _ = merger.lock().await.fail(segment, &cache).await;
+                                    _ = merger.lock().await.fail(segment, cache).await;
                                     return;
                                 }
 
@@ -154,7 +154,7 @@ where
                         "Processing {filename} finished. ({downloaded} / {total} or {percentage:.2}%)"
                     );
 
-                    _ = merger.lock().await.update(segment, &cache).await;
+                    _ = merger.lock().await.update(segment, cache).await;
                 });
             }
 
@@ -179,7 +179,7 @@ where
         }
 
         ctrlc_handler.abort();
-        self.merger.lock().await.finish(&self.cache).await
+        self.merger.lock().await.finish(self.cache).await
     }
 }
 

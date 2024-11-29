@@ -15,7 +15,7 @@ impl Merger for SkipMerger {
     async fn update(
         &mut self,
         _segment: impl StreamingSegment,
-        _cache: &impl CacheSource,
+        _cache: impl CacheSource,
     ) -> IoriResult<()> {
         Ok(())
     }
@@ -23,12 +23,12 @@ impl Merger for SkipMerger {
     async fn fail(
         &mut self,
         _segment: impl StreamingSegment,
-        _cache: &impl CacheSource,
+        _cache: impl CacheSource,
     ) -> IoriResult<()> {
         Ok(())
     }
 
-    async fn finish(&mut self, cache: &impl CacheSource) -> IoriResult<Self::Result> {
+    async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
         log::info!("Skip merging. Please merge video chunks manually.");
         log::info!("Temporary files are located at {:?}", cache.location_hint());
         Ok(())
