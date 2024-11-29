@@ -1,11 +1,12 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use regex::Regex;
 use reqwest::Client;
 
 use crate::source::NicoTimeshiftSource;
 
-const NICO_METADATA_REGEXP: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"<script id="embedded-data" data-props="([^"]+)""#).unwrap());
+const NICO_METADATA_REGEXP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"<script id="embedded-data" data-props="([^"]+)""#).unwrap());
 
 #[derive(Debug)]
 pub struct NicoEmbeddedData {

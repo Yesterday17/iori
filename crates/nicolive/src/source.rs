@@ -1,13 +1,12 @@
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    Arc,
+    Arc, LazyLock,
 };
 
 use iori::{
     fetch::fetch_segment, hls::utils::load_m3u8, IoriResult, RemoteStreamingSegment, SegmentType,
     StreamingSegment, StreamingSource,
 };
-use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use regex::Regex;
 use reqwest::Client;
@@ -160,7 +159,8 @@ impl NicoTimeshiftSource {
     }
 }
 
-const NICO_SEGMENT_OFFSET_REGEXP: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(\d{3})\.ts"#).unwrap());
+const NICO_SEGMENT_OFFSET_REGEXP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(\d{3})\.ts"#).unwrap());
 
 impl StreamingSource for NicoTimeshiftSource {
     type Segment = NicoTimeshiftSegment;

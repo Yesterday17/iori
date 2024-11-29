@@ -27,10 +27,9 @@ tempfile = "3.10.0"
 rand = "0.8.5"
 thiserror = "1.0.57"
 url = { version = "2.5.0", features = ["serde"] }
-dash-mpd = { version = "0.15.0", default-features = false, features = [
+dash-mpd = { version = "0.17.2", default-features = false, features = [
     "scte35",
 ] }
-once_cell.workspace = true
 regex.workspace = true
 bytes = "1.6.0"
 serde = { workspace = true, features = ["derive"] }

@@ -15,7 +15,6 @@ iori.workspace = true
 
 regex.workspace = true
 tokio.workspace = true
-once_cell.workspace = true
 
 url = "2.4.1"
 html-escape = "0.2.13"
