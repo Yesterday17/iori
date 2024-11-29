@@ -2,6 +2,7 @@ mod types;
 
 use std::{
     env::current_dir,
+    ffi::OsString,
     num::NonZeroU32,
     path::PathBuf,
     str::FromStr,
@@ -198,7 +199,7 @@ impl MinyamiArgs {
         })
     }
 
-    fn output_dir(&self) -> anyhow::Result<PathBuf> {
+    fn final_temp_dir(&self) -> anyhow::Result<PathBuf> {
         let output_dir = if let Some(ref dir) = self.resume_dir {
             dir.clone()
         } else {
@@ -211,14 +212,42 @@ impl MinyamiArgs {
         Ok(output_dir)
     }
 
+    fn final_output_file(&self) -> PathBuf {
+        let current_dir = current_dir().unwrap();
+        let mut output_file = current_dir.join(self.output.clone().unwrap_or("output.ts".into()));
+
+        while output_file.exists() {
+            let mut filename = OsString::new();
+
+            // {file_stem}_{timestamp}.{ext}
+            if let Some(file_stem) = output_file.file_stem() {
+                filename.push(file_stem);
+            }
+            filename.push("_");
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+            filename.push(now.to_string());
+
+            if let Some(ext) = output_file.extension() {
+                filename.push(".");
+                filename.push(ext);
+            }
+
+            output_file.set_file_name(filename);
+        }
+
+        output_file
+    }
+
     fn merger(&self) -> IoriMerger {
         if self.live && self.pipe && self.output.is_none() {
             IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
             IoriMerger::skip()
         } else {
-            let output = self.output.clone().unwrap_or("output.ts".into());
-            let target_file = current_dir().unwrap().join(output);
+            let target_file = self.final_output_file();
             if self.pipe {
                 IoriMerger::pipe_to_file(!self.keep, target_file)
             } else {
@@ -239,12 +268,12 @@ impl MinyamiArgs {
 
     pub async fn run(self) -> anyhow::Result<()> {
         let client = self.client();
-        let output_dir = self.output_dir()?;
+        let final_temp_dir = self.final_temp_dir()?;
 
         let cache: MinyamiCache = match (self.live, self.pipe) {
             (_, true) => MinyamiCache::Memory(MemoryCacheSource::new()),
-            (true, false) => MinyamiCache::File(FileCacheSource::new(output_dir.clone())),
-            _ => MinyamiCache::File(FileCacheSource::new(output_dir.clone())),
+            (true, false) => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
+            _ => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
         };
 
         if self.live {
