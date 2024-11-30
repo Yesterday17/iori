@@ -48,6 +48,10 @@ impl CacheSource for FileCacheSource {
         Ok(Box::new(file))
     }
 
+    async fn segment_path(&self, segment: &impl crate::StreamingSegment) -> Option<PathBuf> {
+        Some(self.segment_path(segment))
+    }
+
     async fn invalidate(&self, segment: &impl crate::StreamingSegment) -> IoriResult<()> {
         let path = self.segment_path(segment);
         if path.exists() {

@@ -197,7 +197,12 @@ impl StreamingSource for CommonDashArchiveSource {
                         } else if let Some(segment_duration) = segment_template.duration {
                             // SegmentTemplate + SegmentDuration
                             let segment_duration = segment_duration / time_scale as f64;
-                            let total_segments = (period.duration.clone().unwrap().as_millis()
+                            let total_segments = (period
+                                .duration
+                                .clone()
+                                .or_else(|| mpd.mediaPresentationDuration)
+                                .expect("missing duration")
+                                .as_millis()
                                 as f64
                                 / segment_duration)
                                 .round() as u64;

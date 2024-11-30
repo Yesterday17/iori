@@ -2,7 +2,7 @@ pub mod file;
 pub mod memory;
 
 use crate::{error::IoriResult, StreamingSegment};
-use std::sync::Arc;
+use std::{future::Future, path::PathBuf, sync::Arc};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub type CacheSourceReader = Box<dyn AsyncRead + Unpin + Send + Sync + 'static>;
@@ -14,22 +14,30 @@ pub trait CacheSource: Send + Sync + 'static {
     fn open_writer(
         &self,
         segment: &impl StreamingSegment,
-    ) -> impl std::future::Future<Output = IoriResult<Option<CacheSourceWriter>>> + Send;
+    ) -> impl Future<Output = IoriResult<Option<CacheSourceWriter>>> + Send;
 
     /// Open a reader for reading data of the segment.
     fn open_reader(
         &self,
         segment: &impl StreamingSegment,
-    ) -> impl std::future::Future<Output = IoriResult<CacheSourceReader>> + Send;
+    ) -> impl Future<Output = IoriResult<CacheSourceReader>> + Send;
+
+    /// Get stored location of the segment
+    fn segment_path(
+        &self,
+        _segment: &impl StreamingSegment,
+    ) -> impl Future<Output = Option<PathBuf>> + Send {
+        async { None }
+    }
 
     /// Invalidate the cache of the segment from the cache source.
     fn invalidate(
         &self,
         segment: &impl StreamingSegment,
-    ) -> impl std::future::Future<Output = IoriResult<()>> + Send;
+    ) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Clear the cache source.
-    fn clear(&self) -> impl std::future::Future<Output = IoriResult<()>> + Send;
+    fn clear(&self) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Hint a location for the cached segments.
     fn location_hint(&self) -> Option<String> {
@@ -44,25 +52,25 @@ where
     fn open_writer(
         &self,
         segment: &impl StreamingSegment,
-    ) -> impl std::future::Future<Output = IoriResult<Option<CacheSourceWriter>>> + Send {
+    ) -> impl Future<Output = IoriResult<Option<CacheSourceWriter>>> + Send {
         self.as_ref().open_writer(segment)
     }
 
     fn open_reader(
         &self,
         segment: &impl StreamingSegment,
-    ) -> impl std::future::Future<Output = IoriResult<CacheSourceReader>> + Send {
+    ) -> impl Future<Output = IoriResult<CacheSourceReader>> + Send {
         self.as_ref().open_reader(segment)
     }
 
     fn invalidate(
         &self,
         segment: &impl StreamingSegment,
-    ) -> impl std::future::Future<Output = IoriResult<()>> + Send {
+    ) -> impl Future<Output = IoriResult<()>> + Send {
         self.as_ref().invalidate(segment)
     }
 
-    fn clear(&self) -> impl std::future::Future<Output = IoriResult<()>> {
+    fn clear(&self) -> impl Future<Output = IoriResult<()>> {
         self.as_ref().clear()
     }
 

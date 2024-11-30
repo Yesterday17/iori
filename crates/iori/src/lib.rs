@@ -96,6 +96,28 @@ impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
     }
 }
 
+impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + 'b> {
+    fn sequence(&self) -> u64 {
+        self.as_ref().sequence()
+    }
+
+    fn file_name(&self) -> &str {
+        self.as_ref().file_name()
+    }
+
+    fn initial_segment(&self) -> Option<std::sync::Arc<Vec<u8>>> {
+        self.as_ref().initial_segment()
+    }
+
+    fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>> {
+        self.as_ref().key()
+    }
+
+    fn r#type(&self) -> SegmentType {
+        self.as_ref().r#type()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum SegmentType {

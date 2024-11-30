@@ -242,7 +242,10 @@ impl MinyamiArgs {
     }
 
     fn merger(&self) -> IoriMerger {
-        if self.live && self.pipe && self.output.is_none() {
+        if self.dash {
+            let target_file = self.final_output_file();
+            IoriMerger::mkvmerge(target_file, self.keep)
+        } else if self.live && self.pipe && self.output.is_none() {
             IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
             IoriMerger::skip()

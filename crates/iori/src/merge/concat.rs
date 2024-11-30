@@ -107,9 +107,9 @@ impl ConcatMergeNamer {
     }
 }
 
-struct ConcatSegment<S> {
-    segment: S,
-    success: bool,
+pub(crate) struct ConcatSegment<S> {
+    pub segment: S,
+    pub success: bool,
 }
 
 async fn concat_merge<S, O>(
