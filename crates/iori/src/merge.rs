@@ -57,6 +57,10 @@ impl IoriMerger {
         Self::Pipe(PipeMerger::file(recycle, output_file))
     }
 
+    pub fn pipe_mux(recycle: bool, output_file: PathBuf, extra_commands: Option<String>) -> Self {
+        Self::Pipe(PipeMerger::mux(recycle, output_file, extra_commands))
+    }
+
     pub fn skip() -> Self {
         Self::Skip(SkipMerger)
     }

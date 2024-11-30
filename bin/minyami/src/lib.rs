@@ -244,7 +244,15 @@ impl MinyamiArgs {
     fn merger(&self) -> IoriMerger {
         if self.dash {
             let target_file = self.final_output_file();
-            IoriMerger::mkvmerge(target_file, self.keep)
+            if self.pipe {
+                IoriMerger::pipe_mux(
+                    !self.keep,
+                    target_file,
+                    std::env::var("RE_LIVE_PIPE_OPTIONS").ok(),
+                )
+            } else {
+                IoriMerger::mkvmerge(target_file, self.keep)
+            }
         } else if self.live && self.pipe && self.output.is_none() {
             IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
@@ -273,9 +281,9 @@ impl MinyamiArgs {
         let client = self.client();
         let final_temp_dir = self.final_temp_dir()?;
 
-        let cache: MinyamiCache = match (self.live, self.pipe) {
-            (_, true) => MinyamiCache::Memory(MemoryCacheSource::new()),
-            (true, false) => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
+        let cache: MinyamiCache = match (self.live, self.pipe, self.dash) {
+            (_, true, false) => MinyamiCache::Memory(MemoryCacheSource::new()),
+            (true, false, _) => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
             _ => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
         };
 
