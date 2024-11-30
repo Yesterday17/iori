@@ -139,8 +139,7 @@ where
                     // drop writer to flush and save the data
                     drop(writer);
 
-                    // semaphore is only used to limit download concurrency, so drop it directly after fetching
-                    drop(permit);
+                    // here we can not drop semaphore, because the merger might take some time to process the merging
 
                     let downloaded = segments_downloaded.fetch_add(1, Ordering::Relaxed)
                         + 1
@@ -157,6 +156,9 @@ where
                     );
 
                     _ = merger.lock().await.update(segment, cache).await;
+
+                    // drop permit to release the semaphore
+                    drop(permit);
                 });
             }
 
