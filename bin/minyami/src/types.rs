@@ -29,6 +29,13 @@ impl CacheSource for MinyamiCache {
         }
     }
 
+    async fn segment_path(&self, segment: &impl StreamingSegment) -> Option<std::path::PathBuf> {
+        match self {
+            MinyamiCache::Memory(cache) => cache.segment_path(segment).await,
+            MinyamiCache::File(cache) => cache.segment_path(segment).await,
+        }
+    }
+
     async fn invalidate(&self, segment: &impl StreamingSegment) -> IoriResult<()> {
         match self {
             MinyamiCache::Memory(cache) => cache.invalidate(segment).await,
@@ -40,6 +47,13 @@ impl CacheSource for MinyamiCache {
         match self {
             MinyamiCache::Memory(cache) => cache.clear().await,
             MinyamiCache::File(cache) => cache.clear().await,
+        }
+    }
+
+    fn location_hint(&self) -> Option<String> {
+        match self {
+            MinyamiCache::Memory(cache) => cache.location_hint(),
+            MinyamiCache::File(cache) => cache.location_hint(),
         }
     }
 }

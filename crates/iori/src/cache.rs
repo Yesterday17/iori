@@ -63,6 +63,13 @@ where
         self.as_ref().open_reader(segment)
     }
 
+    fn segment_path(
+        &self,
+        segment: &impl StreamingSegment,
+    ) -> impl Future<Output = Option<PathBuf>> + Send {
+        self.as_ref().segment_path(segment)
+    }
+
     fn invalidate(
         &self,
         segment: &impl StreamingSegment,

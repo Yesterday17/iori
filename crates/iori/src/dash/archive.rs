@@ -196,17 +196,16 @@ impl StreamingSource for CommonDashArchiveSource {
                             }
                         } else if let Some(segment_duration) = segment_template.duration {
                             // SegmentTemplate + SegmentDuration
-                            let segment_duration = segment_duration / time_scale as f64;
                             let total_segments = (period
                                 .duration
                                 .clone()
                                 .or_else(|| mpd.mediaPresentationDuration)
                                 .expect("missing duration")
-                                .as_millis()
-                                as f64
+                                .as_secs() as f64
+                                * time_scale as f64
                                 / segment_duration)
-                                .round() as u64;
-                            for _ in 1..total_segments {
+                                .ceil() as u64;
+                            for _ in 1..=total_segments {
                                 template.insert(Template::NUMBER, segment_number.to_string());
                                 let filename = template.resolve(&media_template);
                                 let url = merge_baseurls(&base_url, &filename)?;
