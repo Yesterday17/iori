@@ -102,6 +102,8 @@ where
                 let cache = self.cache.clone();
                 let merge_segment = cache.open_writer(&segment).await?;
                 let Some(mut writer) = merge_segment else {
+                    segments_downloaded.fetch_add(1, Ordering::Relaxed);
+                    _ = merger.lock().await.update(segment, cache).await;
                     continue;
                 };
 
