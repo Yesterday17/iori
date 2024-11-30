@@ -90,11 +90,12 @@ impl PipeMerger {
         let mut stream: OrderedStream<Option<SendSegment>> = OrderedStream::new(rx);
 
         #[cfg(target_os = "windows")]
-        let (audio_pipe, audio_receiver) = {
+        let (mut audio_pipe, audio_receiver) = {
             let pipe_name = format!(r"\\.\pipe\iori-pipe-mux-audio-{}", rand::random::<u64>());
-            let mut server = tokio::net::windows::named_pipe::ServerOptions::new()
+            let server = tokio::net::windows::named_pipe::ServerOptions::new()
                 .first_pipe_instance(true)
-                .create(&pipe_name)?;
+                .create(&pipe_name)
+                .unwrap();
             (server, pipe_name)
         };
 
@@ -135,7 +136,7 @@ impl PipeMerger {
                 command.args(["-i", "pipe:0"]);
                 // audio input: mapped fd 3 or named pipe
                 #[cfg(target_os = "windows")]
-                command.args(["-i", audio_receiver]);
+                command.args(["-i", &audio_receiver]);
                 #[cfg(not(target_os = "windows"))]
                 command.args(["-i", "pipe:3"]);
 
