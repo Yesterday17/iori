@@ -210,6 +210,11 @@ impl StreamingSource for CommonDashArchiveSource {
                                 let filename = template.resolve(&media_template);
                                 let url = merge_baseurls(&base_url, &filename)?;
 
+                                let filename = url
+                                    .path_segments()
+                                    .and_then(|c| c.last())
+                                    .map_or_else(|| "output.m4s".to_string(), |s| s.to_string());
+
                                 let segment = DashSegment {
                                     url,
                                     filename,
