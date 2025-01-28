@@ -111,7 +111,7 @@ impl NicoTimeshiftSource {
             .query_pairs()
             .find(|(key, _)| key == "ht2_nicolive")
             .map(|r| r.1)
-            .unwrap()
+            .expect("No ht2_nicolive token found")
             .to_string();
         let host = Arc::new(RwLock::new(url));
         let token = Arc::new(RwLock::new(token));
@@ -135,7 +135,7 @@ impl NicoTimeshiftSource {
                     .query_pairs()
                     .find(|(key, _)| key == "ht2_nicolive")
                     .map(|r| r.1)
-                    .unwrap()
+                    .expect("No ht2_nicolive token found")
                     .to_string();
                 log::info!("Update Token: {token}");
                 *host_cloned.write() = url;
@@ -187,7 +187,8 @@ impl StreamingSource for NicoTimeshiftSource {
             .captures(&playlist_text)
             .and_then(|cap| cap.get(1))
             .and_then(|d| d.as_str().parse().ok())
-            .unwrap();
+            .ok_or_else(|| anyhow::anyhow!("{playlist_text}"))
+            .expect("Failed to parse video length");
 
         log::info!("video_length: {video_length}, chunk_length: {chunk_length}");
         // let video_length: f32 = playlist
