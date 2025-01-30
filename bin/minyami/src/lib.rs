@@ -27,6 +27,7 @@ use reqwest::{
 use types::MinyamiCache;
 
 #[derive(clap::Parser, Debug, Clone)]
+#[clap(version = env!("IORI_MINYAMI_VERSION"), author)]
 pub struct MinyamiArgs {
     #[clap(short, long, hide = true)]
     pub download: bool,
