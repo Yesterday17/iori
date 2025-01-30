@@ -22,7 +22,8 @@ log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-reqwest = { version = "0.12", default-features = false, features = [
+# A decompression error was fixed in 0.12.11
+reqwest = { version = "^0.12.11", default-features = false, features = [
     "rustls-tls",
     "stream",
 ] }
