@@ -41,7 +41,7 @@ pub enum IoriError {
     MpdParseError(#[from] dash_mpd::DashMpdError),
 
     #[error("Invalid timing schema: {0:?}")]
-    InvalidTimingSchema(Option<String>),
+    InvalidTimingSchema(String),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

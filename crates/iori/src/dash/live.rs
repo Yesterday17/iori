@@ -29,17 +29,15 @@ impl Clock {
 
 pub async fn sync_time(mpd: &MPD) -> IoriResult<()> {
     for timing in &mpd.UTCTiming {
-        match timing.schemeIdUri.as_deref() {
-            Some("urn:mpeg:dash:utc:http-xsdate:2014") => todo!(),
-            Some("urn:mpeg:dash:utc:http-iso:2014") => todo!(),
-            Some("urn:mpeg:dash:utc:http-ntp:2014") => todo!(),
-            Some("urn:mpeg:dash:utc:ntp:2014") => todo!(),
-            Some("urn:mpeg:dash:utc:http-head:2014") => todo!(),
-            Some("urn:mpeg:dash:utc:direct:2014") => todo!(),
+        match timing.schemeIdUri.as_str() {
+            "urn:mpeg:dash:utc:http-xsdate:2014" => todo!(),
+            "urn:mpeg:dash:utc:http-iso:2014" => todo!(),
+            "urn:mpeg:dash:utc:http-ntp:2014" => todo!(),
+            "urn:mpeg:dash:utc:ntp:2014" => todo!(),
+            "urn:mpeg:dash:utc:http-head:2014" => todo!(),
+            "urn:mpeg:dash:utc:direct:2014" => todo!(),
             others => {
-                return Err(IoriError::InvalidTimingSchema(
-                    others.map(|s| s.to_string()),
-                ))
+                return Err(IoriError::InvalidTimingSchema(others.into()));
             }
         }
     }
