@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     fs::File,
-    io::{Read, Write},
+    io::{Cursor, Read, Write},
     path::PathBuf,
     process::Command,
 };
@@ -21,6 +21,10 @@ pub enum IoriKey {
         keys: HashMap<String, String>,
         /// Whether to use shaka_packager for decryption
         shaka_packager_command: Option<PathBuf>,
+    },
+    SampleAes {
+        key: [u8; 16],
+        iv: [u8; 16],
     },
 }
 
@@ -82,7 +86,32 @@ impl IoriKey {
                         .to_be_bytes(),
                 })
             }
-            KeyMethod::SampleAES => todo!(),
+            KeyMethod::SampleAES => {
+                let key_bytes = if let Some(key) = manual_key {
+                    hex::decode(key)?
+                } else {
+                    panic!("Specify key for SAMPLE-AES is required.");
+                };
+
+                Some(Self::SampleAes {
+                    key: key_bytes
+                        .try_into()
+                        .map_err(|v| IoriError::InvalidAes128Key(v))?,
+                    iv: key
+                        .iv
+                        .clone()
+                        .and_then(|iv| {
+                            let iv = if iv.starts_with("0x") {
+                                &iv[2..]
+                            } else {
+                                iv.as_str()
+                            };
+                            u128::from_str_radix(iv, 16).ok()
+                        })
+                        .unwrap_or(media_sequence as u128)
+                        .to_be_bytes(),
+                })
+            }
             KeyMethod::Other(name) => match name.as_str() {
                 "SAMPLE-AES-CENC" | "SAMPLE-AES-CTR" => {
                     log::debug!("{name} encryption detected. Using manual key.");
@@ -125,6 +154,10 @@ impl IoriKey {
                 keys: keys.clone(),
                 shaka_packager_command: shaka_packager_command.clone(),
             },
+            IoriKey::SampleAes { key, iv } => IoriDecryptor::SampleAes {
+                key: key.clone(),
+                iv: iv.clone(),
+            },
         }
     }
 }
@@ -135,10 +168,14 @@ pub enum IoriDecryptor {
         keys: HashMap<String, String>,
         shaka_packager_command: Option<PathBuf>,
     },
+    SampleAes {
+        key: [u8; 16],
+        iv: [u8; 16],
+    },
 }
 
 impl IoriDecryptor {
-    pub fn decrypt(self, data: &[u8]) -> IoriResult<Vec<u8>> {
+    pub async fn decrypt(self, data: &[u8]) -> IoriResult<Vec<u8>> {
         Ok(match self {
             IoriDecryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data)?,
             IoriDecryptor::Mp4Decrypt {
@@ -185,6 +222,11 @@ impl IoriDecryptor {
                 } else {
                     mp4decrypt::mp4decrypt(data, keys, None).map_err(IoriError::Mp4DecryptError)?
                 }
+            }
+            IoriDecryptor::SampleAes { key, iv } => {
+                let mut reader = Cursor::new(data);
+                let mut writer = Vec::new();
+                iori_ssa::decrypt(&mut reader, &mut writer, key, iv).map(|_| writer)?
             }
         })
     }

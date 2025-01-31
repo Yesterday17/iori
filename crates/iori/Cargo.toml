@@ -10,14 +10,16 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+iori-ssa.workspace = true
+
 async-recursion = "1.0.5"
 log.workspace = true
 m3u8-rs = "5.0.5"
 reqwest.workspace = true
 tokio.workspace = true
 
-aes = "0.8.4"
-cbc = { version = "0.1.2", features = ["std"] }
+aes.workspace = true
+cbc.workspace = true
 block-buffer = "0.10.4"
 hex = "0.4.3"
 mp4decrypt = "0.4.2"

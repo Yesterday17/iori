@@ -18,6 +18,9 @@ pub enum IoriError {
     #[error("mp4decrypt error: {0}")]
     Mp4DecryptError(String),
 
+    #[error("iori-ssa error: {0:?}")]
+    IoriSsaError(#[from] iori_ssa::Error),
+
     #[error("Pkcs7 unpad error")]
     UnpadError(#[from] UnpadError),
 

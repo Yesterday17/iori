@@ -20,9 +20,9 @@ where
         let bytes = if let Some(initial_segment) = segment.initial_segment() {
             let mut result = initial_segment.to_vec();
             result.extend_from_slice(&bytes);
-            decryptor.decrypt(&result)?
+            decryptor.decrypt(&result).await?
         } else {
-            decryptor.decrypt(&bytes)?
+            decryptor.decrypt(&bytes).await?
         };
         tmp_file.write_all(&bytes).await?;
     } else {

@@ -1048,6 +1048,7 @@ dependencies = [
  "command-fds",
  "dash-mpd",
  "hex",
+ "iori-ssa",
  "log",
  "m3u8-rs",
  "mp4decrypt",
@@ -1101,6 +1102,18 @@ dependencies = [
  "shlex",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "iori-ssa"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "cbc",
+ "log",
+ "memchr",
+ "mpeg2ts",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1264,6 +1277,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2362bd781fc61817b4ac41511d4a7e3e13ff2a2ab0803e6aa63a94c3796d15ce"
 dependencies = [
  "bento4-src",
+]
+
+[[package]]
+name = "mpeg2ts"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6435feaa73e6dca8c812de3fea58331b4f35375798dcabe436a4321f0d21043d"
+dependencies = [
+ "byteorder",
+ "trackable",
 ]
 
 [[package]]
@@ -2196,6 +2219,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e672c95779cf947c5311f83787af4fa8fffd12fb27e4993211a84bdfd9610f9c"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "trackable"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b15bd114abb99ef8cee977e517c8f37aee63f184f2d08e3e6ceca092373369ae"
+dependencies = [
+ "trackable_derive",
+]
+
+[[package]]
+name = "trackable_derive"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebeb235c5847e2f82cfe0f07eb971d1e5f6804b18dac2ae16349cc604380f82f"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

@@ -1,0 +1,16 @@
+[package]
+name = "iori-ssa"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+aes = "0.8.4"
+cbc = { version = "0.1.2", features = ["std"] }
+memchr = "2.7.4"
+mpeg2ts = "0.3.1"
+
+thiserror = "1.0"
+log.workspace = true
