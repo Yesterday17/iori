@@ -5,20 +5,13 @@ use aes::cipher::{BlockDecryptMut, KeyIvInit};
 use memchr::memmem;
 use mpeg2ts::es::StreamType;
 use mpeg2ts::pes::PesHeader;
-use mpeg2ts::ts::payload::Bytes;
-use mpeg2ts::ts::payload::Pes;
-use mpeg2ts::ts::ContinuityCounter;
-use mpeg2ts::ts::ReadTsPacket;
-use mpeg2ts::ts::TsHeader;
-use mpeg2ts::ts::TsPacket;
-use mpeg2ts::ts::TsPacketReader;
-use mpeg2ts::ts::TsPacketWriter;
-use mpeg2ts::ts::TsPayload;
-use mpeg2ts::ts::WriteTsPacket;
+use mpeg2ts::ts::{
+    payload::{Bytes, Pes},
+    ContinuityCounter, ReadTsPacket, TransportScramblingControl, TsHeader, TsPacket,
+    TsPacketReader, TsPacketWriter, TsPayload, WriteTsPacket,
+};
 use std::collections::HashMap;
-use std::io::BufWriter;
-use std::io::Read;
-use std::io::Write;
+use std::io::{BufWriter, Read, Write};
 
 pub struct NALUnit {
     data: Vec<u8>,
@@ -186,7 +179,7 @@ impl PESSegment {
         match self.stream_type {
             StreamType::H264WithAes128Cbc => self.decrypt_video(key, iv)?,
             StreamType::AdtsAacWithAes128Cbc => self.decrypt_audio(key, iv),
-            _ => unreachable!(),
+            _ => unreachable!("Unsupported stream type: {:?}", self.stream_type),
         }
 
         let pid = self.initial_ts_header.pid;
@@ -195,34 +188,34 @@ impl PESSegment {
         // TS packet size is 188
         let mut input = self.data.as_slice();
         let initial_size = input.len().min(self.initial_size);
-        let packet = TsPacket {
+        let pes_packet = TsPacket {
             header: self.initial_ts_header,
             adaptation_field: None,
-            payload: Some(mpeg2ts::ts::TsPayload::Pes(Pes {
+            payload: Some(TsPayload::Pes(Pes {
                 header: self.header,
                 pes_packet_len: self.pes_packet_len,
                 data: Bytes::new(&self.data[..initial_size])?,
             })),
         };
-        writer.write_ts_packet(&packet)?;
+        writer.write_ts_packet(&pes_packet)?;
 
         input = &input[initial_size..];
-        while input.len() > 0 {
-            let size = input.len().min(184);
+        while !input.is_empty() {
+            let size = input.len().min(Bytes::MAX_SIZE);
             let data = &input[..size];
             input = &input[size..];
 
             let packet = TsPacket {
                 header: TsHeader {
+                    pid,
+                    transport_scrambling_control: TransportScramblingControl::NotScrambled,
                     transport_error_indicator: false,
                     transport_priority: false,
-                    pid,
-                    transport_scrambling_control:
-                        mpeg2ts::ts::TransportScramblingControl::ScrambledWithOddKey,
                     continuity_counter: ContinuityCounter::new(), // will be set by writer
                 },
                 adaptation_field: None,
-                payload: Some(mpeg2ts::ts::TsPayload::Raw(Bytes::new(data).unwrap())),
+                // SAFETY: unwrap here is safe because we know the data length <= Bytes::MAX_SIZE
+                payload: Some(TsPayload::Raw(Bytes::new(data).unwrap())),
             };
             writer.write_ts_packet(&packet)?;
         }
@@ -361,17 +354,15 @@ where
                         };
                     }
                     writer.write_ts_packet(&TsPacket {
-                        payload: Some(mpeg2ts::ts::TsPayload::Pmt(pmt)),
+                        payload: Some(TsPayload::Pmt(pmt)),
                         ..packet
                     })?;
                 }
                 TsPayload::Pes(pes) => {
-                    let stream_type = pid_map
-                        .get(&packet.header.pid.as_u16())
-                        .expect("Unknown stream");
+                    let stream_type = pid_map.get(&packet.header.pid.as_u16());
                     if !matches!(
                         stream_type,
-                        StreamType::H264WithAes128Cbc | StreamType::AdtsAacWithAes128Cbc
+                        Some(StreamType::H264WithAes128Cbc | StreamType::AdtsAacWithAes128Cbc)
                     ) {
                         log::debug!("Unmodified stream type: {:?}", stream_type);
                         // No need to modify unmodified stream
@@ -382,7 +373,8 @@ where
                     let prev_pes = streams.insert(
                         packet.header.pid,
                         PESSegment {
-                            stream_type: stream_type.clone(),
+                            // SAFETY: we know the stream type is valid
+                            stream_type: stream_type.unwrap().clone(),
 
                             initial_ts_header: packet.header.clone(),
                             header: pes.header.clone(),
