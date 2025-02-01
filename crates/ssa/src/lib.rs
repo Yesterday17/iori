@@ -93,6 +93,10 @@ impl NALUnit {
     ///     }
     /// }
     pub fn decrypt(&mut self, key: &[u8; 16], iv: &[u8; 16]) {
+        if self.data.len() <= 48 {
+            return;
+        }
+
         self.remove_scep_3_bytes();
 
         let mut decryptor = cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into());
