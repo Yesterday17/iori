@@ -132,6 +132,38 @@ impl NALUnit {
     }
 }
 
+struct AdtsHeader {
+    length: usize,
+    crc: bool,
+}
+
+impl AdtsHeader {
+    fn new(data: &[u8]) -> Self {
+        Self {
+            length: Self::read_adts_frame_length(data),
+            // Protection absence, set to 1 if there is no CRC and 0 if there is CRC.
+            crc: data[1] & 0x01 == 0,
+        }
+    }
+
+    fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
+        &mut input[if self.crc { 9 } else { 7 }..]
+    }
+
+    fn read_adts_frame_length(header: &[u8]) -> usize {
+        // 2
+        let byte3 = header[3] as u16;
+        // 8
+        let byte4 = header[4] as u16;
+        // 3
+        let byte5 = header[5] as u16;
+
+        // Extract and combine bits
+        let length = ((byte3 & 0b11) << 11) | (byte4 << 3) | (byte5 >> 5);
+        length as usize
+    }
+}
+
 struct PESSegment {
     stream_type: StreamType,
 
@@ -240,16 +272,13 @@ impl PESSegment {
     ///     unencrypted_trailer                // 0-15 bytes
     /// }
     fn decrypt_audio_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
-        use aes::cipher::{BlockDecryptMut, KeyIvInit};
-
-        // FIXME: adts header length is 7 or 9
-        let size = Self::read_adts_frame_length(&input[0..6]);
-        let input = &mut input[7..size];
+        let adts = AdtsHeader::new(&input);
+        let data = adts.data(input);
 
         let mut decryptor = cbc::Decryptor::<aes::Aes128>::new(&key.into(), &iv.into());
 
         let mut is_first = true;
-        let chunks = input.chunks_mut(16);
+        let chunks = data.chunks_mut(16);
         for chunk in chunks {
             if chunk.len() < 16 || is_first {
                 is_first = false;
@@ -258,20 +287,7 @@ impl PESSegment {
             decryptor.decrypt_block_mut(chunk.into());
         }
 
-        size
-    }
-
-    fn read_adts_frame_length(header: &[u8]) -> usize {
-        // 2
-        let byte3 = header[3] as u16;
-        // 8
-        let byte4 = header[4] as u16;
-        // 3
-        let byte5 = header[5] as u16;
-
-        // Extract and combine bits
-        let length = ((byte3 & 0b11) << 11) | (byte4 << 3) | (byte5 >> 5);
-        length as usize
+        adts.length
     }
 }
 
