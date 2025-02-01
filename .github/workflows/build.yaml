@@ -67,14 +67,16 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           strip minyami.exe
-          7z a ../../../${{ matrix.name }} minyami.exe
+          strip ssadecrypt.exe
+          7z a ../../../${{ matrix.name }} minyami.exe ssadecrypt.exe
           cd -
       - name: PostBuild | Prepare artifacts [-nix]
         if: matrix.os != 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
           strip minyami || true
-          tar czvf ../../../${{ matrix.name }} minyami
+          strip ssadecrypt || true
+          tar czvf ../../../${{ matrix.name }} minyami ssadecrypt
           cd -
 
       - name: Deploy | Upload artifacts
