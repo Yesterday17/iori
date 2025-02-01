@@ -13,6 +13,7 @@ use mpeg2ts::ts::TsHeader;
 use mpeg2ts::ts::TsPacket;
 use mpeg2ts::ts::TsPacketReader;
 use mpeg2ts::ts::TsPacketWriter;
+use mpeg2ts::ts::TsPayload;
 use mpeg2ts::ts::WriteTsPacket;
 use std::collections::HashMap;
 use std::io::BufWriter;
@@ -276,15 +277,19 @@ impl PESSegment {
 
 struct IoriTsPacketWriter<W> {
     inner: TsPacketWriter<W>,
-    counter: ContinuityCounter, // 0~15
+    counters: HashMap<u16, ContinuityCounter>,
 }
 
 impl<W: Write> IoriTsPacketWriter<W> {
     fn new(inner: W) -> Self {
         Self {
             inner: TsPacketWriter::new(inner),
-            counter: ContinuityCounter::new(),
+            counters: HashMap::new(),
         }
+    }
+
+    fn get_counter(&mut self, pid: u16) -> &mut ContinuityCounter {
+        self.counters.entry(pid).or_insert(ContinuityCounter::new())
     }
 }
 
@@ -292,9 +297,14 @@ impl<W: Write> WriteTsPacket for IoriTsPacketWriter<W> {
     fn write_ts_packet(&mut self, packet: &TsPacket) -> mpeg2ts::Result<()> {
         // TODO: do not clone
         let mut packet = packet.clone();
-        packet.header.continuity_counter = self.counter;
 
-        self.counter.increment();
+        let counter = self.get_counter(packet.header.pid.as_u16());
+        packet.header.continuity_counter = counter.clone();
+
+        if !matches!(packet.payload, None | Some(TsPayload::Null(_))) {
+            counter.increment();
+        }
+
         self.inner.write_ts_packet(&packet)
     }
 }
@@ -316,11 +326,11 @@ where
 
             // print payload type
             match payload {
-                mpeg2ts::ts::TsPayload::Pat(_) => {
+                TsPayload::Pat(_) => {
                     // no need to modify PAT
                     writer.write_ts_packet(&packet)?;
                 }
-                mpeg2ts::ts::TsPayload::Pmt(pmt) => {
+                TsPayload::Pmt(pmt) => {
                     let mut pmt = pmt.clone();
 
                     // modify from encrypted to clear stream
@@ -339,7 +349,7 @@ where
                         ..packet
                     })?;
                 }
-                mpeg2ts::ts::TsPayload::Pes(pes) => {
+                TsPayload::Pes(pes) => {
                     let stream_type = pid_map
                         .get(&packet.header.pid.as_u16())
                         .expect("Unknown stream");
@@ -372,7 +382,7 @@ where
 
                     flush = None;
                 }
-                mpeg2ts::ts::TsPayload::Raw(bytes) => {
+                TsPayload::Raw(bytes) => {
                     if let Some(pes) = streams.get_mut(&packet.header.pid) {
                         pes.data.extend_from_slice(bytes);
                     } else {
@@ -381,8 +391,8 @@ where
                     }
                     flush = None;
                 }
-                mpeg2ts::ts::TsPayload::Section(_) => writer.write_ts_packet(&packet)?,
-                mpeg2ts::ts::TsPayload::Null(_) => {
+                TsPayload::Section(_) => writer.write_ts_packet(&packet)?,
+                TsPayload::Null(_) => {
                     writer.write_ts_packet(&packet)?;
                     flush = None;
                 }
