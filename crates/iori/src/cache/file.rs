@@ -12,6 +12,14 @@ impl FileCacheSource {
         Self { cache_dir }
     }
 
+    async fn ensure_cache_dir(&self) -> IoriResult<()> {
+        if !self.cache_dir.exists() {
+            tokio::fs::create_dir_all(&self.cache_dir).await?;
+        }
+
+        Ok(())
+    }
+
     fn segment_path(&self, segment: &impl crate::StreamingSegment) -> PathBuf {
         let filename = segment.file_name().replace('/', "__");
         let sequence = segment.sequence();
@@ -25,6 +33,8 @@ impl CacheSource for FileCacheSource {
         &self,
         segment: &impl crate::StreamingSegment,
     ) -> IoriResult<Option<CacheSourceWriter>> {
+        self.ensure_cache_dir().await?;
+
         let path = self.segment_path(segment);
         if path
             .metadata()

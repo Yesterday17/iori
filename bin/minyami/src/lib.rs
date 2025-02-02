@@ -10,7 +10,7 @@ use std::{
 use anyhow::bail;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::{file::FileCacheSource, memory::MemoryCacheSource, IoriCache},
+    cache::IoriCache,
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
@@ -206,7 +206,6 @@ impl MinyamiArgs {
             let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
             temp_path.join(format!("minyami_{started_at}"))
         };
-        std::fs::create_dir_all(&output_dir)?;
         Ok(output_dir)
     }
 
@@ -280,9 +279,9 @@ impl MinyamiArgs {
         let final_temp_dir = self.final_temp_dir()?;
 
         let cache: IoriCache = match (self.live, self.pipe, self.dash) {
-            (_, true, false) => IoriCache::Memory(MemoryCacheSource::new()),
-            (true, false, _) => IoriCache::File(FileCacheSource::new(final_temp_dir.clone())),
-            _ => IoriCache::File(FileCacheSource::new(final_temp_dir.clone())),
+            (_, true, false) => IoriCache::memory(),
+            (true, false, _) => IoriCache::file(final_temp_dir),
+            _ => IoriCache::file(final_temp_dir),
         };
 
         if self.live {
