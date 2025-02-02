@@ -188,7 +188,7 @@ impl PESSegment {
         // TS packet size is 188
         let mut input = self.data.as_slice();
         let initial_size = input.len().min(self.initial_size);
-        let pes_packet = TsPacket {
+        let mut pes_packet = TsPacket {
             header: self.initial_ts_header,
             adaptation_field: None,
             payload: Some(TsPayload::Pes(Pes {
@@ -197,7 +197,7 @@ impl PESSegment {
                 data: Bytes::new(&self.data[..initial_size])?,
             })),
         };
-        writer.write_ts_packet(&pes_packet)?;
+        writer.write_packet(&mut pes_packet)?;
 
         input = &input[initial_size..];
         while !input.is_empty() {
@@ -205,7 +205,7 @@ impl PESSegment {
             let data = &input[..size];
             input = &input[size..];
 
-            let packet = TsPacket {
+            let mut packet = TsPacket {
                 header: TsHeader {
                     pid,
                     transport_scrambling_control: TransportScramblingControl::NotScrambled,
@@ -217,7 +217,7 @@ impl PESSegment {
                 // SAFETY: unwrap here is safe because we know the data length <= Bytes::MAX_SIZE
                 payload: Some(TsPayload::Raw(Bytes::new(data).unwrap())),
             };
-            writer.write_ts_packet(&packet)?;
+            writer.write_packet(&mut packet)?;
         }
 
         Ok(())
@@ -300,13 +300,8 @@ impl<W: Write> IoriTsPacketWriter<W> {
     fn get_counter(&mut self, pid: u16) -> &mut ContinuityCounter {
         self.counters.entry(pid).or_insert(ContinuityCounter::new())
     }
-}
 
-impl<W: Write> WriteTsPacket for IoriTsPacketWriter<W> {
-    fn write_ts_packet(&mut self, packet: &TsPacket) -> mpeg2ts::Result<()> {
-        // TODO: do not clone
-        let mut packet = packet.clone();
-
+    fn write_packet(&mut self, packet: &mut TsPacket) -> mpeg2ts::Result<()> {
         let counter = self.get_counter(packet.header.pid.as_u16());
         packet.header.continuity_counter = counter.clone();
 
@@ -329,7 +324,7 @@ where
     let mut streams = HashMap::new();
     let mut pid_map = HashMap::new();
 
-    while let Ok(Some(packet)) = reader.read_ts_packet() {
+    while let Ok(Some(mut packet)) = reader.read_ts_packet() {
         if let Some(payload) = &packet.payload {
             let mut flush = Some(packet.header.pid);
 
@@ -337,7 +332,7 @@ where
             match payload {
                 TsPayload::Pat(_) => {
                     // no need to modify PAT
-                    writer.write_ts_packet(&packet)?;
+                    writer.write_packet(&mut packet)?;
                 }
                 TsPayload::Pmt(pmt) => {
                     let mut pmt = pmt.clone();
@@ -353,7 +348,7 @@ where
                             _ => es.stream_type,
                         };
                     }
-                    writer.write_ts_packet(&TsPacket {
+                    writer.write_packet(&mut TsPacket {
                         payload: Some(TsPayload::Pmt(pmt)),
                         ..packet
                     })?;
@@ -366,7 +361,7 @@ where
                     ) {
                         log::debug!("Unmodified stream type: {:?}", stream_type);
                         // No need to modify unmodified stream
-                        writer.write_ts_packet(&packet)?;
+                        writer.write_packet(&mut packet)?;
                         continue;
                     }
 
@@ -395,13 +390,13 @@ where
                         pes.data.extend_from_slice(bytes);
                     } else {
                         log::debug!("Unknown stream: {:?}", packet.header.pid);
-                        writer.write_ts_packet(&packet)?;
+                        writer.write_packet(&mut packet)?;
                     }
                     flush = None;
                 }
-                TsPayload::Section(_) => writer.write_ts_packet(&packet)?,
+                TsPayload::Section(_) => writer.write_packet(&mut packet)?,
                 TsPayload::Null(_) => {
-                    writer.write_ts_packet(&packet)?;
+                    writer.write_packet(&mut packet)?;
                     flush = None;
                 }
             }
