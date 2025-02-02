@@ -24,13 +24,14 @@ pub enum InspectResult {
     None,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub enum PlaylistType {
+    #[default]
     HLS,
     DASH,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct InspectData {
     /// URL of the playlist
     pub playlist_url: String,
