@@ -16,7 +16,9 @@ use reqwest::{
     Client,
 };
 
-#[derive(Parser, Clone)]
+use crate::inspect::InspectData;
+
+#[derive(Parser, Clone, Default)]
 #[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
 pub struct DownloadCommand {
     #[clap(flatten)]
@@ -215,4 +217,22 @@ impl OutputOptions {
 #[handler(DownloadCommand)]
 pub async fn download(args: DownloadCommand) -> anyhow::Result<()> {
     args.download().await
+}
+
+impl From<InspectData> for DownloadCommand {
+    fn from(data: InspectData) -> Self {
+        Self {
+            http: HttpOptions {
+                headers: data.headers,
+                ..Default::default()
+            },
+            decrypt: DecryptOptions {
+                key: data.key,
+                ..Default::default()
+            },
+
+            url: data.playlist_url,
+            ..Default::default()
+        }
+    }
 }
