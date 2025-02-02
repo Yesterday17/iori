@@ -9,14 +9,15 @@ use clap::{Args, Parser};
 use clap_handler::handler;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::IoriCache, download::ParallelDownloader, hls::CommonM3u8LiveSource, merge::IoriMerger,
+    cache::IoriCache, dash::archive::CommonDashArchiveSource, download::ParallelDownloader,
+    hls::CommonM3u8LiveSource, merge::IoriMerger,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
 };
 
-use crate::inspect::InspectData;
+use crate::inspect::{InspectData, PlaylistType};
 
 #[derive(Parser, Clone, Default)]
 #[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
@@ -44,25 +45,41 @@ impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         let client = self.http.into_client();
 
-        let source = CommonM3u8LiveSource::new(
-            client,
-            self.url,
-            self.decrypt.key.as_deref(),
-            self.decrypt.shaka_packager_command,
-        )
-        .with_retry(self.download.manifest_retries);
         let merger = self.output.into_merger();
         let cache = self.cache.into_cache();
 
-        ParallelDownloader::new(
-            source,
-            merger,
-            cache,
-            self.download.concurrency,
-            self.download.segment_retries,
-        )
-        .download()
-        .await?;
+        if self.download.dash {
+            let source =
+                CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
+
+            ParallelDownloader::new(
+                source,
+                merger,
+                cache,
+                self.download.concurrency,
+                self.download.segment_retries,
+            )
+            .download()
+            .await?;
+        } else {
+            let source = CommonM3u8LiveSource::new(
+                client,
+                self.url,
+                self.decrypt.key.as_deref(),
+                self.decrypt.shaka_packager_command,
+            )
+            .with_retry(self.download.manifest_retries);
+
+            ParallelDownloader::new(
+                source,
+                merger,
+                cache,
+                self.download.concurrency,
+                self.download.segment_retries,
+            )
+            .download()
+            .await?;
+        }
 
         Ok(())
     }
@@ -122,6 +139,9 @@ pub struct DownloadOptions {
     /// Manifest retry limit
     #[clap(long, default_value = "3")]
     pub manifest_retries: u32,
+
+    #[clap(long)]
+    pub dash: bool,
 }
 
 impl Default for DownloadOptions {
@@ -130,6 +150,7 @@ impl Default for DownloadOptions {
             concurrency: NonZeroU32::new(5).unwrap(),
             segment_retries: 5,
             manifest_retries: 3,
+            dash: false,
         }
     }
 }
@@ -230,8 +251,12 @@ impl From<InspectData> for DownloadCommand {
                 key: data.key,
                 ..Default::default()
             },
-
+            download: DownloadOptions {
+                dash: matches!(data.playlist_type, PlaylistType::DASH),
+                ..Default::default()
+            },
             url: data.playlist_url,
+
             ..Default::default()
         }
     }
