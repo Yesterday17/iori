@@ -1,11 +1,16 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use clap_handler::Handler;
-use shiori::commands::ShioriCommand;
+use shiori::commands;
 
 #[derive(Parser, clap_handler::Handler, Clone)]
 struct ShioriArgs {
     #[clap(subcommand)]
     command: ShioriCommand,
+}
+
+#[derive(Subcommand, Clone, Handler)]
+pub enum ShioriCommand {
+    Download(commands::download::DownloadCommand),
 }
 
 #[tokio::main]
