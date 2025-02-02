@@ -140,7 +140,7 @@ impl AdtsHeader {
     }
 
     fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
-        &mut input[if self.crc { 9 } else { 7 }..]
+        &mut input[if self.crc { 9 } else { 7 }..self.length]
     }
 
     fn read_adts_frame_length(header: &[u8]) -> usize {
