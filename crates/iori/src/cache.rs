@@ -85,3 +85,65 @@ where
         self.as_ref().location_hint()
     }
 }
+
+pub enum IoriCache {
+    Memory(memory::MemoryCacheSource),
+    File(file::FileCacheSource),
+}
+
+impl IoriCache {
+    pub fn memory() -> Self {
+        Self::Memory(memory::MemoryCacheSource::new())
+    }
+
+    pub fn file(path: impl Into<PathBuf>) -> Self {
+        Self::File(file::FileCacheSource::new(path.into()))
+    }
+}
+
+impl CacheSource for IoriCache {
+    async fn open_writer(
+        &self,
+        segment: &impl StreamingSegment,
+    ) -> IoriResult<Option<CacheSourceWriter>> {
+        match self {
+            IoriCache::Memory(cache) => cache.open_writer(segment).await,
+            IoriCache::File(cache) => cache.open_writer(segment).await,
+        }
+    }
+
+    async fn open_reader(&self, segment: &impl StreamingSegment) -> IoriResult<CacheSourceReader> {
+        match self {
+            IoriCache::Memory(cache) => cache.open_reader(segment).await,
+            IoriCache::File(cache) => cache.open_reader(segment).await,
+        }
+    }
+
+    async fn segment_path(&self, segment: &impl StreamingSegment) -> Option<std::path::PathBuf> {
+        match self {
+            IoriCache::Memory(cache) => cache.segment_path(segment).await,
+            IoriCache::File(cache) => cache.segment_path(segment).await,
+        }
+    }
+
+    async fn invalidate(&self, segment: &impl StreamingSegment) -> IoriResult<()> {
+        match self {
+            IoriCache::Memory(cache) => cache.invalidate(segment).await,
+            IoriCache::File(cache) => cache.invalidate(segment).await,
+        }
+    }
+
+    async fn clear(&self) -> IoriResult<()> {
+        match self {
+            IoriCache::Memory(cache) => cache.clear().await,
+            IoriCache::File(cache) => cache.clear().await,
+        }
+    }
+
+    fn location_hint(&self) -> Option<String> {
+        match self {
+            IoriCache::Memory(cache) => cache.location_hint(),
+            IoriCache::File(cache) => cache.location_hint(),
+        }
+    }
+}

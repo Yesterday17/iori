@@ -1,5 +1,3 @@
-mod types;
-
 use std::{
     env::current_dir,
     ffi::OsString,
@@ -12,7 +10,7 @@ use std::{
 use anyhow::bail;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::{file::FileCacheSource, memory::MemoryCacheSource},
+    cache::{file::FileCacheSource, memory::MemoryCacheSource, IoriCache},
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
@@ -24,7 +22,6 @@ use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
 };
-use types::MinyamiCache;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(version = env!("IORI_MINYAMI_VERSION"), author)]
@@ -268,7 +265,7 @@ impl MinyamiArgs {
         }
     }
 
-    async fn download<S>(&self, source: S, cache: MinyamiCache) -> anyhow::Result<()>
+    async fn download<S>(&self, source: S, cache: IoriCache) -> anyhow::Result<()>
     where
         S: StreamingSource + Send + Sync + 'static,
     {
@@ -282,10 +279,10 @@ impl MinyamiArgs {
         let client = self.client();
         let final_temp_dir = self.final_temp_dir()?;
 
-        let cache: MinyamiCache = match (self.live, self.pipe, self.dash) {
-            (_, true, false) => MinyamiCache::Memory(MemoryCacheSource::new()),
-            (true, false, _) => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
-            _ => MinyamiCache::File(FileCacheSource::new(final_temp_dir.clone())),
+        let cache: IoriCache = match (self.live, self.pipe, self.dash) {
+            (_, true, false) => IoriCache::Memory(MemoryCacheSource::new()),
+            (true, false, _) => IoriCache::File(FileCacheSource::new(final_temp_dir.clone())),
+            _ => IoriCache::File(FileCacheSource::new(final_temp_dir.clone())),
         };
 
         if self.live {
