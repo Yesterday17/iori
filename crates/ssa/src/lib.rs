@@ -297,12 +297,17 @@ impl<W: Write> IoriTsPacketWriter<W> {
         }
     }
 
-    fn get_counter(&mut self, pid: u16) -> &mut ContinuityCounter {
-        self.counters.entry(pid).or_insert(ContinuityCounter::new())
+    fn get_counter(
+        &mut self,
+        pid: u16,
+        default_counter: ContinuityCounter,
+    ) -> &mut ContinuityCounter {
+        self.counters.entry(pid).or_insert(default_counter)
     }
 
     fn write_packet(&mut self, packet: &mut TsPacket) -> mpeg2ts::Result<()> {
-        let counter = self.get_counter(packet.header.pid.as_u16());
+        let counter =
+            self.get_counter(packet.header.pid.as_u16(), packet.header.continuity_counter);
         packet.header.continuity_counter = counter.clone();
 
         if !matches!(packet.payload, None | Some(TsPayload::Null(_))) {
