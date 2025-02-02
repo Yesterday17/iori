@@ -17,7 +17,7 @@ use reqwest::{
 };
 
 #[derive(Parser, Clone)]
-#[clap(name = "download", visible_alias = "dl", short_flag = 'd')]
+#[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
 pub struct DownloadCommand {
     #[clap(flatten)]
     pub http: HttpOptions,
@@ -27,6 +27,7 @@ pub struct DownloadCommand {
 
     #[clap(flatten)]
     pub cache: CacheOptions,
+
     #[clap(flatten)]
     pub output: OutputOptions,
 
@@ -97,6 +98,15 @@ impl HttpOptions {
     }
 }
 
+impl Default for HttpOptions {
+    fn default() -> Self {
+        Self {
+            headers: Vec::new(),
+            timeout: 10,
+        }
+    }
+}
+
 #[derive(Args, Clone, Debug)]
 pub struct DownloadOptions {
     /// Threads limit
@@ -112,10 +122,20 @@ pub struct DownloadOptions {
     pub manifest_retries: u32,
 }
 
-#[derive(Args, Clone, Debug)]
+impl Default for DownloadOptions {
+    fn default() -> Self {
+        Self {
+            concurrency: NonZeroU32::new(5).unwrap(),
+            segment_retries: 5,
+            manifest_retries: 3,
+        }
+    }
+}
+
+#[derive(Args, Clone, Debug, Default)]
 pub struct CacheOptions {
     /// Use in-memory cache and do not write cache to disk while downloading
-    #[clap(long)]
+    #[clap(short = 'm', long)]
     pub in_memory_cache: bool,
 
     /// Temporary directory
@@ -146,7 +166,7 @@ impl CacheOptions {
 }
 
 /// Decrypt related arguments
-#[derive(Args, Clone, Debug)]
+#[derive(Args, Clone, Debug, Default)]
 pub struct DecryptOptions {
     #[clap(long = "key")]
     pub key: Option<String>,
@@ -156,7 +176,7 @@ pub struct DecryptOptions {
 }
 
 /// Output options
-#[derive(Args, Clone, Debug)]
+#[derive(Args, Clone, Debug, Default)]
 #[group(required = true, multiple = false)]
 pub struct OutputOptions {
     /// Do not merge stream
@@ -167,9 +187,13 @@ pub struct OutputOptions {
     #[clap(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Write to stdout, and optionally record to a file
+    /// Write to stdout
+    #[clap(short = 'P', long)]
+    pub pipe: bool,
+
+    /// Pipe to a file
     #[clap(long)]
-    pub pipe: Option<Option<PathBuf>>,
+    pub pipe_to: Option<PathBuf>,
 }
 
 impl OutputOptions {
@@ -178,10 +202,10 @@ impl OutputOptions {
             IoriMerger::skip()
         } else if let Some(output) = self.output {
             IoriMerger::concat(output, false)
-        } else if let Some(Some(pipe)) = self.pipe {
-            IoriMerger::pipe_to_file(true, pipe)
-        } else if let Some(None) = self.pipe {
+        } else if self.pipe {
             IoriMerger::pipe(true)
+        } else if let Some(pipe) = self.pipe_to {
+            IoriMerger::pipe_to_file(true, pipe)
         } else {
             unreachable!()
         }

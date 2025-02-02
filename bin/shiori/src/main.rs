@@ -1,12 +1,11 @@
 use clap::Parser;
 use clap_handler::Handler;
-
-mod commands;
+use shiori::commands::ShioriCommand;
 
 #[derive(Parser, clap_handler::Handler, Clone)]
 struct ShioriArgs {
     #[clap(subcommand)]
-    command: commands::ShioriCommand,
+    command: ShioriCommand,
 }
 
 #[tokio::main]
