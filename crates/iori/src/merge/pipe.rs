@@ -1,7 +1,7 @@
 use super::{concat::ConcatMergeNamer, Merger};
 use crate::{
-    cache::CacheSource, error::IoriResult, util::ordered_stream::OrderedStream, SegmentType,
-    StreamingSegment,
+    cache::CacheSource, error::IoriResult, util::ordered_stream::OrderedStream, SegmentInfo,
+    SegmentType,
 };
 use std::{future::Future, path::PathBuf, pin::Pin, process::Stdio};
 use tokio::{io::AsyncRead, process::Command, sync::mpsc, task::JoinHandle};
@@ -232,13 +232,9 @@ impl PipeMerger {
 impl Merger for PipeMerger {
     type Result = ();
 
-    async fn update(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: impl CacheSource,
-    ) -> IoriResult<()> {
-        let sequence = segment.sequence();
-        let r#type = segment.r#type();
+    async fn update(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
+        let sequence = segment.sequence;
+        let r#type = segment.r#type;
         let reader = cache.open_reader(&segment).await?;
         let invalidate = async move { cache.invalidate(&segment).await };
 
@@ -250,14 +246,10 @@ impl Merger for PipeMerger {
         Ok(())
     }
 
-    async fn fail(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn fail(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
 
-        self.send((segment.sequence(), None));
+        self.send((segment.sequence, None));
 
         Ok(())
     }

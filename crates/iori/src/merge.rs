@@ -8,7 +8,7 @@ pub use mkvmerge::MkvMergeMerver;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
 
-use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
+use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
 use std::{future::Future, path::PathBuf};
 
 pub trait Merger {
@@ -22,14 +22,14 @@ pub trait Merger {
     /// [StreamingSegment::sequence].
     fn update(
         &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
+        segment: SegmentInfo,
         cache: impl CacheSource,
     ) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Tell the merger that a segment has failed to download.
     fn fail(
         &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
+        segment: SegmentInfo,
         cache: impl CacheSource,
     ) -> impl Future<Output = IoriResult<()>> + Send;
 
@@ -38,8 +38,6 @@ pub trait Merger {
         cache: impl CacheSource,
     ) -> impl std::future::Future<Output = IoriResult<Self::Result>> + Send;
 }
-
-pub(crate) type BoxedStreamingSegment<'a> = Box<dyn StreamingSegment + Send + Sync + 'a>;
 
 pub enum IoriMerger {
     Pipe(PipeMerger),
@@ -77,11 +75,7 @@ impl IoriMerger {
 impl Merger for IoriMerger {
     type Result = (); // TODO: merger might have different result types
 
-    async fn update(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn update(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
         match self {
             Self::Pipe(merger) => merger.update(segment, cache).await,
             Self::Skip(merger) => merger.update(segment, cache).await,
@@ -90,11 +84,7 @@ impl Merger for IoriMerger {
         }
     }
 
-    async fn fail(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn fail(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
         match self {
             Self::Pipe(merger) => merger.fail(segment, cache).await,
             Self::Skip(merger) => merger.fail(segment, cache).await,

@@ -54,7 +54,7 @@ pub trait StreamingSource {
         W: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static;
 }
 
-pub trait StreamingSegment: Sync {
+pub trait StreamingSegment {
     /// Sequence ID of the segment, starts from 0
     fn sequence(&self) -> u64;
 
@@ -72,6 +72,30 @@ pub trait StreamingSegment: Sync {
     fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>>;
 
     fn r#type(&self) -> SegmentType;
+}
+
+#[derive(Clone)]
+pub struct SegmentInfo {
+    pub sequence: u64,
+    pub file_name: String,
+    pub initial_segment: Option<std::sync::Arc<Vec<u8>>>,
+    pub key: Option<std::sync::Arc<decrypt::IoriKey>>,
+    pub r#type: SegmentType,
+}
+
+impl<T> From<&T> for SegmentInfo
+where
+    T: StreamingSegment,
+{
+    fn from(segment: &T) -> Self {
+        SegmentInfo {
+            sequence: segment.sequence(),
+            file_name: segment.file_name().to_string(),
+            initial_segment: segment.initial_segment(),
+            key: segment.key(),
+            r#type: segment.r#type(),
+        }
+    }
 }
 
 impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {

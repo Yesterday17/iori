@@ -24,9 +24,9 @@ impl MemoryCacheSource {
 impl CacheSource for MemoryCacheSource {
     async fn open_writer(
         &self,
-        segment: &impl crate::StreamingSegment,
+        segment: &crate::SegmentInfo,
     ) -> IoriResult<Option<CacheSourceWriter>> {
-        let key = segment.sequence();
+        let key = segment.sequence;
         let cache = self.cache.lock().unwrap();
         if cache.contains_key(&key) {
             log::warn!("File {} already exists, ignoring.", key);
@@ -41,22 +41,19 @@ impl CacheSource for MemoryCacheSource {
         Ok(Some(Box::new(writer)))
     }
 
-    async fn open_reader(
-        &self,
-        segment: &impl crate::StreamingSegment,
-    ) -> IoriResult<CacheSourceReader> {
+    async fn open_reader(&self, segment: &crate::SegmentInfo) -> IoriResult<CacheSourceReader> {
         let data = self
             .cache
             .lock()
             .unwrap()
-            .remove(&segment.sequence())
+            .remove(&segment.sequence)
             .unwrap_or_default();
         let reader = Cursor::new(data);
         Ok(Box::new(reader))
     }
 
-    async fn invalidate(&self, segment: &impl crate::StreamingSegment) -> IoriResult<()> {
-        self.cache.lock().unwrap().remove(&segment.sequence());
+    async fn invalidate(&self, segment: &crate::SegmentInfo) -> IoriResult<()> {
+        self.cache.lock().unwrap().remove(&segment.sequence);
         Ok(())
     }
 
@@ -108,7 +105,7 @@ impl Drop for MemoryWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::StreamingSegment;
+    use crate::{SegmentInfo, StreamingSegment};
 
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -149,18 +146,19 @@ mod tests {
     async fn test_memory_cache() {
         let cache = MemoryCacheSource::new();
         let segment = TestStreamingSegment::new(0, "test.ts");
+        let segment_info = SegmentInfo::from(&segment);
 
-        let mut writer = cache.open_writer(&segment).await.unwrap().unwrap();
+        let mut writer = cache.open_writer(&segment_info).await.unwrap().unwrap();
         writer.write_all(b"hello").await.unwrap();
         drop(writer);
 
-        let mut reader = cache.open_reader(&segment).await.unwrap();
+        let mut reader = cache.open_reader(&segment_info).await.unwrap();
         let mut data = Vec::new();
         reader.read_to_end(&mut data).await.unwrap();
         assert_eq!(data, b"hello");
 
-        cache.invalidate(&segment).await.unwrap();
-        let mut reader = cache.open_reader(&segment).await.unwrap();
+        cache.invalidate(&segment_info).await.unwrap();
+        let mut reader = cache.open_reader(&segment_info).await.unwrap();
         let mut data = Vec::new();
         reader.read_to_end(&mut data).await.unwrap();
         assert_eq!(data, b"");

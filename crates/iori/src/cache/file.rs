@@ -20,9 +20,9 @@ impl FileCacheSource {
         Ok(())
     }
 
-    fn segment_path(&self, segment: &impl crate::StreamingSegment) -> PathBuf {
-        let filename = segment.file_name().replace('/', "__");
-        let sequence = segment.sequence();
+    fn segment_path(&self, segment: &crate::SegmentInfo) -> PathBuf {
+        let filename = segment.file_name.replace('/', "__");
+        let sequence = segment.sequence;
         let filename = format!("{sequence:06}_{filename}");
         self.cache_dir.join(filename)
     }
@@ -31,7 +31,7 @@ impl FileCacheSource {
 impl CacheSource for FileCacheSource {
     async fn open_writer(
         &self,
-        segment: &impl crate::StreamingSegment,
+        segment: &crate::SegmentInfo,
     ) -> IoriResult<Option<CacheSourceWriter>> {
         self.ensure_cache_dir().await?;
 
@@ -49,20 +49,17 @@ impl CacheSource for FileCacheSource {
         Ok(Some(Box::new(tmp_file)))
     }
 
-    async fn open_reader(
-        &self,
-        segment: &impl crate::StreamingSegment,
-    ) -> IoriResult<CacheSourceReader> {
+    async fn open_reader(&self, segment: &crate::SegmentInfo) -> IoriResult<CacheSourceReader> {
         let path = self.segment_path(segment);
         let file = File::open(path).await?;
         Ok(Box::new(file))
     }
 
-    async fn segment_path(&self, segment: &impl crate::StreamingSegment) -> Option<PathBuf> {
+    async fn segment_path(&self, segment: &crate::SegmentInfo) -> Option<PathBuf> {
         Some(self.segment_path(segment))
     }
 
-    async fn invalidate(&self, segment: &impl crate::StreamingSegment) -> IoriResult<()> {
+    async fn invalidate(&self, segment: &crate::SegmentInfo) -> IoriResult<()> {
         let path = self.segment_path(segment);
         if path.exists() {
             tokio::fs::remove_file(path).await?;

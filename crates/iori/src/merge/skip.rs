@@ -1,5 +1,5 @@
 use super::Merger;
-use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
+use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
 
 pub struct SkipMerger;
 
@@ -12,19 +12,11 @@ impl SkipMerger {
 impl Merger for SkipMerger {
     type Result = ();
 
-    async fn update(
-        &mut self,
-        _segment: impl StreamingSegment,
-        _cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn update(&mut self, _segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {
         Ok(())
     }
 
-    async fn fail(
-        &mut self,
-        _segment: impl StreamingSegment,
-        _cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn fail(&mut self, _segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {
         Ok(())
     }
 

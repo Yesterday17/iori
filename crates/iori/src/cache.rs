@@ -1,7 +1,7 @@
 pub mod file;
 pub mod memory;
 
-use crate::{error::IoriResult, StreamingSegment};
+use crate::{error::IoriResult, SegmentInfo};
 use std::{future::Future, path::PathBuf, sync::Arc};
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -13,28 +13,22 @@ pub trait CacheSource: Send + Sync + 'static {
     /// Open a writer for writing data of the segment.
     fn open_writer(
         &self,
-        segment: &impl StreamingSegment,
+        segment: &SegmentInfo,
     ) -> impl Future<Output = IoriResult<Option<CacheSourceWriter>>> + Send;
 
     /// Open a reader for reading data of the segment.
     fn open_reader(
         &self,
-        segment: &impl StreamingSegment,
+        segment: &SegmentInfo,
     ) -> impl Future<Output = IoriResult<CacheSourceReader>> + Send;
 
     /// Get stored location of the segment
-    fn segment_path(
-        &self,
-        _segment: &impl StreamingSegment,
-    ) -> impl Future<Output = Option<PathBuf>> + Send {
+    fn segment_path(&self, _segment: &SegmentInfo) -> impl Future<Output = Option<PathBuf>> + Send {
         async { None }
     }
 
     /// Invalidate the cache of the segment from the cache source.
-    fn invalidate(
-        &self,
-        segment: &impl StreamingSegment,
-    ) -> impl Future<Output = IoriResult<()>> + Send;
+    fn invalidate(&self, segment: &SegmentInfo) -> impl Future<Output = IoriResult<()>> + Send;
 
     /// Clear the cache source.
     fn clear(&self) -> impl Future<Output = IoriResult<()>> + Send;
@@ -51,29 +45,23 @@ where
 {
     fn open_writer(
         &self,
-        segment: &impl StreamingSegment,
+        segment: &SegmentInfo,
     ) -> impl Future<Output = IoriResult<Option<CacheSourceWriter>>> + Send {
         self.as_ref().open_writer(segment)
     }
 
     fn open_reader(
         &self,
-        segment: &impl StreamingSegment,
+        segment: &SegmentInfo,
     ) -> impl Future<Output = IoriResult<CacheSourceReader>> + Send {
         self.as_ref().open_reader(segment)
     }
 
-    fn segment_path(
-        &self,
-        segment: &impl StreamingSegment,
-    ) -> impl Future<Output = Option<PathBuf>> + Send {
+    fn segment_path(&self, segment: &SegmentInfo) -> impl Future<Output = Option<PathBuf>> + Send {
         self.as_ref().segment_path(segment)
     }
 
-    fn invalidate(
-        &self,
-        segment: &impl StreamingSegment,
-    ) -> impl Future<Output = IoriResult<()>> + Send {
+    fn invalidate(&self, segment: &SegmentInfo) -> impl Future<Output = IoriResult<()>> + Send {
         self.as_ref().invalidate(segment)
     }
 
@@ -102,31 +90,28 @@ impl IoriCache {
 }
 
 impl CacheSource for IoriCache {
-    async fn open_writer(
-        &self,
-        segment: &impl StreamingSegment,
-    ) -> IoriResult<Option<CacheSourceWriter>> {
+    async fn open_writer(&self, segment: &SegmentInfo) -> IoriResult<Option<CacheSourceWriter>> {
         match self {
             IoriCache::Memory(cache) => cache.open_writer(segment).await,
             IoriCache::File(cache) => cache.open_writer(segment).await,
         }
     }
 
-    async fn open_reader(&self, segment: &impl StreamingSegment) -> IoriResult<CacheSourceReader> {
+    async fn open_reader(&self, segment: &SegmentInfo) -> IoriResult<CacheSourceReader> {
         match self {
             IoriCache::Memory(cache) => cache.open_reader(segment).await,
             IoriCache::File(cache) => cache.open_reader(segment).await,
         }
     }
 
-    async fn segment_path(&self, segment: &impl StreamingSegment) -> Option<std::path::PathBuf> {
+    async fn segment_path(&self, segment: &SegmentInfo) -> Option<std::path::PathBuf> {
         match self {
             IoriCache::Memory(cache) => cache.segment_path(segment).await,
             IoriCache::File(cache) => cache.segment_path(segment).await,
         }
     }
 
-    async fn invalidate(&self, segment: &impl StreamingSegment) -> IoriResult<()> {
+    async fn invalidate(&self, segment: &SegmentInfo) -> IoriResult<()> {
         match self {
             IoriCache::Memory(cache) => cache.invalidate(segment).await,
             IoriCache::File(cache) => cache.invalidate(segment).await,

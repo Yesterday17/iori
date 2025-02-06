@@ -1,5 +1,6 @@
 use crate::{
-    cache::CacheSource, error::IoriResult, merge::Merger, StreamingSegment, StreamingSource,
+    cache::CacheSource, error::IoriResult, merge::Merger, SegmentInfo, StreamingSegment,
+    StreamingSource,
 };
 use std::{
     num::NonZeroU32,
@@ -91,6 +92,8 @@ where
             log::info!("{} new segments were added to queue.", segments.len());
 
             for segment in segments {
+                let segment_info = SegmentInfo::from(&segment);
+
                 let permit = self.permits.clone().acquire_owned().await.unwrap();
                 let segments_downloaded = self.downloaded.clone();
                 let segments_failed = self.failed.clone();
@@ -100,10 +103,10 @@ where
                 let source = self.source.clone();
                 let merger = self.merger.clone();
                 let cache = self.cache.clone();
-                let merge_segment = cache.open_writer(&segment).await?;
+                let merge_segment = cache.open_writer(&segment_info).await?;
                 let Some(mut writer) = merge_segment else {
                     segments_downloaded.fetch_add(1, Ordering::Relaxed);
-                    _ = merger.lock().await.update(segment, cache).await;
+                    _ = merger.lock().await.update(segment_info, cache).await;
                     continue;
                 };
 
@@ -126,7 +129,7 @@ where
                                         .await
                                         .push(segment.file_name().to_string());
                                     segments_failed.fetch_add(1, Ordering::Relaxed);
-                                    _ = merger.lock().await.fail(segment, cache).await;
+                                    _ = merger.lock().await.fail(segment_info, cache).await;
                                     return;
                                 }
 
@@ -155,7 +158,7 @@ where
                         "Processing {filename} finished. ({downloaded} / {total} or {percentage:.2}%)"
                     );
 
-                    _ = merger.lock().await.update(segment, cache).await;
+                    _ = merger.lock().await.update(segment_info, cache).await;
 
                     // drop permit to release the semaphore
                     drop(permit);

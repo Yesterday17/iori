@@ -1,11 +1,11 @@
-use super::{BoxedStreamingSegment, Merger};
-use crate::{cache::CacheSource, error::IoriResult, StreamingSegment};
+use super::Merger;
+use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
 
 /// Concat all segments into a single file after all segments are downloaded.
 pub struct ConcatAfterMerger {
-    segments: Vec<ConcatSegment<BoxedStreamingSegment<'static>>>,
+    segments: Vec<ConcatSegment>,
 
     /// Final output file path.
     output_file: PathBuf,
@@ -26,26 +26,18 @@ impl ConcatAfterMerger {
 impl Merger for ConcatAfterMerger {
     type Result = ();
 
-    async fn update(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        _cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn update(&mut self, segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {
         self.segments.push(ConcatSegment {
-            segment: Box::new(segment),
+            segment,
             success: true,
         });
         Ok(())
     }
 
-    async fn fail(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn fail(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
         self.segments.push(ConcatSegment {
-            segment: Box::new(segment),
+            segment,
             success: false,
         });
         Ok(())
@@ -107,21 +99,20 @@ impl ConcatMergeNamer {
     }
 }
 
-pub(crate) struct ConcatSegment<S> {
-    pub segment: S,
+pub(crate) struct ConcatSegment {
+    pub segment: SegmentInfo,
     pub success: bool,
 }
 
-async fn concat_merge<S, O>(
-    segments: &mut Vec<ConcatSegment<S>>,
+async fn concat_merge<O>(
+    segments: &mut Vec<ConcatSegment>,
     cache: &impl CacheSource,
     output_path: O,
 ) -> IoriResult<()>
 where
-    S: StreamingSegment,
     O: AsRef<Path>,
 {
-    segments.sort_by(|a, b| a.segment.sequence().cmp(&b.segment.sequence()));
+    segments.sort_by(|a, b| a.segment.sequence.cmp(&b.segment.sequence));
     let segments = trim_end(&segments, |s| !s.success);
 
     let mut namer = ConcatMergeNamer::new(&output_path);

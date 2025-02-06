@@ -1,14 +1,13 @@
 use crate::{
-    cache::CacheSource, error::IoriResult, util::file_name_add_suffix, SegmentType,
-    StreamingSegment,
+    cache::CacheSource, error::IoriResult, util::file_name_add_suffix, SegmentInfo, SegmentType,
 };
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
-use super::{concat::ConcatSegment, BoxedStreamingSegment, Merger};
+use super::{concat::ConcatSegment, Merger};
 
 pub struct MkvMergeMerver {
-    segments: Vec<ConcatSegment<BoxedStreamingSegment<'static>>>,
+    segments: Vec<ConcatSegment>,
 
     /// Final output file path.
     output_file: PathBuf,
@@ -32,26 +31,18 @@ impl MkvMergeMerver {
 impl Merger for MkvMergeMerver {
     type Result = ();
 
-    async fn update(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        _cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn update(&mut self, segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {
         self.segments.push(ConcatSegment {
-            segment: Box::new(segment),
+            segment,
             success: true,
         });
         Ok(())
     }
 
-    async fn fail(
-        &mut self,
-        segment: impl StreamingSegment + Send + Sync + 'static,
-        cache: impl CacheSource,
-    ) -> IoriResult<()> {
+    async fn fail(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
         self.segments.push(ConcatSegment {
-            segment: Box::new(segment),
+            segment,
             success: false,
         });
         self.has_failed = true;
@@ -86,13 +77,12 @@ impl Merger for MkvMergeMerver {
     }
 }
 
-pub async fn mkvmerge_merge<S, O>(
-    segments: Vec<S>,
+pub async fn mkvmerge_merge<O>(
+    segments: Vec<&SegmentInfo>,
     cache: &impl CacheSource,
     output: O,
 ) -> IoriResult<()>
 where
-    S: StreamingSegment,
     O: AsRef<Path>,
 {
     let mut tracks = Vec::new();
@@ -100,10 +90,10 @@ where
     // 1. merge videos with mkvmerge
     let mut videos: Vec<_> = segments
         .iter()
-        .filter(|info| info.r#type() == SegmentType::Video)
+        .filter(|info| info.r#type == SegmentType::Video)
         .collect();
     if !videos.is_empty() {
-        videos.sort_by(|a, b| a.sequence().cmp(&b.sequence()));
+        videos.sort_by(|a, b| a.sequence.cmp(&b.sequence));
         let mut paths = Vec::with_capacity(videos.len());
         for video_segment in videos {
             let filename = cache.segment_path(video_segment).await.unwrap();
@@ -129,10 +119,10 @@ where
     // 2. merge audios with mkvmerge
     let mut audios: Vec<_> = segments
         .iter()
-        .filter(|info| info.r#type() == SegmentType::Audio)
+        .filter(|info| info.r#type == SegmentType::Audio)
         .collect();
     if !audios.is_empty() {
-        audios.sort_by(|a, b| a.sequence().cmp(&b.sequence()));
+        audios.sort_by(|a, b| a.sequence.cmp(&b.sequence));
         let mut paths = Vec::with_capacity(audios.len());
         for audio_segment in audios {
             let filename = cache.segment_path(audio_segment).await.unwrap();

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{cache::CacheSource, error::IoriResult, merge::Merger, StreamingSource};
+use crate::{cache::CacheSource, error::IoriResult, merge::Merger, SegmentInfo, StreamingSource};
 
 pub struct SequencialDownloader<S, M, C>
 where
@@ -32,7 +32,8 @@ where
 
         while let Some(segment) = receiver.recv().await {
             for segment in segment? {
-                let writer = self.cache.open_writer(&segment).await?;
+                let segment_info = SegmentInfo::from(&segment);
+                let writer = self.cache.open_writer(&segment_info).await?;
                 let Some(mut writer) = writer else {
                     continue;
                 };
@@ -41,8 +42,8 @@ where
                 drop(writer);
 
                 match fetch_result {
-                    Ok(_) => self.merger.update(segment, self.cache.clone()).await?,
-                    Err(_) => self.merger.fail(segment, self.cache.clone()).await?,
+                    Ok(_) => self.merger.update(segment_info, self.cache.clone()).await?,
+                    Err(_) => self.merger.fail(segment_info, self.cache.clone()).await?,
                 }
             }
         }
