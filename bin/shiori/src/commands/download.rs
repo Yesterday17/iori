@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::{Args, Parser};
-use clap_handler::handler;
+use clap_handler::{handler, Handler};
 use fake_user_agent::get_chrome_rua;
 use iori::{
     cache::IoriCache, dash::archive::CommonDashArchiveSource, detect_manifest_type,
@@ -18,7 +18,7 @@ use reqwest::{
     Client,
 };
 
-use crate::inspect::{InspectPlaylist, PlaylistType};
+use crate::inspect::{inspectors::ShortLinkInspector, Inspect, InspectPlaylist, PlaylistType};
 
 #[derive(Parser, Clone, Default)]
 #[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
@@ -47,6 +47,18 @@ pub struct DownloadCommand {
 
 impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
+        if !self.extra.skip_inspector {
+            let inspectors: Vec<Box<dyn Inspect>> = vec![Box::new(ShortLinkInspector)];
+            let (_, data) =
+                crate::inspect::inspect(&self.url, inspectors, |c| c.into_iter().next().unwrap())
+                    .await?;
+            for playlist in data {
+                let command: Self = playlist.into();
+                self.clone().merge(command).run().await?;
+            }
+            return Ok(());
+        }
+
         let client = self.http.into_client();
 
         let (is_m3u8, initial_playlist_data) = match self.extra.playlist_type {
@@ -104,6 +116,19 @@ impl DownloadCommand {
         }
 
         Ok(())
+    }
+
+    fn merge(mut self, from: Self) -> Self {
+        self.url = from.url;
+        self.http.headers.extend(from.http.headers);
+        if self.decrypt.key.is_none() {
+            self.decrypt.key = from.decrypt.key;
+        }
+
+        self.extra.skip_inspector = true;
+        self.extra.initial_playlist_data = None;
+
+        self
     }
 }
 
@@ -223,6 +248,8 @@ pub struct ExtraOptions {
 
     /// Initial playlist data
     pub initial_playlist_data: Option<String>,
+
+    pub skip_inspector: bool,
 }
 
 /// Output options
@@ -285,6 +312,7 @@ impl From<InspectPlaylist> for DownloadCommand {
             extra: ExtraOptions {
                 playlist_type: Some(data.playlist_type),
                 initial_playlist_data: data.initial_playlist_data,
+                skip_inspector: true,
             },
             url: data.playlist_url,
 
