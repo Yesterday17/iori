@@ -9,9 +9,10 @@ use clap::{Args, Parser};
 use clap_handler::handler;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::IoriCache, dash::archive::CommonDashArchiveSource, download::ParallelDownloader,
+    cache::IoriCache, dash::archive::CommonDashArchiveSource, download::ParallelDownloaderBuilder,
     hls::CommonM3u8LiveSource, merge::IoriMerger,
 };
+use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
@@ -45,22 +46,42 @@ impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         let client = self.http.into_client();
 
-        let merger = self.output.into_merger(self.download.dash);
-        let cache = self.cache.into_cache();
+        let downloader = ParallelDownloaderBuilder::new()
+            .concurrency(self.download.concurrency)
+            .retries(self.download.segment_retries)
+            .cache(self.cache.into_cache())
+            .merger(self.output.into_merger(self.download.dash));
 
-        if self.download.dash {
+        if self.url.contains("dmc.nico") {
+            log::info!("Enhanced mode for Nico-TS enabled");
+
+            let key = self
+                .decrypt
+                .key
+                .as_deref()
+                .expect("Key is required for Nico-TS");
+            let (audience_token, quality) =
+                key.split_once(',').unwrap_or_else(|| (&key, "super_high"));
+            log::debug!("audience_token: {audience_token}, quality: {quality}");
+
+            let (live_id, _) = audience_token
+                .split_once('_')
+                .unwrap_or((audience_token, ""));
+            let is_channel_live = !live_id.starts_with("lv");
+            let wss_url = if is_channel_live {
+                format!("wss://a.live2.nicovideo.jp/unama/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
+            } else {
+                format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
+            };
+
+            let source = NicoTimeshiftSource::new(client, wss_url)
+                .await?
+                .with_retry(self.download.manifest_retries);
+            downloader.download(source).await?;
+        } else if self.download.dash {
             let source =
                 CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
-
-            ParallelDownloader::new(
-                source,
-                merger,
-                cache,
-                self.download.concurrency,
-                self.download.segment_retries,
-            )
-            .download()
-            .await?;
+            downloader.download(source).await?;
         } else {
             let source = CommonM3u8LiveSource::new(
                 client,
@@ -69,16 +90,7 @@ impl DownloadCommand {
                 self.decrypt.shaka_packager_command,
             )
             .with_retry(self.download.manifest_retries);
-
-            ParallelDownloader::new(
-                source,
-                merger,
-                cache,
-                self.download.concurrency,
-                self.download.segment_retries,
-            )
-            .download()
-            .await?;
+            downloader.download(source).await?;
         }
 
         Ok(())

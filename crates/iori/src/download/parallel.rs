@@ -200,3 +200,69 @@ fn assert_send<'a, T>(
 ) -> impl std::future::Future<Output = T> + Send + 'a {
     fut
 }
+
+pub struct ParallelDownloaderBuilder<M, C, MR = ()> {
+    concurrency: NonZeroU32,
+    retries: u32,
+    merger: Option<M>,
+    cache: Option<C>,
+
+    _merge_result: std::marker::PhantomData<MR>,
+}
+
+impl<M, C, MR> ParallelDownloaderBuilder<M, C, MR>
+where
+    M: Merger<Result = MR> + Send + Sync + 'static,
+    C: CacheSource,
+{
+    pub fn new() -> Self {
+        Self {
+            concurrency: NonZeroU32::new(5).unwrap(),
+            retries: 3,
+            merger: None,
+            cache: None,
+            _merge_result: Default::default(),
+        }
+    }
+
+    pub fn concurrency(mut self, concurrency: NonZeroU32) -> Self {
+        self.concurrency = concurrency;
+        self
+    }
+
+    pub fn retries(mut self, retries: u32) -> Self {
+        self.retries = retries;
+        self
+    }
+
+    pub fn merger(mut self, merger: M) -> Self {
+        self.merger = Some(merger);
+        self
+    }
+
+    pub fn cache(mut self, cache: C) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
+    pub fn build<S>(self, source: S) -> ParallelDownloader<S, M, C>
+    where
+        S: StreamingSource + Send + Sync + 'static,
+    {
+        ParallelDownloader::new(
+            source,
+            self.merger.expect("Merger is not set"),
+            self.cache.expect("Cache is not set"),
+            self.concurrency,
+            self.retries,
+        )
+    }
+
+    pub async fn download<S>(self, source: S) -> IoriResult<MR>
+    where
+        S: StreamingSource + Send + Sync + 'static,
+    {
+        let downloader = self.build(source);
+        downloader.download().await
+    }
+}
