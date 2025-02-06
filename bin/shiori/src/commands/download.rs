@@ -9,8 +9,8 @@ use clap::{Args, Parser};
 use clap_handler::handler;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::IoriCache, dash::archive::CommonDashArchiveSource, download::ParallelDownloaderBuilder,
-    hls::CommonM3u8LiveSource, merge::IoriMerger,
+    cache::IoriCache, dash::archive::CommonDashArchiveSource, detect_manifest_type,
+    download::ParallelDownloaderBuilder, hls::CommonM3u8LiveSource, merge::IoriMerger,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
@@ -38,6 +38,9 @@ pub struct DownloadCommand {
     #[clap(flatten)]
     pub decrypt: DecryptOptions,
 
+    #[clap(skip)]
+    pub extra: ExtraOptions,
+
     /// URL to download
     pub url: String,
 }
@@ -46,11 +49,17 @@ impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         let client = self.http.into_client();
 
+        let (is_m3u8, initial_playlist_data) = match self.extra.playlist_type {
+            Some(PlaylistType::HLS) => (true, self.extra.initial_playlist_data),
+            Some(PlaylistType::DASH) => (false, self.extra.initial_playlist_data),
+            None => detect_manifest_type(&self.url, client.clone()).await?,
+        };
+
         let downloader = ParallelDownloaderBuilder::new()
             .concurrency(self.download.concurrency)
             .retries(self.download.segment_retries)
             .cache(self.cache.into_cache())
-            .merger(self.output.into_merger(self.download.dash));
+            .merger(self.output.into_merger(!is_m3u8));
 
         if self.url.contains("dmc.nico") {
             log::info!("Enhanced mode for Nico-TS enabled");
@@ -78,19 +87,19 @@ impl DownloadCommand {
                 .await?
                 .with_retry(self.download.manifest_retries);
             downloader.download(source).await?;
-        } else if self.download.dash {
-            let source =
-                CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
-            downloader.download(source).await?;
-        } else {
+        } else if is_m3u8 {
             let source = CommonM3u8LiveSource::new(
                 client,
                 self.url,
-                self.download.initial_playlist_data,
+                initial_playlist_data,
                 self.decrypt.key.as_deref(),
                 self.decrypt.shaka_packager_command,
             )
             .with_retry(self.download.manifest_retries);
+            downloader.download(source).await?;
+        } else {
+            let source =
+                CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
             downloader.download(source).await?;
         }
 
@@ -152,13 +161,6 @@ pub struct DownloadOptions {
     /// Manifest retry limit
     #[clap(long, default_value = "3")]
     pub manifest_retries: u32,
-
-    /// Initial playlist data
-    #[clap(long)]
-    pub initial_playlist_data: Option<String>,
-
-    #[clap(long)]
-    pub dash: bool,
 }
 
 impl Default for DownloadOptions {
@@ -167,8 +169,6 @@ impl Default for DownloadOptions {
             concurrency: NonZeroU32::new(5).unwrap(),
             segment_retries: 5,
             manifest_retries: 3,
-            initial_playlist_data: None,
-            dash: false,
         }
     }
 }
@@ -214,6 +214,15 @@ pub struct DecryptOptions {
 
     #[clap(long = "shaka-packager", visible_alias = "shaka")]
     pub shaka_packager_command: Option<PathBuf>,
+}
+
+#[derive(Clone, Default)]
+pub struct ExtraOptions {
+    /// Force Dash mode
+    pub playlist_type: Option<PlaylistType>,
+
+    /// Initial playlist data
+    pub initial_playlist_data: Option<String>,
 }
 
 /// Output options
@@ -273,10 +282,9 @@ impl From<InspectPlaylist> for DownloadCommand {
                 key: data.key,
                 ..Default::default()
             },
-            download: DownloadOptions {
-                dash: matches!(data.playlist_type, PlaylistType::DASH),
+            extra: ExtraOptions {
+                playlist_type: Some(data.playlist_type),
                 initial_playlist_data: data.initial_playlist_data,
-                ..Default::default()
             },
             url: data.playlist_url,
 

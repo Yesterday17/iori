@@ -41,7 +41,7 @@ pub struct InspectCandidate {
     pub playlist_type: Option<PlaylistType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub enum PlaylistType {
     #[default]
     HLS,

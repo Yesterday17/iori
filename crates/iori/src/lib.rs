@@ -10,6 +10,7 @@ mod error;
 pub use error::*;
 
 pub(crate) mod util;
+pub use util::detect_manifest_type;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
