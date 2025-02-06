@@ -1,7 +1,10 @@
 use std::{num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc};
 
 use reqwest::Client;
-use tokio::{io::AsyncWrite, sync::mpsc};
+use tokio::{
+    io::AsyncWrite,
+    sync::{mpsc, Mutex},
+};
 
 use crate::{
     error::IoriResult,
@@ -12,7 +15,7 @@ use crate::{
 
 pub struct CommonM3u8ArchiveSource {
     client: Client,
-    playlist: Arc<M3u8Source>,
+    playlist: Arc<Mutex<M3u8Source>>,
     range: SegmentRange,
     retry: u32,
 }
@@ -63,14 +66,21 @@ impl FromStr for SegmentRange {
 impl CommonM3u8ArchiveSource {
     pub fn new(
         client: Client,
-        m3u8: String,
+        playlist_url: String,
+        initial_playlist: Option<String>,
         key: Option<&str>,
         range: SegmentRange,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
             client: client.clone(),
-            playlist: Arc::new(M3u8Source::new(client, m3u8, key, shaka_packager_command)),
+            playlist: Arc::new(Mutex::new(M3u8Source::new(
+                client,
+                playlist_url,
+                initial_playlist,
+                key,
+                shaka_packager_command,
+            ))),
             range,
             retry: 3,
         }
@@ -90,7 +100,12 @@ impl StreamingSource for CommonM3u8ArchiveSource {
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (segments, _, _) = self.playlist.load_segments(None, self.retry).await?;
+        let (segments, _, _) = self
+            .playlist
+            .lock()
+            .await
+            .load_segments(None, self.retry)
+            .await?;
         let segments = segments
             .into_iter()
             .filter_map(|segment| {
@@ -125,6 +140,7 @@ mod tests {
         let source = CommonM3u8ArchiveSource::new(
             Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
+            None,
             None,
             Default::default(),
             None,

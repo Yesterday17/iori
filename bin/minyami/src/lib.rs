@@ -288,6 +288,7 @@ impl MinyamiArgs {
             let source = CommonM3u8LiveSource::new(
                 client,
                 self.m3u8.clone(),
+                None,
                 self.key.as_deref(),
                 self.shaka_packager.clone(),
             )
@@ -325,6 +326,7 @@ impl MinyamiArgs {
                 let source = CommonM3u8ArchiveSource::new(
                     client,
                     self.m3u8.clone(),
+                    None,
                     self.key.as_deref(),
                     self.range,
                     self.shaka_packager.clone(),

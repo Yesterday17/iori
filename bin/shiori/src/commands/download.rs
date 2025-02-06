@@ -86,6 +86,7 @@ impl DownloadCommand {
             let source = CommonM3u8LiveSource::new(
                 client,
                 self.url,
+                self.download.initial_playlist_data,
                 self.decrypt.key.as_deref(),
                 self.decrypt.shaka_packager_command,
             )
@@ -152,6 +153,10 @@ pub struct DownloadOptions {
     #[clap(long, default_value = "3")]
     pub manifest_retries: u32,
 
+    /// Initial playlist data
+    #[clap(long)]
+    pub initial_playlist_data: Option<String>,
+
     #[clap(long)]
     pub dash: bool,
 }
@@ -162,6 +167,7 @@ impl Default for DownloadOptions {
             concurrency: NonZeroU32::new(5).unwrap(),
             segment_retries: 5,
             manifest_retries: 3,
+            initial_playlist_data: None,
             dash: false,
         }
     }
@@ -269,6 +275,7 @@ impl From<InspectPlaylist> for DownloadCommand {
             },
             download: DownloadOptions {
                 dash: matches!(data.playlist_type, PlaylistType::DASH),
+                initial_playlist_data: data.initial_playlist_data,
                 ..Default::default()
             },
             url: data.playlist_url,

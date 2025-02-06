@@ -1,7 +1,10 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use reqwest::Client;
-use tokio::{io::AsyncWrite, sync::mpsc};
+use tokio::{
+    io::AsyncWrite,
+    sync::{mpsc, Mutex},
+};
 
 use crate::{
     error::{IoriError, IoriResult},
@@ -12,20 +15,27 @@ use crate::{
 
 pub struct CommonM3u8LiveSource {
     client: Client,
-    playlist: Arc<M3u8Source>,
+    playlist: Arc<Mutex<M3u8Source>>,
     retry: u32,
 }
 
 impl CommonM3u8LiveSource {
     pub fn new(
         client: Client,
-        m3u8: String,
+        m3u8_url: String,
+        initial_playlist: Option<String>,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
             client: client.clone(),
-            playlist: Arc::new(M3u8Source::new(client, m3u8, key, shaka_packager_command)),
+            playlist: Arc::new(Mutex::new(M3u8Source::new(
+                client,
+                m3u8_url,
+                initial_playlist,
+                key,
+                shaka_packager_command,
+            ))),
             retry: 3,
         }
     }
@@ -55,6 +65,8 @@ impl StreamingSource for CommonM3u8LiveSource {
 
                 let before_load = tokio::time::Instant::now();
                 let (segments, _, playlist) = match playlist
+                    .lock()
+                    .await
                     .load_segments(Some(latest_media_sequence), retry)
                     .await
                 {
@@ -114,6 +126,7 @@ mod tests {
         let source = CommonM3u8LiveSource::new(
             Default::default(),
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
+            None,
             None,
             None,
         );

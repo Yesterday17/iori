@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
     let output_dir = std::env::temp_dir().join(format!("iori_pipe_{}", started_at));
 
-    let source = CommonM3u8LiveSource::new(Default::default(), url, key.as_deref(), None);
+    let source = CommonM3u8LiveSource::new(Default::default(), url, None, key.as_deref(), None);
     let merger = PipeMerger::stdout(true);
     let cache = FileCacheSource::new(output_dir);
 

@@ -14,6 +14,7 @@ use crate::{
     decrypt::IoriKey,
     error::IoriResult,
     hls::{segment::M3u8Segment, utils::load_m3u8},
+    IoriError,
 };
 
 /// Core part to perform network operations
@@ -23,6 +24,8 @@ pub struct M3u8Source {
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
 
+    initial_playlist: Option<String>,
+
     sequence: AtomicU64,
     client: Client,
 }
@@ -31,11 +34,13 @@ impl M3u8Source {
     pub fn new(
         client: Client,
         m3u8_url: String,
+        initial_playlist: Option<String>,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
             m3u8_url,
+            initial_playlist,
             key: key.map(str::to_string),
             shaka_packager_command,
 
@@ -45,12 +50,20 @@ impl M3u8Source {
     }
 
     pub async fn load_segments(
-        &self,
+        &mut self,
         latest_media_sequence: Option<u64>,
         retry: u32,
     ) -> IoriResult<(Vec<M3u8Segment>, Url, MediaPlaylist)> {
-        let (playlist_url, playlist) =
-            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?;
+        let (playlist_url, playlist) = if let Some(initial_playlist) = self.initial_playlist.take()
+        {
+            let parsed_playlist = m3u8_rs::parse_media_playlist_res(initial_playlist.as_bytes());
+            match parsed_playlist {
+                Ok(parsed_playlist) => (Url::from_str(&self.m3u8_url)?, parsed_playlist),
+                Err(_) => return Err(IoriError::M3u8ParseError(initial_playlist)),
+            }
+        } else {
+            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?
+        };
 
         let mut key = None;
         let mut initial_block = None;

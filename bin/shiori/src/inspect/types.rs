@@ -68,7 +68,6 @@ pub struct InspectPlaylist {
     /// Initial data of the playlist
     ///
     /// Inspector may have already sent a request to the server, in which case we can reuse the data
-    // TODO: implement this in iori
     pub initial_playlist_data: Option<String>,
 }
 
