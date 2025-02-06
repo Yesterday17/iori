@@ -2,7 +2,7 @@ use clap_handler::async_trait;
 use serde::{Deserialize, Serialize};
 
 #[async_trait]
-pub trait Inspect: Send {
+pub trait Inspect: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Check if this handler can handle the URL
@@ -10,18 +10,35 @@ pub trait Inspect: Send {
 
     /// Inspect the URL and return the result
     async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult>;
+
+    /// Inspect a previously returned candidate and return the result
+    async fn inspect_candidate(
+        &self,
+        candidate: InspectCandidate,
+    ) -> anyhow::Result<InspectResult> {
+        Ok(InspectResult::None)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum InspectResult {
     /// This site handler can not handle this URL
     NotMatch,
+    /// Found multiple available sources to choose
+    Candidates(Vec<InspectCandidate>),
     /// Inspect data is found
-    Playlist(InspectData),
+    Playlist(InspectPlaylist),
     /// Redirect happens
     Redirect(String),
     /// Inspect data is not found
     None,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InspectCandidate {
+    pub title: String,
+
+    pub playlist_type: Option<PlaylistType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -32,7 +49,10 @@ pub enum PlaylistType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct InspectData {
+pub struct InspectPlaylist {
+    /// Metadata of the resource
+    pub title: Option<String>,
+
     /// URL of the playlist
     pub playlist_url: String,
 
@@ -45,12 +65,13 @@ pub struct InspectData {
     /// Headers to use when requesting
     pub headers: Vec<String>,
 
-    /// Metadata of the resource
-    pub metadata: Option<String>,
-
     /// Initial data of the playlist
     ///
     /// Inspector may have already sent a request to the server, in which case we can reuse the data
     // TODO: implement this in iori
     pub initial_playlist_data: Option<String>,
+}
+
+pub trait InspectorApp {
+    fn choose_candidates(&self, candidates: Vec<InspectCandidate>) -> Vec<InspectCandidate>;
 }

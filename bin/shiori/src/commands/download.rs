@@ -17,7 +17,7 @@ use reqwest::{
     Client,
 };
 
-use crate::inspect::{InspectData, PlaylistType};
+use crate::inspect::{InspectPlaylist, PlaylistType};
 
 #[derive(Parser, Clone, Default)]
 #[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
@@ -45,7 +45,7 @@ impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         let client = self.http.into_client();
 
-        let merger = self.output.into_merger();
+        let merger = self.output.into_merger(self.download.dash);
         let cache = self.cache.into_cache();
 
         if self.download.dash {
@@ -220,11 +220,15 @@ pub struct OutputOptions {
 }
 
 impl OutputOptions {
-    pub fn into_merger(self) -> IoriMerger {
+    pub fn into_merger(self, is_dash: bool) -> IoriMerger {
         if self.no_merge {
             IoriMerger::skip()
         } else if let Some(output) = self.output {
-            IoriMerger::concat(output, false)
+            if is_dash {
+                IoriMerger::mkvmerge(output, false)
+            } else {
+                IoriMerger::concat(output, false)
+            }
         } else if self.pipe {
             IoriMerger::pipe(true)
         } else if let Some(pipe) = self.pipe_to {
@@ -240,8 +244,8 @@ pub async fn download(args: DownloadCommand) -> anyhow::Result<()> {
     args.download().await
 }
 
-impl From<InspectData> for DownloadCommand {
-    fn from(data: InspectData) -> Self {
+impl From<InspectPlaylist> for DownloadCommand {
+    fn from(data: InspectPlaylist) -> Self {
         Self {
             http: HttpOptions {
                 headers: data.headers,

@@ -12,7 +12,8 @@ pub struct InspectCommand {
 #[handler(InspectCommand)]
 async fn handle_inspect(args: InspectCommand) -> anyhow::Result<()> {
     let inspectors: Vec<Box<dyn Inspect>> = vec![Box::new(ShortLinkInspector)];
-    let (matched_inspector, data) = inspect::inspect(&args.url, inspectors).await?;
+    let (matched_inspector, data) =
+        inspect::inspect(&args.url, inspectors, |c| c.into_iter().next().unwrap()).await?;
     eprintln!("{matched_inspector}: {data:?}");
 
     Ok(())

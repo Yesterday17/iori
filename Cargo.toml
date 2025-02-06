@@ -19,6 +19,7 @@ tokio = { version = "1", features = ["signal", "process", "net"] }
 fake_user_agent = "0.2.1"
 anyhow = "1.0"
 log = "0.4"
+tracing = "0.1"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

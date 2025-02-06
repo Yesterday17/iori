@@ -1,4 +1,3 @@
-
 [package]
 name = "iori"
 version = "0.0.1"
@@ -14,6 +13,7 @@ iori-ssa.workspace = true
 
 async-recursion = "1.0.5"
 log.workspace = true
+tracing.workspace = true
 m3u8-rs = "5.0.5"
 reqwest.workspace = true
 tokio.workspace = true
