@@ -22,7 +22,7 @@ clap = { version = "4.4.18", features = ["derive", "env"] }
 clap-handler = { version = "0.1.1", features=["async"] }
 rand = "0.9.0"
 regex.workspace = true
-async-recursion = "1.1.1"
+async-recursion.workspace = true
 
 [[bin]]
 name = "shi"

@@ -11,7 +11,7 @@ license.workspace = true
 [dependencies]
 iori-ssa.workspace = true
 
-async-recursion = "1.0.5"
+async-recursion.workspace = true
 log.workspace = true
 tracing.workspace = true
 m3u8-rs = "5.0.5"
