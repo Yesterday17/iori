@@ -63,7 +63,9 @@ impl DownloadCommand {
         let (is_m3u8, initial_playlist_data) = match self.extra.playlist_type {
             Some(PlaylistType::HLS) => (true, self.extra.initial_playlist_data),
             Some(PlaylistType::DASH) => (false, self.extra.initial_playlist_data),
-            None => detect_manifest_type(&self.url, client.clone()).await?,
+            None => detect_manifest_type(&self.url, client.clone())
+                .await
+                .unwrap_or((true, None)),
         };
 
         let downloader = ParallelDownloaderBuilder::new()

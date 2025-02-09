@@ -35,7 +35,7 @@ pub async fn detect_manifest_type(
     Option<String>, /* initial_playlist_data */
 )> {
     // 1. chcek extension
-    let url = reqwest::Url::parse(url).unwrap();
+    let url = reqwest::Url::parse(url)?;
     if url.path().to_lowercase().ends_with(".m3u8") {
         return Ok((true, None));
     } else if url.path().to_lowercase().ends_with(".mpd") {

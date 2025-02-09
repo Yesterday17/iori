@@ -15,7 +15,7 @@ pub struct NicoEmbeddedData {
 }
 
 impl NicoEmbeddedData {
-    pub async fn new<S>(live_url: S, user_session: Option<String>) -> anyhow::Result<Self>
+    pub async fn new<S>(live_url: S, user_session: Option<&str>) -> anyhow::Result<Self>
     where
         S: AsRef<str>,
     {
@@ -100,6 +100,18 @@ impl NicoEmbeddedData {
             .unwrap()
     }
 
+    pub fn audience_token(&self) -> anyhow::Result<String> {
+        let wss_url = self
+            .websocket_url()
+            .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
+
+        let (_, audience_token) = wss_url
+            .split_once('=')
+            .ok_or_else(|| anyhow::anyhow!("can not extract audience token from url: {wss_url}"))?;
+
+        Ok(audience_token.to_string())
+    }
+
     pub async fn get_source(
         &self,
         // title: Option<String>,
@@ -108,9 +120,6 @@ impl NicoEmbeddedData {
         let wss_url = self
             .websocket_url()
             .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
-        // let (_, audience_token) = wss_url
-        //     .split_once('=')
-        //     .ok_or_else(|| anyhow::anyhow!("can not extract audience token from url: {wss_url}"))?;
 
         let source = NicoTimeshiftSource::new(Default::default(), wss_url).await?;
         Ok(source)
