@@ -57,7 +57,7 @@ impl StreamingSource for CommonM3u8LiveSource {
         let retry = self.retry;
         let playlist = self.playlist.clone();
         tokio::spawn(async move {
-            let mut latest_media_sequence = 0;
+            let mut latest_media_sequence = None;
             loop {
                 if sender.is_closed() {
                     break;
@@ -67,7 +67,7 @@ impl StreamingSource for CommonM3u8LiveSource {
                 let (segments, _, playlist) = match playlist
                     .lock()
                     .await
-                    .load_segments(Some(latest_media_sequence), retry)
+                    .load_segments(latest_media_sequence, retry)
                     .await
                 {
                     Ok(v) => v,
@@ -83,7 +83,7 @@ impl StreamingSource for CommonM3u8LiveSource {
                 let new_latest_media_sequence = segments
                     .last()
                     .map(|r| r.media_sequence)
-                    .unwrap_or(latest_media_sequence);
+                    .or_else(|| latest_media_sequence);
 
                 if let Err(_) = sender.send(Ok(segments)) {
                     break;
