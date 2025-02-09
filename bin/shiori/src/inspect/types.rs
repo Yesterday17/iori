@@ -14,7 +14,7 @@ pub trait Inspect: Send + Sync {
     /// Inspect a previously returned candidate and return the result
     async fn inspect_candidate(
         &self,
-        candidate: InspectCandidate,
+        _candidate: InspectCandidate,
     ) -> anyhow::Result<InspectResult> {
         Ok(InspectResult::None)
     }
@@ -74,3 +74,14 @@ pub struct InspectPlaylist {
 pub trait InspectorApp {
     fn choose_candidates(&self, candidates: Vec<InspectCandidate>) -> Vec<InspectCandidate>;
 }
+
+pub trait InspectExt: Inspect {
+    fn to_box(self) -> Box<Self>
+    where
+        Self: Sized,
+    {
+        Box::new(self)
+    }
+}
+
+impl<T: Inspect> InspectExt for T {}

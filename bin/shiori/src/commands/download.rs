@@ -1,10 +1,5 @@
-use std::{
-    num::NonZeroU32,
-    path::PathBuf,
-    str::FromStr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-
+use super::inspect::get_default_external_inspector;
+use crate::inspect::{InspectPlaylist, PlaylistType};
 use clap::{Args, Parser};
 use clap_handler::{handler, Handler};
 use fake_user_agent::get_chrome_rua;
@@ -17,8 +12,12 @@ use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
 };
-
-use crate::inspect::{inspectors::ShortLinkInspector, Inspect, InspectPlaylist, PlaylistType};
+use std::{
+    num::NonZeroU32,
+    path::PathBuf,
+    str::FromStr,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Parser, Clone, Default)]
 #[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
@@ -48,7 +47,7 @@ pub struct DownloadCommand {
 impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         if !self.extra.skip_inspector {
-            let inspectors: Vec<Box<dyn Inspect>> = vec![Box::new(ShortLinkInspector)];
+            let inspectors = get_default_external_inspector()?;
             let (_, data) =
                 crate::inspect::inspect(&self.url, inspectors, |c| c.into_iter().next().unwrap())
                     .await?;

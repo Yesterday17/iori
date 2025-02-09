@@ -11,6 +11,7 @@ struct ShioriArgs {
 #[derive(Subcommand, Clone, Handler)]
 pub enum ShioriCommand {
     Download(commands::download::DownloadCommand),
+    Inspect(commands::inspect::InspectCommand),
 }
 
 #[tokio::main]
