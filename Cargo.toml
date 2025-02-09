@@ -10,8 +10,10 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 iori = { path = "crates/iori" }
-iori-nicolive = { path = "crates/nicolive" }
 iori-ssa = { path = "crates/ssa" }
+
+iori-nicolive = { path = "crates/nicolive" }
+iori-showroom = { path = "crates/showroom" }
 
 regex = "1.9.3"
 tokio = { version = "1", features = ["signal", "process", "net"] }
@@ -31,6 +33,7 @@ cbc = { version = "0.1.2", features = ["std"] }
 reqwest = { version = "^0.12.11", default-features = false, features = [
     "rustls-tls",
     "stream",
+    "json",
 ] }
 clap = { version = "4.4.18", features = ["derive", "env"] }
 

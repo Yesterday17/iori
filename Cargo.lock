@@ -1153,6 +1153,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iori-showroom"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fake_user_agent",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "iori-ssa"
 version = "0.1.1"
 dependencies = [
@@ -2023,11 +2035,13 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "base64",
+ "chrono",
  "clap",
  "clap-handler",
  "fake_user_agent",
  "iori",
  "iori-nicolive",
+ "iori-showroom",
  "log",
  "rand 0.9.0",
  "regex",

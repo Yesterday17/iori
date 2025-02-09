@@ -1,6 +1,6 @@
 use crate::inspect::{
     self,
-    inspectors::{ExternalInspector, NicoLiveInspector, ShortLinkInspector},
+    inspectors::{ExternalInspector, NicoLiveInspector, ShortLinkInspector, ShowroomInspector},
     Inspect, InspectExt,
 };
 use clap::Parser;
@@ -15,6 +15,7 @@ pub struct InspectCommand {
 pub(crate) fn get_default_external_inspector() -> anyhow::Result<Vec<Box<dyn Inspect>>> {
     let mut inspectors: Vec<Box<dyn Inspect>> = vec![
         ShortLinkInspector.to_box(),
+        ShowroomInspector.to_box(),
         NicoLiveInspector::new(std::env::var("NICO_USER_SESSION").ok()).to_box(),
     ];
 
