@@ -40,6 +40,9 @@ pub struct DownloadCommand {
     #[clap(skip)]
     pub extra: ExtraOptions,
 
+    #[clap(short, long)]
+    wait: bool,
+
     /// URL to download
     pub url: String,
 }
@@ -48,9 +51,13 @@ impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         if !self.extra.skip_inspector {
             let inspectors = get_default_external_inspector()?;
-            let (_, data) =
-                crate::inspect::inspect(&self.url, inspectors, |c| c.into_iter().next().unwrap())
-                    .await?;
+            let (_, data) = crate::inspect::inspect(
+                &self.url,
+                inspectors,
+                |c| c.into_iter().next().unwrap(),
+                self.wait,
+            )
+            .await?;
             for playlist in data {
                 let command: Self = playlist.into();
                 self.clone().merge(command).run().await?;

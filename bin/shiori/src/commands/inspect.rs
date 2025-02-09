@@ -9,6 +9,9 @@ use clap_handler::handler;
 #[derive(Parser, Clone, Default)]
 #[clap(name = "inspect", short_flag = 'S')]
 pub struct InspectCommand {
+    #[clap(short, long)]
+    wait: bool,
+
     url: String,
 }
 
@@ -29,8 +32,13 @@ pub(crate) fn get_default_external_inspector() -> anyhow::Result<Vec<Box<dyn Ins
 #[handler(InspectCommand)]
 async fn handle_inspect(args: InspectCommand) -> anyhow::Result<()> {
     let inspectors = get_default_external_inspector()?;
-    let (matched_inspector, data) =
-        inspect::inspect(&args.url, inspectors, |c| c.into_iter().next().unwrap()).await?;
+    let (matched_inspector, data) = inspect::inspect(
+        &args.url,
+        inspectors,
+        |c| c.into_iter().next().unwrap(),
+        args.wait,
+    )
+    .await?;
     eprintln!("{matched_inspector}: {data:?}");
 
     Ok(())
