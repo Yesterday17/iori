@@ -1,6 +1,7 @@
 [package]
 name = "iori-ssa"
-version = "0.1.0"
+description = "Decrypt MPEG-TS encrypted using SAMPLE-AES."
+version = "0.1.1"
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true

@@ -160,12 +160,13 @@ impl AdtsHeader {
 struct PESSegment {
     stream_type: StreamType,
 
-    header: PesHeader,
+    pes_ts_header: TsHeader,
+    pes_header: PesHeader,
     pes_packet_len: u16,
     initial_size: usize,
-    initial_ts_header: TsHeader,
 
     data: Vec<u8>,
+    data_packet_num: usize,
 }
 
 impl PESSegment {
@@ -182,26 +183,28 @@ impl PESSegment {
             _ => unreachable!("Unsupported stream type: {:?}", self.stream_type),
         }
 
-        let pid = self.initial_ts_header.pid;
+        let pid = self.pes_ts_header.pid;
 
         // split data into PES packets and write
-        // TS packet size is 188
+        // max TS packet size is 188
         let mut input = self.data.as_slice();
         let initial_size = input.len().min(self.initial_size);
-        let mut pes_packet = TsPacket {
-            header: self.initial_ts_header,
+        writer.write_packet(&mut TsPacket {
+            header: self.pes_ts_header,
             adaptation_field: None,
             payload: Some(TsPayload::Pes(Pes {
-                header: self.header,
+                header: self.pes_header,
                 pes_packet_len: self.pes_packet_len,
                 data: Bytes::new(&self.data[..initial_size])?,
             })),
-        };
-        writer.write_packet(&mut pes_packet)?;
+        })?;
 
         input = &input[initial_size..];
+        let mut remaining_packets = self.data_packet_num;
+
         while !input.is_empty() {
-            let size = input.len().min(Bytes::MAX_SIZE);
+            // We need to make sure the total count of packets not change after decryption
+            let size = input.len() / remaining_packets;
             let data = &input[..size];
             input = &input[size..];
 
@@ -218,6 +221,8 @@ impl PESSegment {
                 payload: Some(TsPayload::Raw(Bytes::new(data).unwrap())),
             };
             writer.write_packet(&mut packet)?;
+
+            remaining_packets -= 1;
         }
 
         Ok(())
@@ -376,11 +381,12 @@ where
                             // SAFETY: we know the stream type is valid
                             stream_type: stream_type.unwrap().clone(),
 
-                            initial_ts_header: packet.header.clone(),
-                            header: pes.header.clone(),
+                            pes_ts_header: packet.header,
+                            pes_header: pes.header.clone(),
                             pes_packet_len: pes.pes_packet_len,
                             initial_size: pes.data.len(),
                             data: pes.data.to_vec(),
+                            data_packet_num: 0,
                         },
                     );
 
@@ -392,6 +398,7 @@ where
                 }
                 TsPayload::Raw(bytes) => {
                     if let Some(pes) = streams.get_mut(&packet.header.pid) {
+                        pes.data_packet_num += 1;
                         pes.data.extend_from_slice(bytes);
                     } else {
                         log::debug!("Unknown stream: {:?}", packet.header.pid);
