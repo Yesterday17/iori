@@ -1,4 +1,4 @@
-use clap_handler::async_trait;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 #[async_trait]

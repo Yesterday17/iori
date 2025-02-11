@@ -16,6 +16,8 @@ iori-nicolive = { path = "crates/nicolive" }
 iori-showroom = { path = "crates/showroom" }
 iori-widevine = { path = "crates/widevine" }
 
+shiori-plugin = { path = "crates/shiori-plugin" }
+
 regex = "1.9.3"
 base64 = "0.22.1"
 tokio = { version = "1", features = ["signal", "process", "net"] }

@@ -2418,8 +2418,18 @@ dependencies = [
  "reqwest",
  "rmp-serde",
  "serde",
+ "shiori-plugin",
  "shlex",
  "tokio",
+]
+
+[[package]]
+name = "shiori-plugin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
 ]
 
 [[package]]

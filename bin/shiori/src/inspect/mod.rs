@@ -1,9 +1,8 @@
 pub mod inspectors;
-mod types;
 
+pub use shiori_plugin::*;
 use std::{borrow::Cow, time::Duration};
 use tokio::time::sleep;
-pub use types::*;
 
 pub async fn inspect(
     url: &str,
