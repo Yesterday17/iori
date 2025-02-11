@@ -22,7 +22,7 @@ use iori_nicolive::source::NicoTimeshiftSource;
 use pretty_env_logger::env_logger::Builder;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client,
+    Client, Proxy,
 };
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -172,12 +172,15 @@ impl MinyamiArgs {
             );
         }
 
-        Client::builder()
+        let mut client = Client::builder()
             .default_headers(headers)
             .user_agent(get_chrome_rua())
-            .timeout(Duration::from_secs(self.timeout))
-            .build()
-            .unwrap()
+            .timeout(Duration::from_secs(self.timeout));
+        if let Some(proxy) = &self.proxy {
+            client = client.proxy(Proxy::all(proxy).expect("Invalid proxy"));
+        }
+
+        client.build().unwrap()
     }
 
     fn temp_dir(&self) -> anyhow::Result<PathBuf> {
@@ -286,17 +289,7 @@ impl MinyamiArgs {
             _ => IoriCache::file(final_temp_dir),
         };
 
-        if self.live {
-            let source = CommonM3u8LiveSource::new(
-                client,
-                self.m3u8.clone(),
-                None,
-                self.key.as_deref(),
-                self.shaka_packager.clone(),
-            )
-            .with_retry(self.manifest_retries);
-            self.download(source, cache).await?;
-        } else if self.m3u8.contains("dmc.nico") {
+        if self.m3u8.contains("dmc.nico") {
             log::info!("Enhanced mode for Nico-TS enabled");
 
             let key = self.key.as_deref().expect("Key is required for Nico-TS");
@@ -318,13 +311,32 @@ impl MinyamiArgs {
                 .await?
                 .with_retry(self.manifest_retries);
             self.download(source, cache).await?;
-        } else {
-            // Archive Downloader
-            if self.dash {
+            return Ok(());
+        }
+
+        match (self.dash, self.live) {
+            // DASH Live
+            (true, true) => unimplemented!(),
+            // DASH Archive
+            (true, false) => {
                 let source =
                     CommonDashArchiveSource::new(client, self.m3u8.clone(), self.key.as_deref())?;
                 self.download(source, cache).await?;
-            } else {
+            }
+            // HLS Live
+            (false, true) => {
+                let source = CommonM3u8LiveSource::new(
+                    client,
+                    self.m3u8.clone(),
+                    None,
+                    self.key.as_deref(),
+                    self.shaka_packager.clone(),
+                )
+                .with_retry(self.manifest_retries);
+                self.download(source, cache).await?;
+            }
+            // HLS Archive
+            (false, false) => {
                 let source = CommonM3u8ArchiveSource::new(
                     client,
                     self.m3u8.clone(),
@@ -336,7 +348,7 @@ impl MinyamiArgs {
                 .with_retry(self.manifest_retries);
                 self.download(source, cache).await?;
             }
-        };
+        }
 
         Ok(())
     }
