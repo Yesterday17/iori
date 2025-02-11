@@ -1,7 +1,7 @@
-use crate::inspect::{Inspect, InspectPlaylist, InspectResult, PlaylistType};
-use clap_handler::async_trait;
-use iori_showroom::ShowRoomClient;
 use reqwest::Url;
+use shiori_plugin::*;
+
+use crate::ShowRoomClient;
 
 pub struct ShowroomInspector;
 
@@ -34,11 +34,7 @@ impl Inspect for ShowroomInspector {
         let stream = streams.best(false);
 
         Ok(InspectResult::Playlist(InspectPlaylist {
-            title: Some(format!(
-                "{room_name}_{now}",
-                room_name = info.room_name,
-                now = chrono::Local::now().format("%Y%m%d%H%M%S")
-            )),
+            title: Some(info.room_name),
             playlist_url: stream.url.clone(),
             playlist_type: PlaylistType::HLS,
             ..Default::default()

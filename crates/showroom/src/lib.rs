@@ -1,4 +1,5 @@
 pub mod constants;
+pub mod inspect;
 pub mod model;
 
 use anyhow::{anyhow, Context};
