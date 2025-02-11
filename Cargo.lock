@@ -1282,6 +1282,7 @@ dependencies = [
  "reqwest-websocket",
  "serde",
  "serde_json",
+ "shiori-plugin",
  "shlex",
  "tokio",
  "url",

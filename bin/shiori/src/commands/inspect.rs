@@ -1,10 +1,11 @@
 use crate::inspect::{
     self,
-    inspectors::{ExternalInspector, NicoLiveInspector, ShortLinkInspector, ShowroomInspector},
+    inspectors::{ExternalInspector, ShortLinkInspector, ShowroomInspector},
     Inspect, InspectExt,
 };
 use clap::Parser;
 use clap_handler::handler;
+use iori_nicolive::inspect::NicoLiveInspector;
 
 #[derive(Parser, Clone, Default)]
 #[clap(name = "inspect", short_flag = 'S')]

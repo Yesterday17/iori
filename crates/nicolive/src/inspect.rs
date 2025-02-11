@@ -1,7 +1,6 @@
-use clap_handler::async_trait;
-use iori_nicolive::program::NicoEmbeddedData;
+use shiori_plugin::*;
 
-use crate::inspect::{Inspect, InspectPlaylist, InspectResult, PlaylistType};
+use crate::program::NicoEmbeddedData;
 
 pub struct NicoLiveInspector {
     user_session: Option<String>,
