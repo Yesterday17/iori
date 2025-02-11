@@ -1,0 +1,38 @@
+[package]
+name = "iori-widevine"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+reqwest.workspace = true
+rand.workspace = true
+getrandom.workspace = true
+vsd-mp4 = { version = "0.1.0", features = ["pssh", "text-ttml"] }
+dash-mpd = { workspace = true, optional = true }
+
+prost.workspace = true
+prost-types.workspace = true
+
+base64.workspace = true
+rsa = { version = "0.9.2", features = ["sha1"] }
+byteorder = "1.4.3"
+bytes = "1.4.0"
+sha1 = "0.10.5"
+aes.workspace = true
+cmac = "0.7.2"
+cbc = { version = "0.1.2", features = ["std"] }
+hex = "0.4.3"
+
+[dev-dependencies]
+tokio = { version = "1.28.1", features = ["full"] }
+
+[build-dependencies]
+prost-build.workspace = true
+
+[features]
+default = ["mpd"]
+mpd = ["dash-mpd"]
