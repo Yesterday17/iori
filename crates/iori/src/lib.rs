@@ -75,7 +75,7 @@ pub trait StreamingSegment {
     fn r#type(&self) -> SegmentType;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SegmentInfo {
     pub sequence: u64,
     pub file_name: String,
@@ -143,9 +143,10 @@ impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + '
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 pub enum SegmentType {
+    #[default]
     Video,
     Audio,
     Subtitle,
