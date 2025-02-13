@@ -14,7 +14,6 @@ iori-ssa = { path = "crates/ssa" }
 
 iori-nicolive = { path = "crates/nicolive" }
 iori-showroom = { path = "crates/showroom" }
-iori-widevine = { path = "crates/widevine" }
 
 shiori-plugin = { path = "crates/shiori-plugin" }
 
