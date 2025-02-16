@@ -9,7 +9,7 @@ pub async fn inspect(
     inspectors: Vec<Box<dyn Inspect>>,
     choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
     wait_on_not_found: bool,
-) -> anyhow::Result<(&'static str, Vec<InspectPlaylist>)> {
+) -> anyhow::Result<(String, Vec<InspectPlaylist>)> {
     let mut url = Cow::Borrowed(url);
 
     for inspector in inspectors {

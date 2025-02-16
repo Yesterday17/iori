@@ -11,8 +11,8 @@ static TWITTER_SHORT_LINK_REGEX: LazyLock<Regex> =
 
 #[async_trait]
 impl Inspect for ShortLinkInspector {
-    fn name(&self) -> &'static str {
-        "shortlink-redirect"
+    fn name(&self) -> String {
+        "shortlink-redirect".to_string()
     }
 
     async fn matches(&self, url: &str) -> bool {

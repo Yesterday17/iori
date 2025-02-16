@@ -5,8 +5,8 @@ pub struct TemplateInspector;
 
 #[async_trait]
 impl Inspect for TemplateInspector {
-    fn name(&self) -> &'static str {
-        "template"
+    fn name(&self) -> String {
+        "template".to_string()
     }
 
     async fn matches(&self, _url: &str) -> bool {

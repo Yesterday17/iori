@@ -14,8 +14,8 @@ impl NicoLiveInspector {
 
 #[async_trait]
 impl Inspect for NicoLiveInspector {
-    fn name(&self) -> &'static str {
-        "nicolive"
+    fn name(&self) -> String {
+        "nicolive".to_string()
     }
 
     async fn matches(&self, url: &str) -> bool {

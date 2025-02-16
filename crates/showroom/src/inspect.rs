@@ -7,8 +7,8 @@ pub struct ShowroomInspector;
 
 #[async_trait]
 impl Inspect for ShowroomInspector {
-    fn name(&self) -> &'static str {
-        "showroom"
+    fn name(&self) -> String {
+        "showroom".to_string()
     }
 
     async fn matches(&self, url: &str) -> bool {

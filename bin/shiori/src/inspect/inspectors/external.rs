@@ -23,8 +23,8 @@ impl ExternalInspector {
 
 #[async_trait]
 impl Inspect for ExternalInspector {
-    fn name(&self) -> &'static str {
-        "external"
+    fn name(&self) -> String {
+        "external".to_string()
     }
 
     async fn matches(&self, _url: &str) -> bool {
