@@ -256,8 +256,17 @@ impl PESSegment {
     fn decrypt_audio(&mut self, key: [u8; 16], iv: [u8; 16]) {
         let mut input = self.data.as_mut_slice();
         while input.len() > 0 {
-            let size = Self::decrypt_audio_sample(input, key, iv);
-            input = &mut input[size..];
+            match self.stream_type {
+                StreamType::AdtsAac | StreamType::AdtsAacWithAes128Cbc => {
+                    let size = Self::decrypt_aac_frame(input, key, iv);
+                    input = &mut input[size..];
+                }
+                StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
+                    let size = Self::decrypt_ac3_frame(input, key, iv);
+                    input = &mut input[size..];
+                }
+                _ => unimplemented!("Unsupported stream type: {:?}", self.stream_type),
+            }
         }
     }
 
@@ -269,14 +278,31 @@ impl PESSegment {
     ///     }
     ///     unencrypted_trailer                // 0-15 bytes
     /// }
-    fn decrypt_audio_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
+    fn decrypt_aac_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
         let adts = AdtsHeader::new(&input);
         let data = adts.data(input);
 
+        Self::decrypt_raw_sample(data, key, iv);
+        adts.length
+    }
+
+    /// Encrypted_AC3_Frame () {
+    ///     unencrypted_leader                 // 16 bytes
+    ///     while (bytes_remaining() >= 16) {
+    ///         encrypted_block                // 16 bytes
+    ///     }
+    ///     unencrypted_trailer                // 0-15 bytes
+    /// }
+    fn decrypt_ac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
+        Self::decrypt_raw_sample(input, key, iv);
+        input.len()
+    }
+
+    fn decrypt_raw_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) {
         let mut decryptor = cbc::Decryptor::<aes::Aes128>::new(&key.into(), &iv.into());
 
         let mut is_first = true;
-        let chunks = data.chunks_mut(16);
+        let chunks = input.chunks_mut(16);
         for chunk in chunks {
             if chunk.len() < 16 || is_first {
                 is_first = false;
@@ -284,8 +310,6 @@ impl PESSegment {
             }
             decryptor.decrypt_block_mut(chunk.into());
         }
-
-        adts.length
     }
 }
 
@@ -355,6 +379,12 @@ where
                         es.stream_type = match es.stream_type {
                             StreamType::H264WithAes128Cbc => StreamType::H264,
                             StreamType::AdtsAacWithAes128Cbc => StreamType::AdtsAac,
+                            StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
+                                StreamType::DolbyDigitalUpToSixChannelAudio
+                            }
+                            StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc => {
+                                StreamType::DolbyDigitalPlusUpTo16ChannelAudio
+                            }
                             _ => es.stream_type,
                         };
                     }
@@ -372,6 +402,10 @@ where
                                 | StreamType::H264
                                 | StreamType::AdtsAacWithAes128Cbc
                                 | StreamType::AdtsAac
+                                | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc
+                                | StreamType::DolbyDigitalUpToSixChannelAudio
+                                | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc
+                                | StreamType::DolbyDigitalPlusUpTo16ChannelAudio
                         )
                     ) {
                         log::debug!("Unmodified stream type: {:?}", stream_type);
