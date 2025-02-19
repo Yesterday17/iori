@@ -178,8 +178,8 @@ impl PESSegment {
     ) -> Result<()> {
         // do decrypt first
         match self.stream_type {
-            StreamType::H264WithAes128Cbc => self.decrypt_video(key, iv)?,
-            StreamType::AdtsAacWithAes128Cbc => self.decrypt_audio(key, iv),
+            StreamType::H264 | StreamType::H264WithAes128Cbc => self.decrypt_video(key, iv)?,
+            StreamType::AdtsAac | StreamType::AdtsAacWithAes128Cbc => self.decrypt_audio(key, iv),
             _ => unreachable!("Unsupported stream type: {:?}", self.stream_type),
         }
 
@@ -367,7 +367,12 @@ where
                     let stream_type = pid_map.get(&packet.header.pid.as_u16());
                     if !matches!(
                         stream_type,
-                        Some(StreamType::H264WithAes128Cbc | StreamType::AdtsAacWithAes128Cbc)
+                        Some(
+                            StreamType::H264WithAes128Cbc
+                                | StreamType::H264
+                                | StreamType::AdtsAacWithAes128Cbc
+                                | StreamType::AdtsAac
+                        )
                     ) {
                         log::debug!("Unmodified stream type: {:?}", stream_type);
                         // No need to modify unmodified stream
