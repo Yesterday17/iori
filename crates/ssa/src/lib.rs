@@ -182,6 +182,28 @@ impl Ac3Header {
     }
 }
 
+struct Eac3Header {
+    length: usize,
+}
+
+impl Eac3Header {
+    fn new(data: &[u8]) -> Self {
+        Self {
+            length: Self::read_eac3_frame_length(data),
+        }
+    }
+
+    fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
+        &mut input[..self.length]
+    }
+
+    fn read_eac3_frame_length(header: &[u8]) -> usize {
+        let frame_size =
+            1 + ((((header[2] as usize) << 8) | header[3] as usize) & 0b0000011111111111);
+        frame_size * 2
+    }
+}
+
 struct PESSegment {
     stream_type: StreamType,
 
@@ -203,13 +225,17 @@ impl PESSegment {
     ) -> Result<()> {
         // do decrypt first
         match self.stream_type {
+            // avc
             StreamType::H264 | StreamType::H264WithAes128Cbc => self.decrypt_video(key, iv)?,
             // adts
             StreamType::AdtsAac
             | StreamType::AdtsAacWithAes128Cbc
             // ac3
             | StreamType::DolbyDigitalUpToSixChannelAudio
-            | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
+            | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc
+            // eac3
+            | StreamType::DolbyDigitalPlusUpTo16ChannelAudio
+            | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc => {
                 self.decrypt_audio(key, iv)
             }
             _ => unreachable!("Unsupported stream type: {:?}", self.stream_type),
@@ -300,6 +326,12 @@ impl PESSegment {
                     let size = Self::decrypt_ac3_frame(input, key, iv);
                     input = &mut input[size..];
                 }
+                // eac3
+                StreamType::DolbyDigitalPlusUpTo16ChannelAudio
+                | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc => {
+                    let size = Self::decrypt_eac3_frame(input, key, iv);
+                    input = &mut input[size..];
+                }
                 _ => unimplemented!("Unsupported stream type: {:?}", self.stream_type),
             }
         }
@@ -334,6 +366,21 @@ impl PESSegment {
 
         Self::decrypt_raw_sample(data, key, iv);
         ac3.length
+    }
+
+    /// Encrypted_Enhanced_AC3_syncframe () {
+    ///     unencrypted_leader                 // 16 bytes
+    ///     while (bytes_remaining() >= 16) {
+    ///         encrypted_block                // 16 bytes
+    ///     }
+    ///     unencrypted_trailer                // 0-15 bytes
+    /// }
+    fn decrypt_eac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
+        let eac3 = Eac3Header::new(input);
+        let data = eac3.data(input);
+
+        Self::decrypt_raw_sample(data, key, iv);
+        eac3.length
     }
 
     fn decrypt_raw_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) {
@@ -436,12 +483,16 @@ where
                     if !matches!(
                         stream_type,
                         Some(
+                            // avc
                             StreamType::H264WithAes128Cbc
                                 | StreamType::H264
+                                // adts
                                 | StreamType::AdtsAacWithAes128Cbc
                                 | StreamType::AdtsAac
+                                // ac3
                                 | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc
                                 | StreamType::DolbyDigitalUpToSixChannelAudio
+                                // eac3
                                 | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc
                                 | StreamType::DolbyDigitalPlusUpTo16ChannelAudio
                         )
