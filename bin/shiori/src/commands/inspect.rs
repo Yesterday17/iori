@@ -1,6 +1,6 @@
 use crate::inspect::{
     self,
-    inspectors::{ExternalInspector, ShortLinkInspector},
+    inspectors::{ExternalInspector, HlsInspector, ShortLinkInspector},
     Inspect, InspectExt,
 };
 use clap::Parser;
@@ -22,6 +22,7 @@ pub(crate) fn get_default_external_inspector() -> anyhow::Result<Vec<Box<dyn Ins
         ShortLinkInspector.to_box(),
         ShowroomInspector.to_box(),
         NicoLiveInspector::new(std::env::var("NICO_USER_SESSION").ok()).to_box(),
+        HlsInspector.to_box(),
     ];
 
     if let Ok(key) = std::env::var("SHIORI_EXTERNAL_INSPECTOR") {
