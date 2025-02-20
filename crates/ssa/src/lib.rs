@@ -1,3 +1,4 @@
+mod constant;
 mod error;
 pub use error::*;
 
@@ -157,6 +158,30 @@ impl AdtsHeader {
     }
 }
 
+struct Ac3Header {
+    length: usize,
+}
+
+impl Ac3Header {
+    fn new(data: &[u8]) -> Self {
+        Self {
+            length: Self::read_ac3_frame_length(data),
+        }
+    }
+
+    fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
+        &mut input[..self.length]
+    }
+
+    fn read_ac3_frame_length(header: &[u8]) -> usize {
+        let fscod = (header[4] >> 6) as usize;
+        let frmsizcod = (header[4] & 0b111111) as usize;
+        // the number of (2-byte) words before the next syncword
+        let frame_size = constant::AC3_FRAME_SIZE_CODE_TABLE[frmsizcod][fscod];
+        frame_size * 2
+    }
+}
+
 struct PESSegment {
     stream_type: StreamType,
 
@@ -179,7 +204,14 @@ impl PESSegment {
         // do decrypt first
         match self.stream_type {
             StreamType::H264 | StreamType::H264WithAes128Cbc => self.decrypt_video(key, iv)?,
-            StreamType::AdtsAac | StreamType::AdtsAacWithAes128Cbc => self.decrypt_audio(key, iv),
+            // adts
+            StreamType::AdtsAac
+            | StreamType::AdtsAacWithAes128Cbc
+            // ac3
+            | StreamType::DolbyDigitalUpToSixChannelAudio
+            | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
+                self.decrypt_audio(key, iv)
+            }
             _ => unreachable!("Unsupported stream type: {:?}", self.stream_type),
         }
 
@@ -257,11 +289,14 @@ impl PESSegment {
         let mut input = self.data.as_mut_slice();
         while input.len() > 0 {
             match self.stream_type {
+                // adts
                 StreamType::AdtsAac | StreamType::AdtsAacWithAes128Cbc => {
                     let size = Self::decrypt_aac_frame(input, key, iv);
                     input = &mut input[size..];
                 }
-                StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
+                // ac3
+                StreamType::DolbyDigitalUpToSixChannelAudio
+                | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
                     let size = Self::decrypt_ac3_frame(input, key, iv);
                     input = &mut input[size..];
                 }
@@ -294,8 +329,11 @@ impl PESSegment {
     ///     unencrypted_trailer                // 0-15 bytes
     /// }
     fn decrypt_ac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
-        Self::decrypt_raw_sample(input, key, iv);
-        input.len()
+        let ac3 = Ac3Header::new(input);
+        let data = ac3.data(input);
+
+        Self::decrypt_raw_sample(data, key, iv);
+        ac3.length
     }
 
     fn decrypt_raw_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) {
