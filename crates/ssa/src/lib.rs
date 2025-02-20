@@ -432,6 +432,28 @@ impl<W: Write> IoriTsPacketWriter<W> {
     }
 }
 
+fn should_decrypt_stream(id_map: &HashMap<u16, StreamType>, pid: u16) -> bool {
+    let stream_type = id_map.get(&pid);
+
+    match stream_type {
+        Some(
+            // avc
+            StreamType::H264WithAes128Cbc
+            | StreamType::H264
+            // adts
+            | StreamType::AdtsAacWithAes128Cbc
+            | StreamType::AdtsAac
+            // ac3
+            | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc
+            | StreamType::DolbyDigitalUpToSixChannelAudio
+            // eac3
+            | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc
+            | StreamType::DolbyDigitalPlusUpTo16ChannelAudio,
+        ) => true,
+        _ => false,
+    }
+}
+
 pub fn decrypt<R, W>(input: R, output: W, key: [u8; 16], iv: [u8; 16]) -> Result<()>
 where
     R: Read,
@@ -443,24 +465,36 @@ where
     let mut streams = HashMap::new();
     let mut pid_map = HashMap::new();
 
-    while let Ok(Some(mut packet)) = reader.read_ts_packet() {
-        if let Some(payload) = &packet.payload {
-            let mut flush = Some(packet.header.pid);
+    while let Ok(Some(TsPacket {
+        header,
+        adaptation_field,
+        payload,
+    })) = reader.read_ts_packet()
+    {
+        if let Some(payload) = payload {
+            // do not flush after receiving the following payloads
+            let flush = if matches!(
+                payload,
+                // PES is the start of a new stream
+                TsPayload::Pes(_) |
+                // RAW is part of the current stream
+                TsPayload::Raw(_) |
+                // NULL is just placeholder, no need to flush
+                TsPayload::Null(_)
+            ) {
+                None
+            } else {
+                Some(header.pid)
+            };
 
-            // print payload type
             match payload {
-                TsPayload::Pat(_) => {
-                    // no need to modify PAT
-                    writer.write_packet(&mut packet)?;
-                }
-                TsPayload::Pmt(pmt) => {
-                    let mut pmt = pmt.clone();
-
+                TsPayload::Pmt(mut pmt) => {
                     // modify from encrypted to clear stream
                     for es in pmt.es_info.iter_mut() {
                         // save stream type before modify
                         pid_map.insert(es.elementary_pid.as_u16(), es.stream_type);
 
+                        // map stream types to its unencrypted version
                         es.stream_type = match es.stream_type {
                             StreamType::H264WithAes128Cbc => StreamType::H264,
                             StreamType::AdtsAacWithAes128Cbc => StreamType::AdtsAac,
@@ -474,43 +508,23 @@ where
                         };
                     }
                     writer.write_packet(&mut TsPacket {
+                        header,
+                        adaptation_field,
                         payload: Some(TsPayload::Pmt(pmt)),
-                        ..packet
                     })?;
                 }
-                TsPayload::Pes(pes) => {
-                    let stream_type = pid_map.get(&packet.header.pid.as_u16());
-                    if !matches!(
-                        stream_type,
-                        Some(
-                            // avc
-                            StreamType::H264WithAes128Cbc
-                                | StreamType::H264
-                                // adts
-                                | StreamType::AdtsAacWithAes128Cbc
-                                | StreamType::AdtsAac
-                                // ac3
-                                | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc
-                                | StreamType::DolbyDigitalUpToSixChannelAudio
-                                // eac3
-                                | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc
-                                | StreamType::DolbyDigitalPlusUpTo16ChannelAudio
-                        )
-                    ) {
-                        log::debug!("Unmodified stream type: {:?}", stream_type);
-                        // No need to modify unmodified stream
-                        writer.write_packet(&mut packet)?;
-                        continue;
-                    }
+                // only decrypt stream that should be decrypted
+                TsPayload::Pes(pes) if should_decrypt_stream(&pid_map, header.pid.as_u16()) => {
+                    let stream_type = pid_map.get(&header.pid.as_u16());
 
                     let prev_pes = streams.insert(
-                        packet.header.pid,
+                        header.pid,
                         PESSegment {
                             // SAFETY: we know the stream type is valid
                             stream_type: stream_type.unwrap().clone(),
 
-                            pes_ts_header: packet.header,
-                            pes_header: pes.header.clone(),
+                            pes_ts_header: header,
+                            pes_header: pes.header,
                             pes_packet_len: pes.pes_packet_len,
                             initial_size: pes.data.len(),
                             data: pes.data.to_vec(),
@@ -521,24 +535,19 @@ where
                     if let Some(pes) = prev_pes {
                         pes.decrypt_and_write(key, iv, &mut writer)?;
                     }
-
-                    flush = None;
                 }
-                TsPayload::Raw(bytes) => {
-                    if let Some(pes) = streams.get_mut(&packet.header.pid) {
-                        pes.data_packet_num += 1;
-                        pes.data.extend_from_slice(bytes);
-                    } else {
-                        log::debug!("Unknown stream: {:?}", packet.header.pid);
-                        writer.write_packet(&mut packet)?;
-                    }
-                    flush = None;
+                TsPayload::Raw(bytes) if streams.contains_key(&header.pid) => {
+                    // SAFETY: We've validated the stream exist in streams
+                    let pes = streams.get_mut(&header.pid).unwrap();
+                    pes.data_packet_num += 1;
+                    pes.data.extend_from_slice(&bytes);
                 }
-                TsPayload::Section(_) => writer.write_packet(&mut packet)?,
-                TsPayload::Null(_) => {
-                    writer.write_packet(&mut packet)?;
-                    flush = None;
-                }
+                // for other payload, just write it without modification
+                _ => writer.write_packet(&mut TsPacket {
+                    header,
+                    adaptation_field,
+                    payload: Some(payload),
+                })?,
             }
 
             if let Some(flush) = flush {
