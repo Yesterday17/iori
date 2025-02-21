@@ -57,7 +57,7 @@ pub trait StreamingSource {
 
 pub trait StreamingSegment {
     /// Stream id
-    fn stream(&self) -> u64;
+    fn stream_id(&self) -> u64;
 
     /// Sequence ID of the segment, starts from 0
     fn sequence(&self) -> u64;
@@ -76,21 +76,55 @@ pub trait StreamingSegment {
     fn key(&self) -> Option<std::sync::Arc<decrypt::IoriKey>>;
 
     fn r#type(&self) -> SegmentType;
+
+    /// Format hint for the segment
+    fn format(&self) -> SegmentFormat;
+}
+
+#[derive(Clone, Default)]
+pub enum SegmentFormat {
+    #[default]
+    Mpeg2TS,
+    Mp4,
+    M4a,
+    Other(String),
+}
+
+impl SegmentFormat {
+    pub fn as_ext(&self) -> &str {
+        match self {
+            Self::Mpeg2TS => "ts",
+            Self::Mp4 => "mp4",
+            Self::M4a => "m4a",
+            Self::Other(ext) => ext.as_str(),
+        }
+    }
+
+    pub fn from_filename(s: &str) -> Self {
+        let (_, ext) = s.rsplit_once('.').unwrap_or(("", s));
+        match ext {
+            "ts" => Self::Mpeg2TS,
+            "mp4" | "m4s" | "m4f" => Self::Mp4,
+            "m4a" => Self::M4a,
+            _ => Self::Other(ext.to_string()),
+        }
+    }
 }
 
 #[derive(Clone, Default)]
 pub struct SegmentInfo {
-    pub stream: u64,
+    pub stream_id: u64,
     pub sequence: u64,
     pub file_name: String,
     pub initial_segment: Option<std::sync::Arc<Vec<u8>>>,
     pub key: Option<std::sync::Arc<decrypt::IoriKey>>,
     pub r#type: SegmentType,
+    pub format: SegmentFormat,
 }
 
 impl SegmentInfo {
     pub fn index(&self) -> u128 {
-        (self.stream as u128) << 64 | self.sequence as u128
+        (self.stream_id as u128) << 64 | self.sequence as u128
     }
 }
 
@@ -100,19 +134,20 @@ where
 {
     fn from(segment: &T) -> Self {
         SegmentInfo {
-            stream: segment.stream(),
+            stream_id: segment.stream_id(),
             sequence: segment.sequence(),
             file_name: segment.file_name().to_string(),
             initial_segment: segment.initial_segment(),
             key: segment.key(),
             r#type: segment.r#type(),
+            format: segment.format(),
         }
     }
 }
 
 impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
-    fn stream(&self) -> u64 {
-        self.as_ref().stream()
+    fn stream_id(&self) -> u64 {
+        self.as_ref().stream_id()
     }
 
     fn sequence(&self) -> u64 {
@@ -133,12 +168,16 @@ impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
 
     fn r#type(&self) -> SegmentType {
         self.as_ref().r#type()
+    }
+
+    fn format(&self) -> SegmentFormat {
+        self.as_ref().format()
     }
 }
 
 impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + 'b> {
-    fn stream(&self) -> u64 {
-        self.as_ref().stream()
+    fn stream_id(&self) -> u64 {
+        self.as_ref().stream_id()
     }
 
     fn sequence(&self) -> u64 {
@@ -159,6 +198,10 @@ impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + '
 
     fn r#type(&self) -> SegmentType {
         self.as_ref().r#type()
+    }
+
+    fn format(&self) -> SegmentFormat {
+        self.as_ref().format()
     }
 }
 

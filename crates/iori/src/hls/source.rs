@@ -14,7 +14,7 @@ use crate::{
     decrypt::IoriKey,
     error::IoriResult,
     hls::{segment::M3u8Segment, utils::load_m3u8},
-    SegmentType,
+    SegmentFormat, SegmentType,
 };
 
 use super::utils::load_playlist_with_retry;
@@ -98,7 +98,7 @@ impl M3u8Source {
                 .path_segments()
                 .and_then(|c| c.last())
                 .map(|r| {
-                    if r.ends_with(".m4s") {
+                    if r.ends_with(".m4s") || r.ends_with("m4f") {
                         // xx.m4s -> x.mp4
                         format!("{}.mp4", &r[..r.len() - 4])
                     } else {
@@ -106,6 +106,7 @@ impl M3u8Source {
                     }
                 })
                 .unwrap_or("output.ts".to_string());
+            let format = SegmentFormat::from_filename(&filename);
 
             let media_sequence = playlist.media_sequence + i as u64;
             if let Some(latest_media_sequence) = latest_media_sequence {
@@ -115,7 +116,7 @@ impl M3u8Source {
             }
 
             let segment = M3u8Segment {
-                stream: 0,
+                stream_id: self.stream_id,
                 url,
                 filename,
                 key: key.clone(),
@@ -125,6 +126,7 @@ impl M3u8Source {
                 byte_range: segment.byte_range.clone(),
                 duration: segment.duration,
                 segment_type: self.segment_type.clone(),
+                format,
             };
             segments.push(segment);
         }
