@@ -105,7 +105,7 @@ impl Drop for MemoryWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{SegmentInfo, StreamingSegment};
+    use crate::{SegmentFormat, SegmentInfo, StreamingSegment};
 
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -125,7 +125,7 @@ mod tests {
     }
 
     impl StreamingSegment for TestStreamingSegment {
-        fn stream(&self) -> u64 {
+        fn stream_id(&self) -> u64 {
             0
         }
 
@@ -143,6 +143,10 @@ mod tests {
 
         fn r#type(&self) -> crate::SegmentType {
             crate::SegmentType::Video
+        }
+
+        fn format(&self) -> SegmentFormat {
+            SegmentFormat::Mpeg2TS
         }
     }
 

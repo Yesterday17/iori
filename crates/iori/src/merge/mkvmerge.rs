@@ -1,13 +1,16 @@
 use crate::{
-    cache::CacheSource, error::IoriResult, util::file_name_add_suffix, SegmentInfo, SegmentType,
+    cache::CacheSource, error::IoriResult, util::file_name_add_suffix, SegmentFormat, SegmentInfo,
 };
-use std::path::{Path, PathBuf};
-use tokio::process::Command;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+use tokio::{fs::File, process::Command};
 
 use super::{concat::ConcatSegment, Merger};
 
 pub struct MkvMergeMerver {
-    segments: Vec<ConcatSegment>,
+    segments: HashMap<u64, Vec<ConcatSegment>>,
 
     /// Final output file path.
     output_file: PathBuf,
@@ -20,7 +23,7 @@ pub struct MkvMergeMerver {
 impl MkvMergeMerver {
     pub fn new(output_file: PathBuf, keep_segments: bool) -> Self {
         Self {
-            segments: Vec::new(),
+            segments: HashMap::new(),
             output_file,
             keep_segments,
             has_failed: false,
@@ -32,19 +35,25 @@ impl Merger for MkvMergeMerver {
     type Result = ();
 
     async fn update(&mut self, segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {
-        self.segments.push(ConcatSegment {
-            segment,
-            success: true,
-        });
+        self.segments
+            .entry(segment.stream_id)
+            .or_insert_with(Vec::new)
+            .push(ConcatSegment {
+                segment,
+                success: true,
+            });
         Ok(())
     }
 
     async fn fail(&mut self, segment: SegmentInfo, cache: impl CacheSource) -> IoriResult<()> {
         cache.invalidate(&segment).await?;
-        self.segments.push(ConcatSegment {
-            segment,
-            success: false,
-        });
+        self.segments
+            .entry(segment.stream_id)
+            .or_insert_with(Vec::new)
+            .push(ConcatSegment {
+                segment,
+                success: false,
+            });
         self.has_failed = true;
         Ok(())
     }
@@ -60,8 +69,26 @@ impl Merger for MkvMergeMerver {
             return Ok(());
         }
 
-        let segments: Vec<_> = self.segments.iter().map(|s| &s.segment).collect();
-        mkvmerge_merge(segments, &cache, &self.output_file).await?;
+        let mut tracks = Vec::new();
+        for (stream_id, segments) in self.segments.iter() {
+            let segments: Vec<_> = segments.iter().map(|s| &s.segment).collect();
+            let can_concat = segments
+                .iter()
+                .all(|s| matches!(s.format, SegmentFormat::Mpeg2TS));
+
+            let first_segment = segments[0];
+            let mut output_path = self.output_file.to_owned();
+            file_name_add_suffix(&mut output_path, &format!("{stream_id:02}"));
+            output_path.set_extension(first_segment.format.as_ext());
+
+            if can_concat {
+                concat_merge(segments, &cache, &output_path).await?;
+            } else {
+                mkvmerge_concat(segments, &cache, &output_path).await?;
+            }
+            tracks.push(output_path);
+        }
+        mkvmerge_merge(tracks, &self.output_file).await?;
 
         if !self.keep_segments {
             log::info!("End of merging.");
@@ -77,77 +104,56 @@ impl Merger for MkvMergeMerver {
     }
 }
 
-pub async fn mkvmerge_merge<O>(
-    segments: Vec<&SegmentInfo>,
+async fn concat_merge<O>(
+    mut segments: Vec<&SegmentInfo>,
     cache: &impl CacheSource,
-    output: O,
+    output_path: O,
 ) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
-    let mut tracks = Vec::new();
+    segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
 
-    // TODO: group by stream id instead of segment type
+    let mut output = File::create(output_path.as_ref()).await?;
+    for segment in segments {
+        let mut reader = cache.open_reader(segment).await?;
+        tokio::io::copy(&mut reader, &mut output).await?;
+    }
+    Ok(())
+}
 
-    // 1. merge videos with mkvmerge
-    let mut videos: Vec<_> = segments
-        .iter()
-        .filter(|info| info.r#type == SegmentType::Video)
-        .collect();
-    if !videos.is_empty() {
-        videos.sort_by(|a, b| a.sequence.cmp(&b.sequence));
-        let mut paths = Vec::with_capacity(videos.len());
-        for video_segment in videos {
-            let filename = cache.segment_path(video_segment).await.unwrap();
-            paths.push(filename);
-        }
-
-        let mut video_path = output.as_ref().to_owned();
-        file_name_add_suffix(&mut video_path, "iori_video");
-        video_path.set_extension("mp4");
-
-        let mut video = Command::new("mkvmerge")
-            .arg("-q")
-            .arg("[")
-            .args(paths)
-            .arg("]")
-            .arg("-o")
-            .arg(&video_path)
-            .spawn()?;
-        video.wait().await?;
-        tracks.push(video_path);
+async fn mkvmerge_concat<O>(
+    mut segments: Vec<&SegmentInfo>,
+    cache: &impl CacheSource,
+    output_path: O,
+) -> IoriResult<()>
+where
+    O: AsRef<Path>,
+{
+    segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
+    let mut paths = Vec::with_capacity(segments.len());
+    for segment in segments {
+        let filename = cache.segment_path(segment).await.unwrap();
+        paths.push(filename);
     }
 
-    // 2. merge audios with mkvmerge
-    let mut audios: Vec<_> = segments
-        .iter()
-        .filter(|info| info.r#type == SegmentType::Audio)
-        .collect();
-    if !audios.is_empty() {
-        audios.sort_by(|a, b| a.sequence.cmp(&b.sequence));
-        let mut paths = Vec::with_capacity(audios.len());
-        for audio_segment in audios {
-            let filename = cache.segment_path(audio_segment).await.unwrap();
-            paths.push(filename);
-        }
+    let mut child = Command::new("mkvmerge")
+        .arg("-q")
+        .arg("[")
+        .args(paths)
+        .arg("]")
+        .arg("-o")
+        .arg(output_path.as_ref())
+        .spawn()?;
+    child.wait().await?;
 
-        let mut audio_path = output.as_ref().to_owned();
-        file_name_add_suffix(&mut audio_path, "iori_audio");
-        audio_path.set_extension("m4a");
+    Ok(())
+}
 
-        let mut audio = Command::new("mkvmerge")
-            .arg("-q")
-            .arg("[")
-            .args(paths)
-            .arg("]")
-            .arg("-o")
-            .arg(&audio_path)
-            .spawn()?;
-        audio.wait().await?;
-        tracks.push(audio_path);
-    }
-
-    // 3. merge audio and video
+async fn mkvmerge_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
+where
+    O: AsRef<Path>,
+{
     let mut merge = Command::new("mkvmerge")
         .args(tracks.iter())
         .arg("-o")
@@ -155,7 +161,7 @@ where
         .spawn()?;
     merge.wait().await?;
 
-    // 4. remove temporary files
+    // remove temporary files
     for track in tracks {
         tokio::fs::remove_file(track).await?;
     }
