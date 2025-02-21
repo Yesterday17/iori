@@ -5,17 +5,18 @@ use tokio::{
     io::AsyncWrite,
     sync::{mpsc, Mutex},
 };
+use url::Url;
 
 use crate::{
     error::IoriResult,
     fetch::fetch_segment,
-    hls::{segment::M3u8Segment, source::M3u8Source},
+    hls::{segment::M3u8Segment, source::AdvancedM3u8Source},
     StreamingSource,
 };
 
 pub struct CommonM3u8ArchiveSource {
     client: Client,
-    playlist: Arc<Mutex<M3u8Source>>,
+    playlist: Arc<Mutex<AdvancedM3u8Source>>,
     range: SegmentRange,
     retry: u32,
 }
@@ -67,17 +68,15 @@ impl CommonM3u8ArchiveSource {
     pub fn new(
         client: Client,
         playlist_url: String,
-        initial_playlist: Option<String>,
         key: Option<&str>,
         range: SegmentRange,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
             client: client.clone(),
-            playlist: Arc::new(Mutex::new(M3u8Source::new(
+            playlist: Arc::new(Mutex::new(AdvancedM3u8Source::new(
                 client,
-                playlist_url,
-                initial_playlist,
+                Url::parse(&playlist_url).unwrap(),
                 key,
                 shaka_packager_command,
             ))),
@@ -98,16 +97,19 @@ impl StreamingSource for CommonM3u8ArchiveSource {
     async fn fetch_info(
         &self,
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
+        let latest_media_sequences = self.playlist.lock().await.load_streams(self.retry).await?;
+
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let (segments, _, _) = self
+        let (segments, _) = self
             .playlist
             .lock()
             .await
-            .load_segments(None, self.retry)
+            .load_segments(&latest_media_sequences, self.retry)
             .await?;
         let segments = segments
             .into_iter()
+            .flatten()
             .filter_map(|segment| {
                 let seq = segment.sequence + 1;
                 if seq >= self.range.start && seq <= self.range.end() {
@@ -140,7 +142,6 @@ mod tests {
         let source = CommonM3u8ArchiveSource::new(
             Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
-            None,
             None,
             Default::default(),
             None,

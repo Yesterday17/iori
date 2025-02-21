@@ -1,4 +1,6 @@
-use crate::{decrypt::IoriKey, RemoteStreamingSegment, SegmentType, StreamingSegment};
+use crate::{
+    decrypt::IoriKey, RemoteStreamingSegment, SegmentFormat, SegmentType, StreamingSegment,
+};
 use std::sync::Arc;
 
 pub struct DashSegment {
@@ -17,6 +19,10 @@ pub struct DashSegment {
 }
 
 impl StreamingSegment for DashSegment {
+    fn stream_id(&self) -> u64 {
+        0
+    }
+
     fn sequence(&self) -> u64 {
         self.sequence
     }
@@ -35,6 +41,10 @@ impl StreamingSegment for DashSegment {
 
     fn r#type(&self) -> SegmentType {
         self.r#type
+    }
+
+    fn format(&self) -> SegmentFormat {
+        SegmentFormat::Mp4
     }
 }
 

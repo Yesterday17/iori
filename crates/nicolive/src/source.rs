@@ -4,8 +4,8 @@ use std::sync::{
 };
 
 use iori::{
-    fetch::fetch_segment, hls::utils::load_m3u8, IoriResult, RemoteStreamingSegment, SegmentType,
-    StreamingSegment, StreamingSource,
+    fetch::fetch_segment, hls::utils::load_m3u8, IoriResult, RemoteStreamingSegment, SegmentFormat,
+    SegmentType, StreamingSegment, StreamingSource,
 };
 use parking_lot::RwLock;
 use regex::Regex;
@@ -34,6 +34,10 @@ pub struct NicoTimeshiftSegment {
 }
 
 impl StreamingSegment for NicoTimeshiftSegment {
+    fn stream_id(&self) -> u64 {
+        0
+    }
+
     fn sequence(&self) -> u64 {
         self.sequence
     }
@@ -48,6 +52,10 @@ impl StreamingSegment for NicoTimeshiftSegment {
 
     fn r#type(&self) -> SegmentType {
         SegmentType::Video
+    }
+
+    fn format(&self) -> SegmentFormat {
+        SegmentFormat::Mpeg2TS
     }
 }
 

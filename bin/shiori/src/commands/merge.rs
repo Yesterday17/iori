@@ -13,7 +13,7 @@ use tokio::{
 };
 
 struct ExistingLocalCache {
-    files: Mutex<HashMap<u64, PathBuf>>,
+    files: Mutex<HashMap<u128, PathBuf>>,
 }
 
 impl ExistingLocalCache {
@@ -24,7 +24,7 @@ impl ExistingLocalCache {
     }
 
     async fn add_file(&self, segment: &SegmentInfo, file: PathBuf) {
-        self.files.lock().await.insert(segment.sequence, file);
+        self.files.lock().await.insert(segment.index(), file);
     }
 }
 
@@ -41,13 +41,13 @@ impl CacheSource for ExistingLocalCache {
         segment: &iori::SegmentInfo,
     ) -> iori::IoriResult<iori::cache::CacheSourceReader> {
         let lock = self.files.lock().await;
-        let file = lock.get(&segment.sequence).unwrap();
+        let file = lock.get(&segment.index()).unwrap();
         let file = File::open(file).await?;
         Ok(Box::new(file))
     }
 
     async fn segment_path(&self, segment: &SegmentInfo) -> Option<PathBuf> {
-        self.files.lock().await.get(&segment.sequence).cloned()
+        self.files.lock().await.get(&segment.index()).cloned()
     }
 
     async fn invalidate(&self, _segment: &iori::SegmentInfo) -> iori::IoriResult<()> {

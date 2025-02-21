@@ -5,17 +5,18 @@ use tokio::{
     io::AsyncWrite,
     sync::{mpsc, Mutex},
 };
+use url::Url;
 
 use crate::{
     error::{IoriError, IoriResult},
     fetch::fetch_segment,
-    hls::{segment::M3u8Segment, source::M3u8Source},
+    hls::{segment::M3u8Segment, source::AdvancedM3u8Source},
     StreamingSource,
 };
 
 pub struct CommonM3u8LiveSource {
     client: Client,
-    playlist: Arc<Mutex<M3u8Source>>,
+    playlist: Arc<Mutex<AdvancedM3u8Source>>,
     retry: u32,
 }
 
@@ -23,16 +24,14 @@ impl CommonM3u8LiveSource {
     pub fn new(
         client: Client,
         m3u8_url: String,
-        initial_playlist: Option<String>,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
         Self {
             client: client.clone(),
-            playlist: Arc::new(Mutex::new(M3u8Source::new(
+            playlist: Arc::new(Mutex::new(AdvancedM3u8Source::new(
                 client,
-                m3u8_url,
-                initial_playlist,
+                Url::parse(&m3u8_url).unwrap(),
                 key,
                 shaka_packager_command,
             ))),
@@ -52,22 +51,24 @@ impl StreamingSource for CommonM3u8LiveSource {
     async fn fetch_info(
         &self,
     ) -> IoriResult<mpsc::UnboundedReceiver<IoriResult<Vec<Self::Segment>>>> {
+        let mut latest_media_sequences =
+            self.playlist.lock().await.load_streams(self.retry).await?;
+
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let retry = self.retry;
         let playlist = self.playlist.clone();
         tokio::spawn(async move {
-            let mut latest_media_sequence = None;
             loop {
                 if sender.is_closed() {
                     break;
                 }
 
                 let before_load = tokio::time::Instant::now();
-                let (segments, _, playlist) = match playlist
+                let (segments, is_end) = match playlist
                     .lock()
                     .await
-                    .load_segments(latest_media_sequence, retry)
+                    .load_segments(&latest_media_sequences, retry)
                     .await
                 {
                     Ok(v) => v,
@@ -80,23 +81,27 @@ impl StreamingSource for CommonM3u8LiveSource {
                         break;
                     }
                 };
-                let new_latest_media_sequence = segments
-                    .last()
-                    .map(|r| r.media_sequence)
-                    .or_else(|| latest_media_sequence);
 
-                if let Err(_) = sender.send(Ok(segments)) {
+                let segment_average_duration = (segments[0].iter().map(|s| s.duration).sum::<f32>()
+                    / segments[0].len() as f32)
+                    as u64;
+
+                for (segments, latest_media_sequence) in
+                    segments.into_iter().zip(latest_media_sequences.iter_mut())
+                {
+                    *latest_media_sequence = segments
+                        .last()
+                        .map(|r| r.media_sequence)
+                        .or_else(|| latest_media_sequence.clone());
+
+                    if let Err(_) = sender.send(Ok(segments)) {
+                        break;
+                    }
+                }
+
+                if is_end {
                     break;
                 }
-                latest_media_sequence = new_latest_media_sequence;
-
-                if playlist.end_list {
-                    break;
-                }
-
-                let segment_average_duration =
-                    (playlist.segments.iter().map(|s| s.duration).sum::<f32>()
-                        / playlist.segments.len() as f32) as u64;
 
                 // playlist does not end, wait for a while and fetch again
                 let seconds_to_wait = segment_average_duration.min(5);
@@ -126,7 +131,6 @@ mod tests {
         let source = CommonM3u8LiveSource::new(
             Default::default(),
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
-            None,
             None,
             None,
         );

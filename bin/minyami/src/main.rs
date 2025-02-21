@@ -255,7 +255,7 @@ impl MinyamiArgs {
             } else {
                 IoriMerger::mkvmerge(target_file, self.keep)
             }
-        } else if self.live && self.pipe && self.output.is_none() {
+        } else if self.pipe && self.output.is_none() {
             IoriMerger::pipe(!self.keep)
         } else if self.no_merge {
             IoriMerger::skip()
@@ -264,7 +264,7 @@ impl MinyamiArgs {
             if self.pipe {
                 IoriMerger::pipe_to_file(!self.keep, target_file)
             } else {
-                IoriMerger::concat(target_file, self.keep)
+                IoriMerger::mkvmerge(target_file, self.keep)
             }
         }
     }
@@ -328,7 +328,6 @@ impl MinyamiArgs {
                 let source = CommonM3u8LiveSource::new(
                     client,
                     self.m3u8.clone(),
-                    None,
                     self.key.as_deref(),
                     self.shaka_packager.clone(),
                 )
@@ -340,7 +339,6 @@ impl MinyamiArgs {
                 let source = CommonM3u8ArchiveSource::new(
                     client,
                     self.m3u8.clone(),
-                    None,
                     self.key.as_deref(),
                     self.range,
                     self.shaka_packager.clone(),
