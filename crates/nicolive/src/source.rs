@@ -34,6 +34,10 @@ pub struct NicoTimeshiftSegment {
 }
 
 impl StreamingSegment for NicoTimeshiftSegment {
+    fn stream(&self) -> u64 {
+        0
+    }
+
     fn sequence(&self) -> u64 {
         self.sequence
     }

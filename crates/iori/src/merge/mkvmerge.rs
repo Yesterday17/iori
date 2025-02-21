@@ -87,6 +87,8 @@ where
 {
     let mut tracks = Vec::new();
 
+    // TODO: group by stream id instead of segment type
+
     // 1. merge videos with mkvmerge
     let mut videos: Vec<_> = segments
         .iter()
