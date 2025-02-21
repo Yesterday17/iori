@@ -67,12 +67,12 @@ impl DownloadCommand {
 
         let client = self.http.into_client();
 
-        let (is_m3u8, initial_playlist_data) = match self.extra.playlist_type {
-            Some(PlaylistType::HLS) => (true, self.extra.initial_playlist_data),
-            Some(PlaylistType::DASH) => (false, self.extra.initial_playlist_data),
+        let is_m3u8 = match self.extra.playlist_type {
+            Some(PlaylistType::HLS) => true,
+            Some(PlaylistType::DASH) => false,
             None => detect_manifest_type(&self.url, client.clone())
                 .await
-                .unwrap_or((true, None)),
+                .unwrap_or(true),
         };
 
         let downloader = ParallelDownloaderBuilder::new()
@@ -111,7 +111,6 @@ impl DownloadCommand {
             let source = CommonM3u8LiveSource::new(
                 client,
                 self.url,
-                initial_playlist_data,
                 self.decrypt.key.as_deref(),
                 self.decrypt.shaka_packager_command,
             )
@@ -134,7 +133,6 @@ impl DownloadCommand {
         }
 
         self.extra.skip_inspector = true;
-        self.extra.initial_playlist_data = None;
 
         self
     }
@@ -254,9 +252,6 @@ pub struct ExtraOptions {
     /// Force Dash mode
     pub playlist_type: Option<PlaylistType>,
 
-    /// Initial playlist data
-    pub initial_playlist_data: Option<String>,
-
     pub skip_inspector: bool,
 }
 
@@ -319,7 +314,6 @@ impl From<InspectPlaylist> for DownloadCommand {
             },
             extra: ExtraOptions {
                 playlist_type: Some(data.playlist_type),
-                initial_playlist_data: data.initial_playlist_data,
                 skip_inspector: true,
             },
             url: data.playlist_url,

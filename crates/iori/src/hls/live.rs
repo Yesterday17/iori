@@ -24,7 +24,6 @@ impl CommonM3u8LiveSource {
     pub fn new(
         client: Client,
         m3u8_url: String,
-        initial_playlist: Option<String>,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
     ) -> Self {
@@ -132,7 +131,6 @@ mod tests {
         let source = CommonM3u8LiveSource::new(
             Default::default(),
             "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
-            None,
             None,
             None,
         );

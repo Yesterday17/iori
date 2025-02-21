@@ -68,7 +68,6 @@ impl CommonM3u8ArchiveSource {
     pub fn new(
         client: Client,
         playlist_url: String,
-        initial_playlist: Option<String>,
         key: Option<&str>,
         range: SegmentRange,
         shaka_packager_command: Option<PathBuf>,
@@ -143,7 +142,6 @@ mod tests {
         let source = CommonM3u8ArchiveSource::new(
             Default::default(),
             "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
-            None,
             None,
             Default::default(),
             None,
