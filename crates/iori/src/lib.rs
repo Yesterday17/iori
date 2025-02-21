@@ -122,12 +122,6 @@ pub struct SegmentInfo {
     pub format: SegmentFormat,
 }
 
-impl SegmentInfo {
-    pub fn index(&self) -> u128 {
-        (self.stream_id as u128) << 64 | self.sequence as u128
-    }
-}
-
 impl<T> From<&T> for SegmentInfo
 where
     T: StreamingSegment,
