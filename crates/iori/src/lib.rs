@@ -56,6 +56,9 @@ pub trait StreamingSource {
 }
 
 pub trait StreamingSegment {
+    /// Stream id
+    fn stream(&self) -> u64;
+
     /// Sequence ID of the segment, starts from 0
     fn sequence(&self) -> u64;
 
@@ -77,11 +80,18 @@ pub trait StreamingSegment {
 
 #[derive(Clone, Default)]
 pub struct SegmentInfo {
+    pub stream: u64,
     pub sequence: u64,
     pub file_name: String,
     pub initial_segment: Option<std::sync::Arc<Vec<u8>>>,
     pub key: Option<std::sync::Arc<decrypt::IoriKey>>,
     pub r#type: SegmentType,
+}
+
+impl SegmentInfo {
+    pub fn index(&self) -> u128 {
+        (self.stream as u128) << 64 | self.sequence as u128
+    }
 }
 
 impl<T> From<&T> for SegmentInfo
@@ -90,6 +100,7 @@ where
 {
     fn from(segment: &T) -> Self {
         SegmentInfo {
+            stream: segment.stream(),
             sequence: segment.sequence(),
             file_name: segment.file_name().to_string(),
             initial_segment: segment.initial_segment(),
@@ -100,6 +111,10 @@ where
 }
 
 impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
+    fn stream(&self) -> u64 {
+        self.as_ref().stream()
+    }
+
     fn sequence(&self) -> u64 {
         self.as_ref().sequence()
     }
@@ -122,6 +137,10 @@ impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
 }
 
 impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + 'b> {
+    fn stream(&self) -> u64 {
+        self.as_ref().stream()
+    }
+
     fn sequence(&self) -> u64 {
         self.as_ref().sequence()
     }

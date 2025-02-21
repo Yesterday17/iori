@@ -7,15 +7,17 @@ use std::{
     },
 };
 
-use m3u8_rs::MediaPlaylist;
+use m3u8_rs::{AlternativeMedia, AlternativeMediaType, MediaPlaylist, Playlist};
 use reqwest::{Client, Url};
 
 use crate::{
     decrypt::IoriKey,
     error::IoriResult,
     hls::{segment::M3u8Segment, utils::load_m3u8},
-    IoriError,
+    SegmentType,
 };
+
+use super::utils::load_playlist_with_retry;
 
 /// Core part to perform network operations
 pub struct M3u8Source {
@@ -24,19 +26,23 @@ pub struct M3u8Source {
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
 
-    initial_playlist: Option<String>,
+    initial_playlist: Option<MediaPlaylist>,
 
+    stream_id: u64,
     sequence: AtomicU64,
     client: Client,
+    segment_type: Option<SegmentType>,
 }
 
 impl M3u8Source {
     pub fn new(
         client: Client,
         m3u8_url: String,
-        initial_playlist: Option<String>,
+        initial_playlist: Option<MediaPlaylist>,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
+        segment_type: Option<SegmentType>,
+        stream_id: u64,
     ) -> Self {
         Self {
             m3u8_url,
@@ -46,21 +52,19 @@ impl M3u8Source {
 
             sequence: AtomicU64::new(0),
             client,
+            segment_type,
+            stream_id,
         }
     }
 
     pub async fn load_segments(
         &mut self,
-        latest_media_sequence: Option<u64>,
+        latest_media_sequence: &Option<u64>,
         retry: u32,
     ) -> IoriResult<(Vec<M3u8Segment>, Url, MediaPlaylist)> {
         let (playlist_url, playlist) = if let Some(initial_playlist) = self.initial_playlist.take()
         {
-            let parsed_playlist = m3u8_rs::parse_media_playlist_res(initial_playlist.as_bytes());
-            match parsed_playlist {
-                Ok(parsed_playlist) => (Url::from_str(&self.m3u8_url)?, parsed_playlist),
-                Err(_) => return Err(IoriError::M3u8ParseError(initial_playlist)),
-            }
+            (Url::from_str(&self.m3u8_url)?, initial_playlist)
         } else {
             load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?
         };
@@ -105,12 +109,13 @@ impl M3u8Source {
 
             let media_sequence = playlist.media_sequence + i as u64;
             if let Some(latest_media_sequence) = latest_media_sequence {
-                if media_sequence <= latest_media_sequence as u64 {
+                if media_sequence <= *latest_media_sequence as u64 {
                     continue;
                 }
             }
 
             let segment = M3u8Segment {
+                stream: 0,
                 url,
                 filename,
                 key: key.clone(),
@@ -118,10 +123,170 @@ impl M3u8Source {
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                 media_sequence,
                 byte_range: segment.byte_range.clone(),
+                duration: segment.duration,
+                segment_type: self.segment_type.clone(),
             };
             segments.push(segment);
         }
 
         Ok((segments, playlist_url, playlist))
+    }
+}
+
+pub struct AdvancedM3u8Source {
+    m3u8_url: Url,
+
+    streams: Vec<M3u8Source>,
+
+    key: Option<String>,
+    shaka_packager_command: Option<PathBuf>,
+    client: Client,
+}
+
+impl AdvancedM3u8Source {
+    pub fn new(
+        client: Client,
+        m3u8_url: Url,
+        key: Option<&str>,
+        shaka_packager_command: Option<PathBuf>,
+    ) -> Self {
+        Self {
+            m3u8_url,
+            key: key.map(str::to_string),
+            shaka_packager_command,
+            client,
+            streams: Vec::new(),
+        }
+    }
+
+    pub async fn load_streams(&mut self, retry: u32) -> IoriResult<Vec<Option<u64>>> {
+        let playlist = load_playlist_with_retry(&self.client, &self.m3u8_url, retry).await?;
+
+        match playlist {
+            Playlist::MasterPlaylist(mut pl) => {
+                // Get the best variant
+                let variants = &mut pl.variants;
+                variants.sort_by(|a, b| {
+                    // compare resolution first
+                    if let (Some(a), Some(b)) = (a.resolution, b.resolution) {
+                        if a.width != b.width {
+                            return b.width.cmp(&a.width);
+                        }
+                    }
+
+                    // compare framerate then
+                    if let (Some(a), Some(b)) = (a.frame_rate, b.frame_rate) {
+                        let a = a as u64;
+                        let b = b as u64;
+                        if a != b {
+                            return b.cmp(&a);
+                        }
+                    }
+
+                    // compare bandwidth finally
+                    b.bandwidth.cmp(&a.bandwidth)
+                });
+                let variant = variants.get(0).expect("No variant found");
+                let variant_url = self
+                    .m3u8_url
+                    .join(&variant.uri)
+                    .expect("Invalid variant uri");
+                self.streams.push(M3u8Source::new(
+                    self.client.clone(),
+                    variant_url.to_string(),
+                    None,
+                    self.key.as_deref(),
+                    self.shaka_packager_command.clone(),
+                    Some(SegmentType::Video),
+                    0,
+                ));
+
+                fn load_variant<'a, 'b>(
+                    group_id: &'a str,
+                    media_type: AlternativeMediaType,
+                    pl: &'b Vec<AlternativeMedia>,
+                ) -> Option<&'b str> {
+                    let alternatives: Vec<_> = pl
+                        .iter()
+                        .filter(|alternative| {
+                            alternative.group_id == group_id && alternative.media_type == media_type
+                        })
+                        .collect();
+
+                    let best = alternatives
+                        .iter()
+                        .find(|alternative| alternative.default && alternative.autoselect)
+                        .or_else(|| alternatives.first());
+
+                    best.and_then(|b| b.uri.as_deref())
+                }
+
+                // Load extra streams from the variant
+                if let Some(group_id) = &variant.audio {
+                    if let Some(audio_url) =
+                        load_variant(&group_id, AlternativeMediaType::Audio, &pl.alternatives)
+                    {
+                        self.streams.push(M3u8Source::new(
+                            self.client.clone(),
+                            self.m3u8_url
+                                .join(audio_url)
+                                .expect("Invalid audio uri")
+                                .to_string(),
+                            None,
+                            self.key.as_deref(),
+                            self.shaka_packager_command.clone(),
+                            Some(SegmentType::Audio),
+                            1,
+                        ));
+                    }
+                }
+                if let Some(group_id) = &variant.video {
+                    if let Some(video_url) =
+                        load_variant(&group_id, AlternativeMediaType::Video, &pl.alternatives)
+                    {
+                        self.streams.push(M3u8Source::new(
+                            self.client.clone(),
+                            video_url.to_string(),
+                            None,
+                            self.key.as_deref(),
+                            self.shaka_packager_command.clone(),
+                            Some(SegmentType::Video),
+                            2,
+                        ));
+                    }
+                }
+            }
+            Playlist::MediaPlaylist(pl) => {
+                self.streams.push(M3u8Source::new(
+                    self.client.clone(),
+                    self.m3u8_url.to_string(),
+                    Some(pl),
+                    self.key.as_deref(),
+                    self.shaka_packager_command.clone(),
+                    Some(SegmentType::Video),
+                    0,
+                ));
+            }
+        }
+        Ok(vec![None; self.streams.len()])
+    }
+
+    pub async fn load_segments(
+        &mut self,
+        latest_media_sequences: &[Option<u64>],
+        retry: u32,
+    ) -> IoriResult<(Vec<Vec<M3u8Segment>>, bool /* is_end */)> {
+        let mut segments = Vec::new();
+        let mut is_end = true;
+        for (stream, latest_media_sequence) in self.streams.iter_mut().zip(latest_media_sequences) {
+            let (stream_segments, _, stream_playlist) =
+                stream.load_segments(latest_media_sequence, retry).await?;
+            segments.push(stream_segments);
+            if !stream_playlist.end_list {
+                is_end = false;
+            }
+        }
+
+        Ok((segments, is_end))
     }
 }

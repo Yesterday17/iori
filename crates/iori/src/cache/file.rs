@@ -22,8 +22,9 @@ impl FileCacheSource {
 
     fn segment_path(&self, segment: &crate::SegmentInfo) -> PathBuf {
         let filename = segment.file_name.replace('/', "__");
+        let stream = segment.stream;
         let sequence = segment.sequence;
-        let filename = format!("{sequence:06}_{filename}");
+        let filename = format!("{stream:02}_{sequence:06}_{filename}");
         self.cache_dir.join(filename)
     }
 }
