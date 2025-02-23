@@ -107,7 +107,7 @@ impl StreamingSource for CommonM3u8ArchiveSource {
             .await
             .load_segments(&latest_media_sequences, self.retry)
             .await?;
-        let segments = segments
+        let mut segments: Vec<_> = segments
             .into_iter()
             .flatten()
             .filter_map(|segment| {
@@ -118,6 +118,14 @@ impl StreamingSource for CommonM3u8ArchiveSource {
                 None
             })
             .collect();
+
+        // make sequence start form 1 again
+        let mut seq = 0;
+        for segment in segments.iter_mut() {
+            segment.sequence = seq;
+            seq += 1;
+        }
+
         let _ = sender.send(Ok(segments));
 
         Ok(receiver)
