@@ -12,6 +12,9 @@ type SendSegment = (
     Pin<Box<dyn Future<Output = IoriResult<()>> + Send>>,
 );
 
+/// PipeMerger is a merger that pipes the segments directly to the output.
+///
+/// If there are any missing segments, it will skip them.
 pub struct PipeMerger {
     recycle: bool,
 

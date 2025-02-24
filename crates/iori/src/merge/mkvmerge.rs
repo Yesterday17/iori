@@ -9,7 +9,18 @@ use tokio::{fs::File, process::Command};
 
 use super::{concat::ConcatSegment, Merger};
 
-pub struct MkvMergeMerver {
+/// AutoMerger is a merger that automatically chooses the best strategy to merge segments.
+///
+/// For MPEG-TS:
+/// - It will use concat to merge segments.
+/// - If there is only one track, the behavior is the same as [ConcatAfterMerger].
+///
+/// For other formats:
+/// - It will use mkvmerge to merge segments.
+///
+/// If there are multiple tracks to merge, it will use mkvmerge to merge them.
+/// If there are any missing segments, the merge will be skipped.
+pub struct AutoMerger {
     segments: HashMap<u64, Vec<ConcatSegment>>,
 
     /// Final output file path.
@@ -20,7 +31,7 @@ pub struct MkvMergeMerver {
     has_failed: bool,
 }
 
-impl MkvMergeMerver {
+impl AutoMerger {
     pub fn new(output_file: PathBuf, keep_segments: bool) -> Self {
         Self {
             segments: HashMap::new(),
@@ -31,7 +42,7 @@ impl MkvMergeMerver {
     }
 }
 
-impl Merger for MkvMergeMerver {
+impl Merger for AutoMerger {
     type Result = ();
 
     async fn update(&mut self, segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {

@@ -4,7 +4,7 @@ mod pipe;
 mod skip;
 
 pub use concat::ConcatAfterMerger;
-pub use mkvmerge::MkvMergeMerver;
+pub use mkvmerge::AutoMerger;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
 
@@ -43,7 +43,7 @@ pub enum IoriMerger {
     Pipe(PipeMerger),
     Skip(SkipMerger),
     Concat(ConcatAfterMerger),
-    MkvMerge(MkvMergeMerver),
+    Auto(AutoMerger),
 }
 
 impl IoriMerger {
@@ -67,8 +67,8 @@ impl IoriMerger {
         Self::Concat(ConcatAfterMerger::new(output_file, keep_segments))
     }
 
-    pub fn mkvmerge(output_file: PathBuf, keep_segments: bool) -> Self {
-        Self::MkvMerge(MkvMergeMerver::new(output_file, keep_segments))
+    pub fn auto(output_file: PathBuf, keep_segments: bool) -> Self {
+        Self::Auto(AutoMerger::new(output_file, keep_segments))
     }
 }
 
@@ -80,7 +80,7 @@ impl Merger for IoriMerger {
             Self::Pipe(merger) => merger.update(segment, cache).await,
             Self::Skip(merger) => merger.update(segment, cache).await,
             Self::Concat(merger) => merger.update(segment, cache).await,
-            Self::MkvMerge(merger) => merger.update(segment, cache).await,
+            Self::Auto(merger) => merger.update(segment, cache).await,
         }
     }
 
@@ -89,7 +89,7 @@ impl Merger for IoriMerger {
             Self::Pipe(merger) => merger.fail(segment, cache).await,
             Self::Skip(merger) => merger.fail(segment, cache).await,
             Self::Concat(merger) => merger.fail(segment, cache).await,
-            Self::MkvMerge(merger) => merger.fail(segment, cache).await,
+            Self::Auto(merger) => merger.fail(segment, cache).await,
         }
     }
 
@@ -98,7 +98,7 @@ impl Merger for IoriMerger {
             Self::Pipe(merger) => merger.finish(cache).await,
             Self::Skip(merger) => merger.finish(cache).await,
             Self::Concat(merger) => merger.finish(cache).await,
-            Self::MkvMerge(merger) => merger.finish(cache).await,
+            Self::Auto(merger) => merger.finish(cache).await,
         }
     }
 }
