@@ -154,6 +154,11 @@ async fn mkvmerge_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
+    if tracks.len() == 1 {
+        tokio::fs::rename(&tracks[0], output.as_ref()).await?;
+        return Ok(());
+    }
+
     let mut merge = Command::new("mkvmerge")
         .args(tracks.iter())
         .arg("-o")
