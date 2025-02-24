@@ -62,6 +62,9 @@ impl CacheSource for ExistingLocalCache {
 #[derive(Parser, Clone, Default, Debug)]
 #[clap(name = "merge", short_flag = 'm')]
 pub struct MergeCommand {
+    #[clap(long)]
+    pub concat: bool,
+
     #[clap(short, long)]
     pub output: PathBuf,
 
@@ -73,7 +76,11 @@ pub async fn merge_command(me: MergeCommand) -> anyhow::Result<()> {
     eprintln!("{:#?}", me);
 
     let cache = Arc::new(ExistingLocalCache::new());
-    let mut merger = IoriMerger::mkvmerge(me.output, true);
+    let mut merger = if me.concat {
+        IoriMerger::concat(me.output, true)
+    } else {
+        IoriMerger::auto(me.output, true)
+    };
 
     let files = if me.inputs.len() == 1 && me.inputs[0].is_dir() {
         // read all files in directory and merge

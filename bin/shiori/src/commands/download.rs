@@ -282,7 +282,7 @@ impl OutputOptions {
             IoriMerger::skip()
         } else if let Some(output) = self.output {
             if is_dash {
-                IoriMerger::mkvmerge(output, false)
+                IoriMerger::auto(output, false)
             } else {
                 IoriMerger::concat(output, false)
             }
