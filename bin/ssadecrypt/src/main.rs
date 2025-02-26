@@ -1,5 +1,9 @@
 use clap::Parser;
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 #[derive(Parser, Debug, Clone)]
 #[clap(version = env!("BUILD_VERSION"), author)]
@@ -14,7 +18,7 @@ pub struct SsaDecryptArgs {
     pub iv: String,
 
     /// The input file to decrypt.
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     /// The output file to write the decrypted data to. If not specified, the decrypted data will be written to stdout.
     pub output: Option<PathBuf>,
@@ -25,7 +29,10 @@ fn main() -> Result<(), iori_ssa::Error> {
     let key = hex::decode(args.key).expect("Invalid key");
     let iv = hex::decode(args.iv).expect("Invalid iv");
 
-    let input = File::open(args.input).expect("Failed to open input file");
+    let input = args.input.map_or_else(
+        || Box::new(std::io::stdin()) as Box<dyn Read>,
+        |input| Box::new(File::open(input).expect("Failed to open input file")),
+    );
     let output = args.output.map_or_else(
         || Box::new(std::io::stdout()) as Box<dyn Write>,
         |output| Box::new(File::create(output).expect("Failed to create output file")),
