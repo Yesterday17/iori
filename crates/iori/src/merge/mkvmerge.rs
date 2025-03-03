@@ -141,6 +141,8 @@ async fn mkvmerge_concat<O>(
 where
     O: AsRef<Path>,
 {
+    let mkvmerge = which::which("mkvmerge")?;
+
     segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
     let mut paths = Vec::with_capacity(segments.len());
     for segment in segments {
@@ -148,7 +150,7 @@ where
         paths.push(filename);
     }
 
-    let mut child = Command::new("mkvmerge")
+    let mut child = Command::new(mkvmerge)
         .arg("-q")
         .arg("[")
         .args(paths)
@@ -170,7 +172,8 @@ where
         return Ok(());
     }
 
-    let mut merge = Command::new("mkvmerge")
+    let mkvmerge = which::which("mkvmerge")?;
+    let mut merge = Command::new(mkvmerge)
         .args(tracks.iter())
         .arg("-o")
         .arg(output.as_ref())
