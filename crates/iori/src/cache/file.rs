@@ -1,5 +1,5 @@
 use super::{CacheSource, CacheSourceReader, CacheSourceWriter};
-use crate::error::IoriResult;
+use crate::{error::IoriResult, IoriError};
 use std::path::PathBuf;
 use tokio::fs::File;
 
@@ -8,8 +8,12 @@ pub struct FileCacheSource {
 }
 
 impl FileCacheSource {
-    pub fn new(cache_dir: PathBuf) -> Self {
-        Self { cache_dir }
+    pub fn new(cache_dir: PathBuf) -> IoriResult<Self> {
+        if cache_dir.exists() {
+            return Err(IoriError::CacheDirExists(cache_dir));
+        }
+
+        Ok(Self { cache_dir })
     }
 
     async fn ensure_cache_dir(&self) -> IoriResult<()> {

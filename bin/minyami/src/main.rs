@@ -285,8 +285,8 @@ impl MinyamiArgs {
 
         let cache: IoriCache = match (self.live, self.pipe, self.dash) {
             (_, true, false) => IoriCache::memory(),
-            (true, false, _) => IoriCache::file(final_temp_dir),
-            _ => IoriCache::file(final_temp_dir),
+            (true, false, _) => IoriCache::file(final_temp_dir)?,
+            _ => IoriCache::file(final_temp_dir)?,
         };
 
         if self.m3u8.contains("dmc.nico") {

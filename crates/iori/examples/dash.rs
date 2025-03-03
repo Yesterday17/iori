@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     let source = CommonDashArchiveSource::new(Default::default(), url, key.as_deref())?;
     let merger = SkipMerger::new();
-    let cache = FileCacheSource::new(output_dir);
+    let cache = FileCacheSource::new(output_dir)?;
 
     let mut downloader = SequencialDownloader::new(source, merger, cache);
     downloader.download().await?;

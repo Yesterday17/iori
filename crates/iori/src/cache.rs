@@ -84,8 +84,8 @@ impl IoriCache {
         Self::Memory(memory::MemoryCacheSource::new())
     }
 
-    pub fn file(path: impl Into<PathBuf>) -> Self {
-        Self::File(file::FileCacheSource::new(path.into()))
+    pub fn file(path: impl Into<PathBuf>) -> IoriResult<Self> {
+        Ok(Self::File(file::FileCacheSource::new(path.into())?))
     }
 }
 

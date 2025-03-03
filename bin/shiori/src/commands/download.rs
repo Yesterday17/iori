@@ -78,7 +78,7 @@ impl DownloadCommand {
         let downloader = ParallelDownloaderBuilder::new()
             .concurrency(self.download.concurrency)
             .retries(self.download.segment_retries)
-            .cache(self.cache.into_cache())
+            .cache(self.cache.into_cache()?)
             .merger(self.output.into_merger(!is_m3u8));
 
         if self.url.contains("dmc.nico") {
@@ -220,11 +220,11 @@ pub struct CacheOptions {
 }
 
 impl CacheOptions {
-    pub fn into_cache(self) -> IoriCache {
-        if self.in_memory_cache {
+    pub fn into_cache(self) -> anyhow::Result<IoriCache> {
+        Ok(if self.in_memory_cache {
             IoriCache::memory()
         } else if let Some(cache_dir) = self.cache_dir {
-            IoriCache::file(cache_dir)
+            IoriCache::file(cache_dir)?
         } else {
             let mut cache_dir = self.temp_dir.unwrap_or_else(|| std::env::temp_dir());
 
@@ -232,8 +232,8 @@ impl CacheOptions {
             let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
             cache_dir.push(format!("shiori_{started_at}_{}", rand::random::<u8>()));
 
-            IoriCache::file(cache_dir)
-        }
+            IoriCache::file(cache_dir)?
+        })
     }
 }
 

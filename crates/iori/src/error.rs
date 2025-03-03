@@ -45,6 +45,12 @@ pub enum IoriError {
 
     #[error("Invalid timing schema: {0:?}")]
     InvalidTimingSchema(String),
+
+    #[error(transparent)]
+    MissingExecutable(#[from] which::Error),
+
+    #[error("Can not set cache directory to an existing path: {0}")]
+    CacheDirExists(std::path::PathBuf),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

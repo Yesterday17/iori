@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
 
     let source = CommonM3u8LiveSource::new(Default::default(), url, key.as_deref(), None);
     let merger = PipeMerger::stdout(true);
-    let cache = FileCacheSource::new(output_dir);
+    let cache = FileCacheSource::new(output_dir)?;
 
     let downloader = ParallelDownloader::new(source, merger, cache, NonZeroU32::new(8).unwrap(), 8);
     downloader.download().await?;
