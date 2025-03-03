@@ -69,6 +69,18 @@ impl CacheSource for FileCacheSource {
     }
 
     async fn clear(&self) -> IoriResult<()> {
+        let mut entries = tokio::fs::read_dir(&self.cache_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_dir() {
+                log::warn!(
+                    "Subdirectory {} detected in cache directory. Skipping cleanup. You can remove it manually at {}",
+                    entry.path().display(),
+                    self.cache_dir.display()
+                );
+                return Ok(());
+            }
+        }
+
         tokio::fs::remove_dir_all(&self.cache_dir).await?;
         Ok(())
     }
