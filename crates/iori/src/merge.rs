@@ -7,6 +7,7 @@ pub use concat::ConcatAfterMerger;
 pub use mkvmerge::AutoMerger;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
+use tokio::io::AsyncWrite;
 
 use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
 use std::{future::Future, path::PathBuf};
@@ -49,6 +50,13 @@ pub enum IoriMerger {
 impl IoriMerger {
     pub fn pipe(recycle: bool) -> Self {
         Self::Pipe(PipeMerger::stdout(recycle))
+    }
+
+    pub fn pipe_to_writer(
+        recycle: bool,
+        writer: impl AsyncWrite + Unpin + Send + Sync + 'static,
+    ) -> Self {
+        Self::Pipe(PipeMerger::writer(recycle, writer))
     }
 
     pub fn pipe_to_file(recycle: bool, output_file: PathBuf) -> Self {

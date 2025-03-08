@@ -4,7 +4,12 @@ use crate::{
     SegmentType,
 };
 use std::{future::Future, path::PathBuf, pin::Pin, process::Stdio};
-use tokio::{io::AsyncRead, process::Command, sync::mpsc, task::JoinHandle};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    process::Command,
+    sync::mpsc,
+    task::JoinHandle,
+};
 
 type SendSegment = (
     Pin<Box<dyn AsyncRead + Send + 'static>>,
@@ -24,14 +29,20 @@ pub struct PipeMerger {
 
 impl PipeMerger {
     pub fn stdout(recycle: bool) -> Self {
+        Self::writer(recycle, tokio::io::stdout())
+    }
+
+    pub fn writer(
+        recycle: bool,
+        mut writer: impl AsyncWrite + Unpin + Send + Sync + 'static,
+    ) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
 
         let mut stream: OrderedStream<Option<SendSegment>> = OrderedStream::new(rx);
         let future = tokio::spawn(async move {
-            let mut stdout = tokio::io::stdout();
             while let Some(segment) = stream.next().await {
                 if let Some((mut reader, _type, invalidate)) = segment {
-                    _ = tokio::io::copy(&mut reader, &mut stdout).await;
+                    _ = tokio::io::copy(&mut reader, &mut writer).await;
                     if recycle {
                         _ = invalidate.await;
                     }
