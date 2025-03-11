@@ -11,7 +11,7 @@ use std::{
 };
 use tokio::sync::{Mutex, Semaphore};
 
-pub struct ParallelDownloader<S, M, C>
+struct ParallelDownloader<S, M, C>
 where
     S: StreamingSource,
     M: Merger,
@@ -38,7 +38,13 @@ where
     M: Merger + Send + Sync + 'static,
     C: CacheSource + Send + Sync + 'static,
 {
-    pub fn new(source: S, merger: M, cache: C, concurrency: NonZeroU32, retries: u32) -> Self {
+    pub(crate) fn new(
+        source: S,
+        merger: M,
+        cache: C,
+        concurrency: NonZeroU32,
+        retries: u32,
+    ) -> Self {
         let permits = Arc::new(Semaphore::new(concurrency.get() as usize));
 
         Self {
@@ -245,7 +251,7 @@ where
         self
     }
 
-    pub fn build<S>(self, source: S) -> ParallelDownloader<S, M, C>
+    fn build<S>(self, source: S) -> ParallelDownloader<S, M, C>
     where
         S: StreamingSource + Send + Sync + 'static,
     {

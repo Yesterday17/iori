@@ -4,7 +4,7 @@ use std::{
 };
 
 use iori::{
-    cache::file::FileCacheSource, download::ParallelDownloader, hls::CommonM3u8LiveSource,
+    cache::file::FileCacheSource, download::ParallelDownloaderBuilder, hls::CommonM3u8LiveSource,
     merge::PipeMerger,
 };
 
@@ -28,8 +28,13 @@ async fn main() -> anyhow::Result<()> {
     let merger = PipeMerger::stdout(true);
     let cache = FileCacheSource::new(output_dir)?;
 
-    let downloader = ParallelDownloader::new(source, merger, cache, NonZeroU32::new(8).unwrap(), 8);
-    downloader.download().await?;
+    ParallelDownloaderBuilder::new()
+        .cache(cache)
+        .merger(merger)
+        .concurrency(NonZeroU32::new(8).unwrap())
+        .retries(8)
+        .download(source)
+        .await?;
 
     Ok(())
 }

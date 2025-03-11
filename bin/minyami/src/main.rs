@@ -13,7 +13,7 @@ use fake_user_agent::get_chrome_rua;
 use iori::{
     cache::IoriCache,
     dash::archive::CommonDashArchiveSource,
-    download::ParallelDownloader,
+    download::ParallelDownloaderBuilder,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
     merge::IoriMerger,
     StreamingSource,
@@ -273,9 +273,13 @@ impl MinyamiArgs {
     where
         S: StreamingSource + Send + Sync + 'static,
     {
-        let downloader =
-            ParallelDownloader::new(source, self.merger(), cache, self.threads, self.retries);
-        downloader.download().await?;
+        ParallelDownloaderBuilder::new()
+            .cache(cache)
+            .merger(self.merger())
+            .concurrency(self.threads)
+            .retries(self.retries)
+            .download(source)
+            .await?;
         Ok(())
     }
 
