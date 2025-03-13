@@ -9,11 +9,14 @@ pub enum IoriError {
     #[error("M3u8 fetch error")]
     M3u8FetchError,
 
-    #[error("Invalid clear key: {0}")]
-    InvalidClearKey(String),
+    #[error("Decryption key required")]
+    DecryptionKeyRequired,
 
-    #[error("Invalid AES-128 key: {0:?}")]
-    InvalidAes128Key(Vec<u8>),
+    #[error("Invalid hex key: {0}")]
+    InvalidHexKey(String),
+
+    #[error("Invalid binary key: {0:?}")]
+    InvalidBinaryKey(Vec<u8>),
 
     #[error("mp4decrypt error: {0}")]
     Mp4DecryptError(String),

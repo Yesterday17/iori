@@ -32,7 +32,7 @@ impl IoriKey {
     pub fn clear_key(key: &str) -> IoriResult<Self> {
         let (kid, key) = key
             .split_once(':')
-            .ok_or_else(|| IoriError::InvalidClearKey(key.to_string()))?;
+            .ok_or_else(|| IoriError::InvalidHexKey(key.to_string()))?;
 
         let mut keys = HashMap::new();
         keys.insert(kid.to_string(), key.to_string());
@@ -70,7 +70,7 @@ impl IoriKey {
                 Some(Self::Aes128 {
                     key: key_bytes
                         .try_into()
-                        .map_err(|v| IoriError::InvalidAes128Key(v))?,
+                        .map_err(|v| IoriError::InvalidBinaryKey(v))?,
                     iv: key
                         .iv
                         .clone()
@@ -87,16 +87,14 @@ impl IoriKey {
                 })
             }
             KeyMethod::SampleAES => {
-                let key_bytes = if let Some(key) = manual_key {
-                    hex::decode(key)?
-                } else {
-                    panic!("Specify key for SAMPLE-AES is required.");
+                let Some(key_bytes) = manual_key.map(hex::decode).transpose()? else {
+                    return Err(IoriError::DecryptionKeyRequired);
                 };
 
                 Some(Self::SampleAes {
                     key: key_bytes
                         .try_into()
-                        .map_err(|v| IoriError::InvalidAes128Key(v))?,
+                        .map_err(|v| IoriError::InvalidBinaryKey(v))?,
                     iv: key
                         .iv
                         .clone()
@@ -117,8 +115,9 @@ impl IoriKey {
                     log::debug!("{name} encryption detected. Using manual key.");
 
                     // <kid>:<key>;<kid>:<key>;...
-                    let manual_key =
-                        manual_key.expect("Specify key for SAMPLE-AES-CENC/CTR is required.");
+                    let Some(manual_key) = manual_key else {
+                        return Err(IoriError::DecryptionKeyRequired);
+                    };
                     let mut keys = HashMap::new();
                     for pair in manual_key.split(';') {
                         match pair.split_once(':') {
@@ -129,7 +128,7 @@ impl IoriKey {
                         }
                     }
                     if keys.is_empty() {
-                        panic!("No valid key found in {}", manual_key);
+                        return Err(IoriError::InvalidHexKey(manual_key));
                     }
 
                     Some(Self::ClearKey {
