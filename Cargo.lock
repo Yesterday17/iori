@@ -3096,6 +3096,7 @@ dependencies = [
  "shiori-plugin",
  "shlex",
  "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

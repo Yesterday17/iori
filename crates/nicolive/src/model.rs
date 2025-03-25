@@ -80,6 +80,17 @@ impl StreamCookies {
         headers.insert(COOKIE, HeaderValue::from_str(&cookies).unwrap());
         Some(headers)
     }
+
+    pub fn into_all_headers(self) -> Vec<String> {
+        let cookies = self
+            .0
+            .iter()
+            .map(|c| format!("{}={}", c.name, c.value))
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        vec![format!("Cookie: {cookies}")]
+    }
 }
 
 #[derive(Deserialize, Debug)]

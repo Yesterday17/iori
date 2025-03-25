@@ -1,6 +1,6 @@
 use shiori_plugin::*;
 
-use crate::program::NicoEmbeddedData;
+use crate::{model::WatchResponse, program::NicoEmbeddedData, watch::WatchClient};
 
 pub struct NicoLiveInspector {
     user_session: Option<String>,
@@ -24,13 +24,25 @@ impl Inspect for NicoLiveInspector {
 
     async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
         let data = NicoEmbeddedData::new(url, self.user_session.as_deref()).await?;
-        let audience_token = data.audience_token()?;
+        let wss_url = data
+            .websocket_url()
+            .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
+
+        let mut watcher = WatchClient::new(&wss_url).await?;
+        watcher.init().await?;
+
+        let stream = loop {
+            let msg = watcher.recv().await?;
+            if let Some(WatchResponse::Stream(stream)) = msg {
+                break stream;
+            }
+        };
 
         Ok(InspectResult::Playlist(InspectPlaylist {
             title: Some(data.program_title()),
-            playlist_url: "dmc.nico".to_string(),
+            playlist_url: stream.uri,
             playlist_type: PlaylistType::HLS,
-            key: Some(audience_token),
+            headers: stream.cookies.into_all_headers(),
             ..Default::default()
         }))
     }

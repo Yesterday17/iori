@@ -79,7 +79,7 @@ impl DownloadCommand {
             .concurrency(self.download.concurrency)
             .retries(self.download.segment_retries)
             .cache(self.cache.into_cache()?)
-            .merger(self.output.into_merger(!is_m3u8));
+            .merger(self.output.into_merger());
 
         if self.url.contains("dmc.nico") {
             log::info!("Enhanced mode for Nico-TS enabled");
@@ -266,6 +266,9 @@ pub struct OutputOptions {
     #[clap(long)]
     pub no_merge: bool,
 
+    #[clap(long)]
+    pub concat: bool,
+
     /// Write stream to a file
     #[clap(short, long)]
     pub output: Option<PathBuf>,
@@ -280,14 +283,14 @@ pub struct OutputOptions {
 }
 
 impl OutputOptions {
-    pub fn into_merger(self, is_dash: bool) -> IoriMerger {
+    pub fn into_merger(self) -> IoriMerger {
         if self.no_merge {
             IoriMerger::skip()
         } else if let Some(output) = self.output {
-            if is_dash {
-                IoriMerger::auto(output, false)
-            } else {
+            if self.concat {
                 IoriMerger::concat(output, false)
+            } else {
+                IoriMerger::auto(output, false)
             }
         } else if self.pipe {
             IoriMerger::pipe(true)

@@ -132,6 +132,7 @@ impl M3u8Source {
                 duration: segment.duration,
                 segment_type: self.segment_type.clone(),
                 format,
+                headers: None,
             };
             segments.push(segment);
         }
