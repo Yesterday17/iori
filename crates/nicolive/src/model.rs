@@ -13,7 +13,7 @@ use crate::danmaku::protocol::{
     service::edge::chunked_message::Meta,
 };
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "type", content = "data", rename_all = "camelCase")]
 pub enum WatchResponse {
     /// Ping message, should respond Pong
@@ -28,13 +28,13 @@ pub enum WatchResponse {
     Schedule(WatchMessageSchedule),
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchMessageServerTime {
     pub current_ms: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchMessageSeat {
     pub keep_interval_sec: u64,

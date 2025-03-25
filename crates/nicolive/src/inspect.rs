@@ -38,6 +38,9 @@ impl Inspect for NicoLiveInspector {
             }
         };
 
+        // keep seats
+        tokio::spawn(async move { while let Ok(_) = watcher.recv().await {} });
+
         Ok(InspectResult::Playlist(InspectPlaylist {
             title: Some(data.program_title()),
             playlist_url: stream.uri,

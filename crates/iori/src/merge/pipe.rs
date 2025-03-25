@@ -201,7 +201,7 @@ impl PipeMerger {
                 }
             });
 
-            while let Some((stream_id, segment)) = stream.next().await {
+            while let Some((_, segment)) = stream.next().await {
                 if let Some((reader, r#type, invalidate)) = segment {
                     match r#type {
                         SegmentType::Video => {

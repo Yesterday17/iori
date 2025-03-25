@@ -88,6 +88,7 @@ impl WatchClient {
     }
 
     async fn keep_seat(&mut self) -> anyhow::Result<()> {
+        log::debug!("keep seat");
         self.websocket
             .send(Message::Text(json!({"type": "keepSeat"}).to_string()))
             .await?;
