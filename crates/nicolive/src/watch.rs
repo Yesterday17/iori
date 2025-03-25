@@ -38,7 +38,7 @@ impl WatchClient {
     pub async fn init(&mut self) -> anyhow::Result<()> {
         self.start_watching().await?;
         self.get_akashic().await?;
-        self.get_resume().await?;
+        // self.get_resume().await?;
 
         Ok(())
     }

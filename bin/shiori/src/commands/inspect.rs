@@ -19,7 +19,7 @@ pub struct InspectCommand {
     /// Additional arguments passed to inspectors.
     ///
     /// Format: key=value
-    #[clap(short = 'e', long = "inspector-arg")]
+    #[clap(short = 'e', long = "arg")]
     inspector_args: Vec<String>,
 
     url: String,

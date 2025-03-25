@@ -46,7 +46,7 @@ pub struct DownloadCommand {
     /// Additional arguments passed to inspectors.
     ///
     /// Format: key=value
-    #[clap(short = 'e', long = "inspector-arg")]
+    #[clap(short = 'e', long = "arg")]
     pub inspector_args: Vec<String>,
 
     /// URL to download
