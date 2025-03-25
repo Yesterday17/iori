@@ -283,6 +283,10 @@ pub struct OutputOptions {
     #[clap(short = 'P', long)]
     pub pipe: bool,
 
+    /// Pipe to a file and mux with ffmpeg
+    #[clap(short = 'M', long)]
+    pub pipe_mux: bool,
+
     /// Pipe to a file
     #[clap(long)]
     pub pipe_to: Option<PathBuf>,
@@ -300,6 +304,8 @@ impl OutputOptions {
             }
         } else if self.pipe {
             IoriMerger::pipe(true)
+        } else if self.pipe_mux {
+            IoriMerger::pipe_mux(true, "-".into(), None)
         } else if let Some(pipe) = self.pipe_to {
             IoriMerger::pipe_to_file(true, pipe)
         } else {
