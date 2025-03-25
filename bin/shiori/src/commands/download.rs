@@ -163,8 +163,11 @@ impl HttpOptions {
 
         Client::builder()
             .default_headers(headers)
+            // TODO: custom cookie store
+            .cookie_store(true)
             .user_agent(get_chrome_rua())
             .timeout(Duration::from_secs(self.timeout))
+            .danger_accept_invalid_certs(true)
             .build()
             .unwrap()
     }

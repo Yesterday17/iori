@@ -12,7 +12,7 @@ use url::Url;
 
 use crate::{
     dash::segment::DashSegment, decrypt::IoriKey, error::IoriResult, fetch::fetch_segment,
-    SegmentType, StreamingSource,
+    InitialSegment, SegmentType, StreamingSource,
 };
 
 use super::template::Template;
@@ -155,9 +155,9 @@ impl StreamingSource for CommonDashArchiveSource {
                             let initialization = template.resolve(&initialization);
                             let url = merge_baseurls(&base_url, &initialization)?;
                             let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
-                            Some(Arc::new(bytes))
+                            InitialSegment::Encrypted(Arc::new(bytes))
                         } else {
-                            None
+                            InitialSegment::None
                         };
 
                     if let Some(ref media_template) = segment_template.media {

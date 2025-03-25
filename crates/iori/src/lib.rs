@@ -66,8 +66,8 @@ pub trait StreamingSegment {
     fn file_name(&self) -> &str;
 
     /// Optional initial segment data
-    fn initial_segment(&self) -> Option<std::sync::Arc<Vec<u8>>> {
-        None
+    fn initial_segment(&self) -> InitialSegment {
+        InitialSegment::None
     }
 
     /// Optional key for decryption
@@ -79,6 +79,14 @@ pub trait StreamingSegment {
 
     /// Format hint for the segment
     fn format(&self) -> SegmentFormat;
+}
+
+#[derive(Clone, Default)]
+pub enum InitialSegment {
+    Encrypted(std::sync::Arc<Vec<u8>>),
+    Clear(std::sync::Arc<Vec<u8>>),
+    #[default]
+    None,
 }
 
 #[derive(Clone, Default)]
@@ -116,7 +124,7 @@ pub struct SegmentInfo {
     pub stream_id: u64,
     pub sequence: u64,
     pub file_name: String,
-    pub initial_segment: Option<std::sync::Arc<Vec<u8>>>,
+    pub initial_segment: InitialSegment,
     pub key: Option<std::sync::Arc<decrypt::IoriKey>>,
     pub r#type: SegmentType,
     pub format: SegmentFormat,
@@ -152,7 +160,7 @@ impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
         self.as_ref().file_name()
     }
 
-    fn initial_segment(&self) -> Option<std::sync::Arc<Vec<u8>>> {
+    fn initial_segment(&self) -> InitialSegment {
         self.as_ref().initial_segment()
     }
 
@@ -182,7 +190,7 @@ impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + '
         self.as_ref().file_name()
     }
 
-    fn initial_segment(&self) -> Option<std::sync::Arc<Vec<u8>>> {
+    fn initial_segment(&self) -> InitialSegment {
         self.as_ref().initial_segment()
     }
 
@@ -226,6 +234,10 @@ impl SegmentType {
 
 pub trait RemoteStreamingSegment {
     fn url(&self) -> reqwest::Url;
+
+    fn headers(&self) -> Option<reqwest::header::HeaderMap> {
+        None
+    }
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
         None

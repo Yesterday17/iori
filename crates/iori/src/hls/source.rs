@@ -14,7 +14,7 @@ use crate::{
     decrypt::IoriKey,
     error::IoriResult,
     hls::{segment::M3u8Segment, utils::load_m3u8},
-    SegmentFormat, SegmentType,
+    InitialSegment, SegmentFormat, SegmentType,
 };
 
 use super::utils::load_playlist_with_retry;
@@ -66,16 +66,17 @@ impl M3u8Source {
         {
             (Url::from_str(&self.m3u8_url)?, initial_playlist)
         } else {
-            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?
+            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, None, retry).await?
         };
 
         let mut key = None;
-        let mut initial_block = None;
+        let mut initial_block = InitialSegment::None;
         let mut segments = Vec::with_capacity(playlist.segments.len());
         for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
                 key = IoriKey::from_key(
                     &self.client,
+                    None,
                     k,
                     &playlist_url,
                     playlist.media_sequence,
@@ -89,7 +90,11 @@ impl M3u8Source {
             if let Some(m) = &segment.map {
                 let url = playlist_url.join(&m.uri)?;
                 let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
-                initial_block = Some(Arc::new(bytes));
+                initial_block = if m.after_key {
+                    InitialSegment::Encrypted(Arc::new(bytes))
+                } else {
+                    InitialSegment::Clear(Arc::new(bytes))
+                };
             }
 
             let url = playlist_url.join(&segment.uri)?;

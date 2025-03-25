@@ -106,7 +106,8 @@ impl WatchClient {
                             "quality": "super_high",
                             "protocol": "hls",
                             "latency": "low",
-                            "chasePlay": false
+                            "chasePlay": false,
+                            "accessRightMethod": "single_cookie"
                         },
                         "room": {
                             "protocol": "webSocket",

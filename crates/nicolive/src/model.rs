@@ -1,3 +1,4 @@
+use reqwest::header::{HeaderMap, HeaderValue, COOKIE};
 use serde::{Deserialize, Serialize};
 
 use crate::danmaku::protocol::{
@@ -39,11 +40,13 @@ pub struct WatchMessageSeat {
     pub keep_interval_sec: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchMessageStream {
     /// hls
     pub protocol: String,
+
+    pub cookies: StreamCookies,
 
     /// super_high
     pub quality: String,
@@ -54,6 +57,42 @@ pub struct WatchMessageStream {
     pub sync_uri: String,
     /// HLS m3u8 uri
     pub uri: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StreamCookies(#[serde(default)] Vec<WatchStreamCookie>);
+
+impl StreamCookies {
+    pub fn to_headers(&self, path: &str) -> Option<HeaderMap> {
+        if self.0.is_empty() {
+            return None;
+        }
+
+        let cookies = self
+            .0
+            .iter()
+            .filter(|c| path.starts_with(c.path.as_deref().unwrap_or("/")))
+            .map(|c| format!("{}={}", c.name, c.value))
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(COOKIE, HeaderValue::from_str(&cookies).unwrap());
+        Some(headers)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchStreamCookie {
+    pub name: String,
+    pub value: String,
+
+    pub domain: String,
+    pub path: Option<String>,
+    pub expires: Option<String>,
+    #[serde(default)]
+    pub secure: bool,
 }
 
 #[derive(Deserialize, Debug)]

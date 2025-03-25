@@ -14,7 +14,7 @@ iori-ssa.workspace = true
 async-recursion.workspace = true
 log.workspace = true
 tracing.workspace = true
-m3u8-rs = "5.0.5"
+m3u8-rs = { git = "https://github.com/Yesterday17/m3u8-rs.git" }
 reqwest.workspace = true
 tokio.workspace = true
 
