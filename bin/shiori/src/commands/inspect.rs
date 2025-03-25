@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::inspect::{
     self,
     inspectors::{ExternalInspector, HlsInspector, ShortLinkInspector},
@@ -14,14 +16,30 @@ pub struct InspectCommand {
     #[clap(short, long)]
     wait: bool,
 
+    /// Additional arguments passed to inspectors.
+    ///
+    /// Format: key=value
+    #[clap(short = 'e', long = "inspector-arg")]
+    inspector_args: Vec<String>,
+
     url: String,
 }
 
-pub(crate) fn get_default_external_inspector() -> anyhow::Result<Vec<Box<dyn Inspect>>> {
+pub(crate) fn get_default_external_inspector(
+    input: &[String],
+) -> anyhow::Result<Vec<Box<dyn Inspect>>> {
+    let args: HashMap<String, String> = input
+        .into_iter()
+        .map(|s| {
+            let (key, value) = s.split_once('=').unwrap();
+            (key.to_string(), value.to_string())
+        })
+        .collect();
+
     let mut inspectors: Vec<Box<dyn Inspect>> = vec![
         ShortLinkInspector.to_box(),
         ShowroomInspector.to_box(),
-        NicoLiveInspector::new(std::env::var("NICO_USER_SESSION").ok()).to_box(),
+        NicoLiveInspector::new(args.get("nico_user_session").cloned()).to_box(),
         HlsInspector.to_box(),
     ];
 
@@ -33,13 +51,13 @@ pub(crate) fn get_default_external_inspector() -> anyhow::Result<Vec<Box<dyn Ins
 }
 
 #[handler(InspectCommand)]
-async fn handle_inspect(args: InspectCommand) -> anyhow::Result<()> {
-    let inspectors = get_default_external_inspector()?;
+async fn handle_inspect(this: InspectCommand) -> anyhow::Result<()> {
+    let inspectors = get_default_external_inspector(&this.inspector_args)?;
     let (matched_inspector, data) = inspect::inspect(
-        &args.url,
+        &this.url,
         inspectors,
         |c| c.into_iter().next().unwrap(),
-        args.wait,
+        this.wait,
     )
     .await?;
     eprintln!("{matched_inspector}: {data:?}");

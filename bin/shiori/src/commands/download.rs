@@ -43,6 +43,12 @@ pub struct DownloadCommand {
     #[clap(short, long)]
     wait: bool,
 
+    /// Additional arguments passed to inspectors.
+    ///
+    /// Format: key=value
+    #[clap(short = 'e', long = "inspector-arg")]
+    pub inspector_args: Vec<String>,
+
     /// URL to download
     pub url: String,
 }
@@ -50,7 +56,7 @@ pub struct DownloadCommand {
 impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         if !self.extra.skip_inspector {
-            let inspectors = get_default_external_inspector()?;
+            let inspectors = get_default_external_inspector(&self.inspector_args)?;
             let (_, data) = crate::inspect::inspect(
                 &self.url,
                 inspectors,
