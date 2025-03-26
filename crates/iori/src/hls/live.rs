@@ -34,6 +34,7 @@ impl CommonM3u8LiveSource {
                 Url::parse(&m3u8_url).unwrap(),
                 key,
                 shaka_packager_command,
+                3,
             ))),
             retry: 3,
         }

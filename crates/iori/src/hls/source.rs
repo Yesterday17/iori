@@ -33,6 +33,8 @@ pub struct M3u8Source {
     sequence: AtomicU64,
     client: HttpClient,
     segment_type: Option<SegmentType>,
+
+    retry: u32,
 }
 
 impl M3u8Source {
@@ -44,6 +46,7 @@ impl M3u8Source {
         shaka_packager_command: Option<PathBuf>,
         segment_type: Option<SegmentType>,
         stream_id: u64,
+        retry: u32,
     ) -> Self {
         Self {
             m3u8_url,
@@ -55,6 +58,8 @@ impl M3u8Source {
             client,
             segment_type,
             stream_id,
+
+            retry,
         }
     }
 
@@ -71,7 +76,7 @@ impl M3u8Source {
         };
 
         let mut key = None;
-        let mut initial_block = InitialSegment::None;
+        let mut initial_segment = InitialSegment::None;
         let mut segments = Vec::with_capacity(playlist.segments.len());
         for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
@@ -89,12 +94,28 @@ impl M3u8Source {
 
             if let Some(m) = &segment.map {
                 let url = playlist_url.join(&m.uri)?;
-                let bytes = self.client.get(url).send().await?.bytes().await?.to_vec();
-                initial_block = if m.after_key {
-                    InitialSegment::Encrypted(Arc::new(bytes))
-                } else {
-                    InitialSegment::Clear(Arc::new(bytes))
-                };
+
+                let mut retries = self.retry;
+                loop {
+                    retries -= 1;
+
+                    match self.load_bytes(url.clone()).await {
+                        Ok(bytes) => {
+                            initial_segment = if m.after_key {
+                                InitialSegment::Encrypted(Arc::new(bytes))
+                            } else {
+                                InitialSegment::Clear(Arc::new(bytes))
+                            };
+                            break;
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to load bytes for initial segment {url}: {e}");
+                            if retries == 0 {
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
             }
 
             let url = playlist_url.join(&segment.uri)?;
@@ -125,7 +146,7 @@ impl M3u8Source {
                 url,
                 filename,
                 key: key.clone(),
-                initial_segment: initial_block.clone(),
+                initial_segment: initial_segment.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                 media_sequence,
                 byte_range: segment.byte_range.clone(),
@@ -138,6 +159,10 @@ impl M3u8Source {
 
         Ok((segments, playlist_url, playlist))
     }
+
+    async fn load_bytes(&self, url: Url) -> IoriResult<Vec<u8>> {
+        Ok(self.client.get(url).send().await?.bytes().await?.to_vec())
+    }
 }
 
 pub struct AdvancedM3u8Source {
@@ -148,6 +173,8 @@ pub struct AdvancedM3u8Source {
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
     client: HttpClient,
+
+    retry: u32,
 }
 
 impl AdvancedM3u8Source {
@@ -156,6 +183,7 @@ impl AdvancedM3u8Source {
         m3u8_url: Url,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,
+        retry: u32,
     ) -> Self {
         Self {
             m3u8_url,
@@ -163,6 +191,8 @@ impl AdvancedM3u8Source {
             shaka_packager_command,
             client,
             streams: Vec::new(),
+
+            retry,
         }
     }
 
@@ -206,6 +236,7 @@ impl AdvancedM3u8Source {
                     self.shaka_packager_command.clone(),
                     Some(SegmentType::Video),
                     0,
+                    self.retry,
                 ));
 
                 fn load_variant<'a, 'b>(
@@ -244,6 +275,7 @@ impl AdvancedM3u8Source {
                             self.shaka_packager_command.clone(),
                             Some(SegmentType::Audio),
                             1,
+                            self.retry,
                         ));
                     }
                 }
@@ -259,6 +291,7 @@ impl AdvancedM3u8Source {
                             self.shaka_packager_command.clone(),
                             Some(SegmentType::Video),
                             2,
+                            self.retry,
                         ));
                     }
                 }
@@ -272,6 +305,7 @@ impl AdvancedM3u8Source {
                     self.shaka_packager_command.clone(),
                     Some(SegmentType::Video),
                     0,
+                    self.retry,
                 ));
             }
         }

@@ -293,7 +293,7 @@ impl MinyamiArgs {
             _ => IoriCache::file(final_temp_dir)?,
         };
 
-        if self.m3u8.contains("dmc.nico") {
+        if self.m3u8.contains("dlive.nicovideo.jp") {
             log::info!("Enhanced mode for Nico-TS enabled");
 
             let key = self.key.as_deref().expect("Key is required for Nico-TS");

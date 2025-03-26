@@ -232,8 +232,8 @@ mod tests {
             NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv345610602", None).await?;
         let wss_url = data.websocket_url().expect("No websocket url found");
 
-        let mut watcher = WatchClient::new(wss_url).await.unwrap();
-        watcher.init().await.unwrap();
+        let watcher = WatchClient::new(wss_url).await.unwrap();
+        watcher.start_watching().await.unwrap();
 
         let message_server = loop {
             let msg = watcher.recv().await.unwrap();

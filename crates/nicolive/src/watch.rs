@@ -44,14 +44,6 @@ impl WatchClient {
         })
     }
 
-    pub async fn init(&mut self) -> anyhow::Result<()> {
-        self.start_watching().await?;
-        self.get_akashic().await?;
-        // self.get_resume().await?;
-
-        Ok(())
-    }
-
     pub async fn recv(&self) -> anyhow::Result<Option<WatchResponse>> {
         while let Some(msg) = self.receiver.lock().await.next().await {
             let msg = msg?;
@@ -63,6 +55,7 @@ impl WatchClient {
                     }
                     WatchResponse::ServerTime(_) => (), // dismiss server time
                     WatchResponse::Seat(seat) => {
+                        self.notify_new_visit().await?;
                         *self.keep_seat_interval.lock().await = Some(tokio::time::interval_at(
                             Instant::now() + Duration::from_secs(seat.keep_interval_sec),
                             Duration::from_secs(seat.keep_interval_sec),
@@ -70,7 +63,8 @@ impl WatchClient {
                     }
                     WatchResponse::Stream(msg) => return Ok(Some(WatchResponse::Stream(msg))),
                     WatchResponse::MessageServer(msg) => {
-                        return Ok(Some(WatchResponse::MessageServer(msg)))
+                        self.get_akashic().await?;
+                        return Ok(Some(WatchResponse::MessageServer(msg)));
                     }
                     WatchResponse::Statistics(msg) => {
                         return Ok(Some(WatchResponse::Statistics(msg)))
@@ -112,7 +106,7 @@ impl WatchClient {
     }
 
     // Initialize messages
-    async fn start_watching(&self) -> anyhow::Result<()> {
+    pub async fn start_watching(&self) -> anyhow::Result<()> {
         self.send(Message::Text(
             json!({
                 "type": "startWatching",
@@ -153,9 +147,11 @@ impl WatchClient {
         Ok(())
     }
 
-    async fn get_resume(&mut self) -> anyhow::Result<()> {
-        self.send(Message::Text(json!({"type":"getResume"}).to_string()))
-            .await?;
+    async fn notify_new_visit(&self) -> anyhow::Result<()> {
+        self.send(Message::Text(
+            json!({"type":"notifyNewVisit", "data": {}}).to_string(),
+        ))
+        .await?;
 
         Ok(())
     }
@@ -171,8 +167,8 @@ mod tests {
             NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv342260645", None).await?;
         let wss_url = data.websocket_url().expect("No websocket url found");
 
-        let mut watcher = WatchClient::new(wss_url).await.unwrap();
-        watcher.init().await.unwrap();
+        let watcher = WatchClient::new(wss_url).await.unwrap();
+        watcher.start_watching().await.unwrap();
 
         loop {
             let msg = watcher.recv().await.unwrap();

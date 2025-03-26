@@ -28,8 +28,8 @@ impl Inspect for NicoLiveInspector {
             .websocket_url()
             .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
 
-        let mut watcher = WatchClient::new(&wss_url).await?;
-        watcher.init().await?;
+        let watcher = WatchClient::new(&wss_url).await?;
+        watcher.start_watching().await?;
 
         let stream = loop {
             let msg = watcher.recv().await?;

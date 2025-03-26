@@ -137,13 +137,4 @@ mod tests {
         println!("{:?}", data.websocket_url());
         Ok(())
     }
-
-    // #[tokio::test]
-    // async fn test_generate_minyami_command() -> anyhow::Result<()> {
-    //     let data =
-    //         NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv342260645", None).await?;
-    //     let (command, args) = data.generate_download_command(None).await?;
-    //     println!("{command} {args:?}",);
-    //     Ok(())
-    // }
 }
