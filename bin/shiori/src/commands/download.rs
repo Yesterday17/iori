@@ -151,8 +151,12 @@ pub struct HttpOptions {
     #[clap(short = 'H', long = "header")]
     pub headers: Vec<String>,
 
-    /// Additional HTTP cookies
-    #[clap(short = 'c', long = "cookie")]
+    /// Advanced: Additional HTTP cookies
+    ///
+    /// Will not take effect if `Cookies` is set in [headers].
+    ///
+    /// Do not use this option unless you know what you are doing.
+    #[clap(long = "cookie")]
     pub cookies: Vec<String>,
 
     /// HTTP timeout, in seconds
