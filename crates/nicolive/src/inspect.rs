@@ -40,8 +40,16 @@ impl Inspect for NicoLiveInspector {
 
         // keep seats
         tokio::spawn(async move {
-            while let Ok(msg) = watcher.recv().await {
-                log::debug!("message: {:?}", msg);
+            loop {
+                tokio::select! {
+                    msg = watcher.recv() => {
+                        let Ok(msg) = msg else {
+                            break;
+                        };
+                        log::debug!("message: {:?}", msg);
+                    }
+                    _ = watcher.keep_seat() => (),
+                }
             }
             log::info!("watcher disconnected");
         });

@@ -1,18 +1,26 @@
-use std::time::SystemTime;
+use std::time::Duration;
 
 use fake_user_agent::get_chrome_rua;
-use futures_util::{sink::SinkExt, StreamExt};
+use futures_util::{
+    sink::SinkExt,
+    stream::{SplitSink, SplitStream},
+    StreamExt,
+};
 use reqwest::Client;
 use reqwest_websocket::{Message, RequestBuilderExt, WebSocket};
 use serde_json::json;
+use tokio::{
+    sync::Mutex,
+    time::{Instant, Interval},
+};
 
 use crate::model::*;
 
 pub struct WatchClient {
-    websocket: WebSocket,
+    sender: Mutex<SplitSink<WebSocket, Message>>,
+    receiver: Mutex<SplitStream<WebSocket>>,
 
-    keep_seat_interval: u64,
-    last_keep_seat_time: SystemTime,
+    keep_seat_interval: Mutex<Option<Interval>>,
 }
 
 impl WatchClient {
@@ -26,12 +34,13 @@ impl WatchClient {
             .unwrap();
         let response = client.get(ws_url.as_ref()).upgrade().send().await?;
         let websocket = response.into_websocket().await?;
+        let (sender, receiver) = websocket.split();
 
         Ok(Self {
-            websocket,
+            sender: Mutex::new(sender),
+            receiver: Mutex::new(receiver),
 
-            keep_seat_interval: 30,
-            last_keep_seat_time: SystemTime::now(),
+            keep_seat_interval: Mutex::new(None),
         })
     }
 
@@ -43,25 +52,21 @@ impl WatchClient {
         Ok(())
     }
 
-    pub async fn recv(&mut self) -> anyhow::Result<Option<WatchResponse>> {
-        while let Some(msg) = self.websocket.next().await {
+    pub async fn recv(&self) -> anyhow::Result<Option<WatchResponse>> {
+        while let Some(msg) = self.receiver.lock().await.next().await {
             let msg = msg?;
             if let Message::Text(text) = msg {
                 let data: WatchResponse = serde_json::from_str(&text)?;
                 match data {
                     WatchResponse::Ping => {
                         self.pong().await?;
-
-                        // check whether to keep seat
-                        let elapsed = self.last_keep_seat_time.elapsed()?;
-                        if elapsed.as_secs() >= self.keep_seat_interval {
-                            self.keep_seat().await?;
-                        }
                     }
                     WatchResponse::ServerTime(_) => (), // dismiss server time
                     WatchResponse::Seat(seat) => {
-                        self.last_keep_seat_time = SystemTime::now();
-                        self.keep_seat_interval = seat.keep_interval_sec;
+                        *self.keep_seat_interval.lock().await = Some(tokio::time::interval_at(
+                            Instant::now() + Duration::from_secs(seat.keep_interval_sec),
+                            Duration::from_secs(seat.keep_interval_sec),
+                        ));
                     }
                     WatchResponse::Stream(msg) => return Ok(Some(WatchResponse::Stream(msg))),
                     WatchResponse::MessageServer(msg) => {
@@ -80,69 +85,76 @@ impl WatchClient {
         Ok(None)
     }
 
-    async fn pong(&mut self) -> anyhow::Result<()> {
-        self.websocket
-            .send(Message::Text(json!({"type":"pong"}).to_string()))
+    pub(crate) async fn send(&self, msg: Message) -> Result<(), reqwest_websocket::Error> {
+        self.sender.lock().await.send(msg).await
+    }
+
+    async fn pong(&self) -> anyhow::Result<()> {
+        self.send(Message::Text(json!({"type":"pong"}).to_string()))
             .await?;
         Ok(())
     }
 
-    async fn keep_seat(&mut self) -> anyhow::Result<()> {
+    pub(crate) async fn keep_seat(&self) -> anyhow::Result<()> {
+        let mut interval = self.keep_seat_interval.lock().await;
+        if interval.is_none() {
+            return Ok(());
+        }
+
+        if let Some(ticker) = interval.as_mut() {
+            ticker.tick().await;
+        }
+
         log::debug!("keep seat");
-        self.websocket
-            .send(Message::Text(json!({"type": "keepSeat"}).to_string()))
+        self.send(Message::Text(json!({"type": "keepSeat"}).to_string()))
             .await?;
-        self.last_keep_seat_time = SystemTime::now();
         Ok(())
     }
 
     // Initialize messages
-    async fn start_watching(&mut self) -> anyhow::Result<()> {
-        self.websocket
-            .send(Message::Text(
-                json!({
-                    "type": "startWatching",
-                    "data": {
-                        "stream": {
-                            "quality": "super_high",
-                            "protocol": "hls",
-                            "latency": "low",
-                            "chasePlay": false,
-                            "accessRightMethod": "single_cookie"
-                        },
-                        "room": {
-                            "protocol": "webSocket",
-                            "commentable": true
-                        },
-                        "reconnect": false
-                    }
-                })
-                .to_string(),
-            ))
-            .await?;
+    async fn start_watching(&self) -> anyhow::Result<()> {
+        self.send(Message::Text(
+            json!({
+                "type": "startWatching",
+                "data": {
+                    "stream": {
+                        "quality": "super_high",
+                        "protocol": "hls",
+                        "latency": "low",
+                        "chasePlay": false,
+                        "accessRightMethod": "single_cookie"
+                    },
+                    "room": {
+                        "protocol": "webSocket",
+                        "commentable": true
+                    },
+                    "reconnect": false
+                }
+            })
+            .to_string(),
+        ))
+        .await?;
 
         Ok(())
     }
 
-    async fn get_akashic(&mut self) -> anyhow::Result<()> {
-        self.websocket
-            .send(Message::Text(
-                json!({
-                    "type": "getAkashic",
-                    "data": {
-                        "chasePlay":false
-                    }
-                })
-                .to_string(),
-            ))
-            .await?;
+    async fn get_akashic(&self) -> anyhow::Result<()> {
+        self.send(Message::Text(
+            json!({
+                "type": "getAkashic",
+                "data": {
+                    "chasePlay":false
+                }
+            })
+            .to_string(),
+        ))
+        .await?;
 
         Ok(())
     }
 
     async fn get_resume(&mut self) -> anyhow::Result<()> {
-        self.websocket
-            .send(Message::Text(json!({"type":"getResume"}).to_string()))
+        self.send(Message::Text(json!({"type":"getResume"}).to_string()))
             .await?;
 
         Ok(())
