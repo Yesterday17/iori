@@ -1,7 +1,10 @@
 use m3u8_rs::{MediaPlaylist, Playlist};
-use reqwest::{header::HeaderMap, Client, Url};
+use reqwest::{Client, Url};
 
-use crate::error::{IoriError, IoriResult};
+use crate::{
+    error::{IoriError, IoriResult},
+    util::http::HttpClient,
+};
 
 pub async fn load_playlist_with_retry(
     client: &Client,
@@ -40,9 +43,8 @@ pub async fn load_playlist_with_retry(
 
 #[async_recursion::async_recursion]
 pub async fn load_m3u8(
-    client: &Client,
+    client: &HttpClient,
     url: Url,
-    headers: Option<HeaderMap>,
     total_retry: u32,
 ) -> IoriResult<(Url, MediaPlaylist)> {
     log::info!("Start fetching M3U8 file.");
@@ -53,12 +55,7 @@ pub async fn load_m3u8(
             return Err(IoriError::M3u8FetchError);
         }
 
-        match client
-            .get(url.clone())
-            .headers(headers.clone().unwrap_or_default())
-            .send()
-            .await
-        {
+        match client.get(url.clone()).send().await {
             Ok(resp) => match resp.bytes().await {
                 Ok(m3u8_bytes) => match m3u8_rs::parse_playlist_res(&m3u8_bytes) {
                     Ok(parsed) => break parsed,
@@ -111,7 +108,7 @@ pub async fn load_m3u8(
                 "Best stream: {url}; Bandwidth: {bandwidth}",
                 bandwidth = variant.bandwidth
             );
-            load_m3u8(client, url, headers, total_retry).await
+            load_m3u8(client, url, total_retry).await
         }
         Playlist::MediaPlaylist(pl) => Ok((url, pl)),
     }

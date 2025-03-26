@@ -16,7 +16,7 @@ use iori::{
     download::ParallelDownloaderBuilder,
     hls::{CommonM3u8ArchiveSource, CommonM3u8LiveSource, SegmentRange},
     merge::IoriMerger,
-    StreamingSource,
+    HttpClient, StreamingSource,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use pretty_env_logger::env_logger::Builder;
@@ -155,7 +155,7 @@ pub struct MinyamiArgs {
 }
 
 impl MinyamiArgs {
-    fn client(&self) -> Client {
+    fn client(&self) -> HttpClient {
         let mut headers = HeaderMap::new();
         if let Some(cookies) = &self.cookies {
             headers.insert(
@@ -180,7 +180,7 @@ impl MinyamiArgs {
             client = client.proxy(Proxy::all(proxy).expect("Invalid proxy"));
         }
 
-        client.build().unwrap()
+        HttpClient::new(client)
     }
 
     fn temp_dir(&self) -> anyhow::Result<PathBuf> {

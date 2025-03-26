@@ -9,9 +9,11 @@ use std::{
 
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use m3u8_rs::KeyMethod;
-use reqwest::header::HeaderMap;
 
-use crate::error::{IoriError, IoriResult};
+use crate::{
+    error::{IoriError, IoriResult},
+    util::http::HttpClient,
+};
 
 pub enum IoriKey {
     Aes128 {
@@ -44,8 +46,7 @@ impl IoriKey {
     }
 
     pub async fn from_key(
-        client: &reqwest::Client,
-        headers: Option<HeaderMap>,
+        client: &HttpClient,
         key: &m3u8_rs::Key,
         playlist_url: &reqwest::Url,
         media_sequence: u64,
@@ -63,7 +64,6 @@ impl IoriKey {
                             playlist_url
                                 .join(&key.uri.clone().expect("URI field in key must exist"))?,
                         )
-                        .headers(headers.unwrap_or_default())
                         .send()
                         .await?
                         .bytes()

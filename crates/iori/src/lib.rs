@@ -11,6 +11,7 @@ pub use error::*;
 
 pub(crate) mod util;
 pub use util::detect_manifest_type;
+pub use util::http::HttpClient;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -247,6 +248,6 @@ pub trait RemoteStreamingSegment {
 pub trait ToSegmentData {
     fn to_segment_data(
         &self,
-        client: reqwest::Client,
+        client: util::http::HttpClient,
     ) -> impl std::future::Future<Output = error::IoriResult<bytes::Bytes>> + Send;
 }

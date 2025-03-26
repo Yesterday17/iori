@@ -23,8 +23,6 @@ pub struct M3u8Segment {
     pub segment_type: Option<SegmentType>,
     pub duration: f32,
     pub format: SegmentFormat,
-
-    pub headers: Option<reqwest::header::HeaderMap>,
 }
 
 impl StreamingSegment for M3u8Segment {
@@ -64,9 +62,5 @@ impl RemoteStreamingSegment for M3u8Segment {
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
         self.byte_range.clone()
-    }
-
-    fn headers(&self) -> Option<reqwest::header::HeaderMap> {
-        self.headers.clone()
     }
 }

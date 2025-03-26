@@ -34,6 +34,7 @@ serde = { workspace = true, features = ["derive"] }
 chrono = "0.4"
 shlex = "1.3.0"
 which = "7.0.2"
+reqwest_cookie_store = "0.8.0"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 command-fds = { version = "0.3.0", features = ["tokio"] }

@@ -1,4 +1,3 @@
-use reqwest::header::{HeaderMap, HeaderValue, COOKIE};
 use serde::{Deserialize, Serialize};
 
 use crate::danmaku::protocol::{
@@ -63,33 +62,23 @@ pub struct WatchMessageStream {
 pub struct StreamCookies(#[serde(default)] Vec<WatchStreamCookie>);
 
 impl StreamCookies {
-    pub fn to_headers(&self, path: &str) -> Option<HeaderMap> {
-        if self.0.is_empty() {
-            return None;
-        }
-
-        let cookies = self
-            .0
-            .iter()
-            .filter(|c| path.starts_with(c.path.as_deref().unwrap_or("/")))
-            .map(|c| format!("{}={}", c.name, c.value))
-            .collect::<Vec<_>>()
-            .join("; ");
-
-        let mut headers = HeaderMap::new();
-        headers.insert(COOKIE, HeaderValue::from_str(&cookies).unwrap());
-        Some(headers)
-    }
-
-    pub fn into_all_headers(self) -> Vec<String> {
-        let cookies = self
-            .0
-            .iter()
-            .map(|c| format!("{}={}", c.name, c.value))
-            .collect::<Vec<_>>()
-            .join("; ");
-
-        vec![format!("Cookie: {cookies}")]
+    pub fn into_cookies(self) -> Vec<String> {
+        self.0
+            .into_iter()
+            .map(|c| {
+                let mut cookie = format!("{}={}; Domain={}", c.name, c.value, c.domain);
+                if let Some(path) = c.path {
+                    cookie.push_str(&format!("; Path={path}"));
+                }
+                if let Some(expires) = c.expires {
+                    cookie.push_str(&format!("; Expires={expires}"));
+                }
+                if c.secure {
+                    cookie.push_str("; Secure");
+                }
+                cookie
+            })
+            .collect()
     }
 }
 

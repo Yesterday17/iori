@@ -58,7 +58,7 @@ impl Inspect for NicoLiveInspector {
             title: Some(data.program_title()),
             playlist_url: stream.uri,
             playlist_type: PlaylistType::HLS,
-            headers: stream.cookies.into_all_headers(),
+            cookies: stream.cookies.into_cookies(),
             ..Default::default()
         }))
     }

@@ -1,6 +1,5 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use reqwest::Client;
 use tokio::{
     io::AsyncWrite,
     sync::{mpsc, Mutex},
@@ -11,18 +10,19 @@ use crate::{
     error::{IoriError, IoriResult},
     fetch::fetch_segment,
     hls::{segment::M3u8Segment, source::AdvancedM3u8Source},
+    util::http::HttpClient,
     StreamingSource,
 };
 
 pub struct CommonM3u8LiveSource {
-    client: Client,
+    client: HttpClient,
     playlist: Arc<Mutex<AdvancedM3u8Source>>,
     retry: u32,
 }
 
 impl CommonM3u8LiveSource {
     pub fn new(
-        client: Client,
+        client: HttpClient,
         m3u8_url: String,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,

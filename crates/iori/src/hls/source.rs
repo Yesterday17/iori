@@ -8,12 +8,13 @@ use std::{
 };
 
 use m3u8_rs::{AlternativeMedia, AlternativeMediaType, MediaPlaylist, Playlist};
-use reqwest::{Client, Url};
+use reqwest::Url;
 
 use crate::{
     decrypt::IoriKey,
     error::IoriResult,
     hls::{segment::M3u8Segment, utils::load_m3u8},
+    util::http::HttpClient,
     InitialSegment, SegmentFormat, SegmentType,
 };
 
@@ -30,13 +31,13 @@ pub struct M3u8Source {
 
     stream_id: u64,
     sequence: AtomicU64,
-    client: Client,
+    client: HttpClient,
     segment_type: Option<SegmentType>,
 }
 
 impl M3u8Source {
     pub fn new(
-        client: Client,
+        client: HttpClient,
         m3u8_url: String,
         initial_playlist: Option<MediaPlaylist>,
         key: Option<&str>,
@@ -66,7 +67,7 @@ impl M3u8Source {
         {
             (Url::from_str(&self.m3u8_url)?, initial_playlist)
         } else {
-            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, None, retry).await?
+            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?
         };
 
         let mut key = None;
@@ -76,7 +77,6 @@ impl M3u8Source {
             if let Some(k) = &segment.key {
                 key = IoriKey::from_key(
                     &self.client,
-                    None,
                     k,
                     &playlist_url,
                     playlist.media_sequence,
@@ -132,7 +132,6 @@ impl M3u8Source {
                 duration: segment.duration,
                 segment_type: self.segment_type.clone(),
                 format,
-                headers: None,
             };
             segments.push(segment);
         }
@@ -148,12 +147,12 @@ pub struct AdvancedM3u8Source {
 
     key: Option<String>,
     shaka_packager_command: Option<PathBuf>,
-    client: Client,
+    client: HttpClient,
 }
 
 impl AdvancedM3u8Source {
     pub fn new(
-        client: Client,
+        client: HttpClient,
         m3u8_url: Url,
         key: Option<&str>,
         shaka_packager_command: Option<PathBuf>,

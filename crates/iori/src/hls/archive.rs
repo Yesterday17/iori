@@ -1,6 +1,5 @@
 use std::{num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc};
 
-use reqwest::Client;
 use tokio::{
     io::AsyncWrite,
     sync::{mpsc, Mutex},
@@ -11,11 +10,12 @@ use crate::{
     error::IoriResult,
     fetch::fetch_segment,
     hls::{segment::M3u8Segment, source::AdvancedM3u8Source},
+    util::http::HttpClient,
     StreamingSource,
 };
 
 pub struct CommonM3u8ArchiveSource {
-    client: Client,
+    client: HttpClient,
     playlist: Arc<Mutex<AdvancedM3u8Source>>,
     range: SegmentRange,
     retry: u32,
@@ -66,7 +66,7 @@ impl FromStr for SegmentRange {
 
 impl CommonM3u8ArchiveSource {
     pub fn new(
-        client: Client,
+        client: HttpClient,
         playlist_url: String,
         key: Option<&str>,
         range: SegmentRange,

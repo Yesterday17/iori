@@ -6,26 +6,25 @@ use std::{
     },
 };
 
-use reqwest::Client;
 use tokio::{io::AsyncWrite, sync::mpsc};
 use url::Url;
 
 use crate::{
     dash::segment::DashSegment, decrypt::IoriKey, error::IoriResult, fetch::fetch_segment,
-    InitialSegment, SegmentType, StreamingSource,
+    util::http::HttpClient, InitialSegment, SegmentType, StreamingSource,
 };
 
 use super::template::Template;
 
 pub struct CommonDashArchiveSource {
-    client: Client,
+    client: HttpClient,
     mpd: Url,
     key: Option<Arc<IoriKey>>,
     sequence: AtomicU64,
 }
 
 impl CommonDashArchiveSource {
-    pub fn new(client: Client, mpd: String, key: Option<&str>) -> IoriResult<Self> {
+    pub fn new(client: HttpClient, mpd: String, key: Option<&str>) -> IoriResult<Self> {
         let key = if let Some(k) = key {
             Some(Arc::new(IoriKey::clear_key(k)?))
         } else {

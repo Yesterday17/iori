@@ -5,12 +5,12 @@ use clap_handler::{handler, Handler};
 use fake_user_agent::get_chrome_rua;
 use iori::{
     cache::IoriCache, dash::archive::CommonDashArchiveSource, detect_manifest_type,
-    download::ParallelDownloaderBuilder, hls::CommonM3u8LiveSource, merge::IoriMerger,
+    download::ParallelDownloaderBuilder, hls::CommonM3u8LiveSource, merge::IoriMerger, HttpClient,
 };
 use iori_nicolive::source::NicoTimeshiftSource;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client,
+    Client, IntoUrl,
 };
 use std::{
     num::NonZeroU32,
@@ -71,7 +71,7 @@ impl DownloadCommand {
             return Ok(());
         }
 
-        let client = self.http.into_client();
+        let client = self.http.into_client(&self.url);
 
         let is_m3u8 = match self.extra.playlist_type {
             Some(PlaylistType::HLS) => true,
@@ -134,6 +134,7 @@ impl DownloadCommand {
     fn merge(mut self, from: Self) -> Self {
         self.url = from.url;
         self.http.headers.extend(from.http.headers);
+        self.http.cookies.extend(from.http.cookies);
         if self.decrypt.key.is_none() {
             self.decrypt.key = from.decrypt.key;
         }
@@ -150,13 +151,17 @@ pub struct HttpOptions {
     #[clap(short = 'H', long = "header")]
     pub headers: Vec<String>,
 
+    /// Additional HTTP cookies
+    #[clap(short = 'c', long = "cookie")]
+    pub cookies: Vec<String>,
+
     /// HTTP timeout, in seconds
     #[clap(short, long, default_value = "10")]
     pub timeout: u64,
 }
 
 impl HttpOptions {
-    pub fn into_client(self) -> Client {
+    pub fn into_client(self, url: impl IntoUrl) -> HttpClient {
         let mut headers = HeaderMap::new();
 
         for header in &self.headers {
@@ -167,15 +172,15 @@ impl HttpOptions {
             );
         }
 
-        Client::builder()
-            .default_headers(headers)
-            // TODO: custom cookie store
-            .cookie_store(true)
-            .user_agent(get_chrome_rua())
-            .timeout(Duration::from_secs(self.timeout))
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap()
+        let client = HttpClient::new(
+            Client::builder()
+                .default_headers(headers)
+                .user_agent(get_chrome_rua())
+                .timeout(Duration::from_secs(self.timeout))
+                .danger_accept_invalid_certs(true),
+        );
+        client.add_cookies(self.cookies, url);
+        client
     }
 }
 
@@ -183,6 +188,7 @@ impl Default for HttpOptions {
     fn default() -> Self {
         Self {
             headers: Vec::new(),
+            cookies: Vec::new(),
             timeout: 10,
         }
     }
@@ -324,6 +330,7 @@ impl From<InspectPlaylist> for DownloadCommand {
         Self {
             http: HttpOptions {
                 headers: data.headers,
+                cookies: data.cookies,
                 ..Default::default()
             },
             decrypt: DecryptOptions {

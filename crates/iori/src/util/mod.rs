@@ -3,10 +3,11 @@ use std::{
     path::PathBuf,
 };
 
-use reqwest::Client;
+use http::HttpClient;
 
 use crate::IoriResult;
 
+pub mod http;
 pub mod ordered_stream;
 
 pub fn file_name_add_suffix<T: AsRef<OsStr>>(path: &mut PathBuf, suffix: T) {
@@ -27,7 +28,7 @@ pub fn file_name_add_suffix<T: AsRef<OsStr>>(path: &mut PathBuf, suffix: T) {
     path.set_file_name(filename);
 }
 
-pub async fn detect_manifest_type(url: &str, client: Client) -> IoriResult<bool /* is m3u8 */> {
+pub async fn detect_manifest_type(url: &str, client: HttpClient) -> IoriResult<bool /* is m3u8 */> {
     // 1. chcek extension
     let url = reqwest::Url::parse(url)?;
     if url.path().to_lowercase().ends_with(".m3u8") {

@@ -74,6 +74,9 @@ pub struct InspectPlaylist {
     /// Headers to use when requesting
     pub headers: Vec<String>,
 
+    /// Cookies to use when requesting
+    pub cookies: Vec<String>,
+
     /// Initial data of the playlist
     ///
     /// Inspector may have already sent a request to the server, in which case we can reuse the data

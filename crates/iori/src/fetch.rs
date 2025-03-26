@@ -1,12 +1,16 @@
-use reqwest::Client;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
     error::{IoriError, IoriResult},
+    util::http::HttpClient,
     InitialSegment, RemoteStreamingSegment, StreamingSegment, ToSegmentData,
 };
 
-pub async fn fetch_segment<S, W>(client: Client, segment: &S, tmp_file: &mut W) -> IoriResult<()>
+pub async fn fetch_segment<S, W>(
+    client: HttpClient,
+    segment: &S,
+    tmp_file: &mut W,
+) -> IoriResult<()>
 where
     S: StreamingSegment + ToSegmentData,
     W: AsyncWrite + Unpin + Send + Sync + 'static,
@@ -47,7 +51,7 @@ where
 {
     fn to_segment_data(
         &self,
-        client: Client,
+        client: HttpClient,
     ) -> impl std::future::Future<Output = IoriResult<bytes::Bytes>> + Send {
         let url = self.url();
         let byte_range = self.byte_range();
