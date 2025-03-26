@@ -69,7 +69,7 @@ jobs:
           strip minyami.exe
           strip ssadecrypt.exe
           strip shiori.exe
-          7z a ../../../${{ matrix.name }} minyami.exe ssadecrypt.exe shi.exe
+          7z a ../../../${{ matrix.name }} minyami.exe ssadecrypt.exe shiori.exe
           cd -
       - name: PostBuild | Prepare artifacts [-nix]
         if: matrix.os != 'windows-latest'
@@ -77,8 +77,8 @@ jobs:
           cd target/${{ matrix.target }}/release
           strip minyami || true
           strip ssadecrypt || true
-          strip shi || true
-          tar czvf ../../../${{ matrix.name }} minyami ssadecrypt shi
+          strip shiori || true
+          tar czvf ../../../${{ matrix.name }} minyami ssadecrypt shiori
           cd -
 
       - name: Deploy | Upload artifacts

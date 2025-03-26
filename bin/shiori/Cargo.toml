@@ -36,5 +36,5 @@ extism = "1.0.0"
 tracing-subscriber = "0.3.19"
 
 [[bin]]
-name = "shi"
+name = "shiori"
 path = "src/main.rs"
