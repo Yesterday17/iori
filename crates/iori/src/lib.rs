@@ -96,7 +96,8 @@ pub enum SegmentFormat {
     Mpeg2TS,
     Mp4,
     M4a,
-    Cmaf,
+    Cmfv,
+    Cmfa,
     Other(String),
 }
 
@@ -106,7 +107,8 @@ impl SegmentFormat {
             Self::Mpeg2TS => "ts",
             Self::Mp4 => "mp4",
             Self::M4a => "m4a",
-            Self::Cmaf => "cmav",
+            Self::Cmfv => "cmfv",
+            Self::Cmfa => "cmfa",
             Self::Other(ext) => ext.as_str(),
         }
     }
@@ -117,7 +119,8 @@ impl SegmentFormat {
             "ts" => Self::Mpeg2TS,
             "mp4" | "m4s" | "m4f" => Self::Mp4,
             "m4a" => Self::M4a,
-            "cmfv" | "cmfa" => Self::Cmaf,
+            "cmfv" => Self::Cmfv,
+            "cmfa" => Self::Cmfa,
             _ => Self::Other(ext.to_string()),
         }
     }
