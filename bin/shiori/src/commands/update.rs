@@ -50,3 +50,27 @@ pub async fn update_command(me: UpdateCommand) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+pub(crate) async fn check_update() -> anyhow::Result<()> {
+    let current_version = format!("shiori-v{}", cargo_crate_version!());
+
+    let latest = reqwest::Client::new()
+        .get(
+            "https://raw.githubusercontent.com/Yesterday17/iori/refs/heads/master/.versions/shiori",
+        )
+        .timeout(std::time::Duration::from_secs(2))
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    if current_version == latest {
+        return Ok(());
+    }
+    log::info!(
+        "Update available: {}. Please run `shiori update` to update.",
+        latest
+    );
+
+    Ok(())
+}

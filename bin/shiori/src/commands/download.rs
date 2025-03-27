@@ -1,5 +1,8 @@
 use super::inspect::get_default_external_inspector;
-use crate::inspect::{InspectPlaylist, PlaylistType};
+use crate::{
+    commands::{update::check_update, ShioriArgs},
+    inspect::{InspectPlaylist, PlaylistType},
+};
 use clap::{Args, Parser};
 use clap_handler::{handler, Handler};
 use fake_user_agent::get_chrome_rua;
@@ -298,8 +301,14 @@ impl OutputOptions {
 }
 
 #[handler(DownloadCommand)]
-pub async fn download(args: DownloadCommand) -> anyhow::Result<()> {
-    args.download().await
+pub async fn download(args: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
+    args.download().await?;
+
+    // Check for update, but do not throw error if failed
+    if shiori_args.update_check {
+        _ = check_update().await;
+    }
+    Ok(())
 }
 
 impl From<InspectPlaylist> for DownloadCommand {

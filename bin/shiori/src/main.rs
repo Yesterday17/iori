@@ -1,22 +1,7 @@
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use clap_handler::Handler;
-use shiori::commands;
+use shiori::commands::ShioriArgs;
 use tracing_subscriber::filter::LevelFilter;
-
-#[derive(Parser, clap_handler::Handler, Clone)]
-#[clap(version = env!("SHIORI_VERSION"), author)]
-struct ShioriArgs {
-    #[clap(subcommand)]
-    command: ShioriCommand,
-}
-
-#[derive(Subcommand, Clone, Handler)]
-pub enum ShioriCommand {
-    Download(commands::download::DownloadCommand),
-    Inspect(commands::inspect::InspectCommand),
-    Merge(commands::merge::MergeCommand),
-    Update(commands::update::UpdateCommand),
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
