@@ -34,11 +34,11 @@ fn set_windows_exe_options() {
 
     println!("cargo:rerun-if-changed={WINDOWS_MANIFEST_FILE}");
     // Embed the Windows application manifest file.
-    println!("cargo:rustc-link-arg-bin=rustc-main=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg-bin=shiori=/MANIFEST:EMBED");
     println!(
-        "cargo:rustc-link-arg-bin=rustc-main=/MANIFESTINPUT:{}",
+        "cargo:rustc-link-arg-bin=shiori=/MANIFESTINPUT:{}",
         manifest.to_str().unwrap()
     );
     // Turn linker warnings into errors.
-    println!("cargo:rustc-link-arg-bin=rustc-main=/WX");
+    println!("cargo:rustc-link-arg-bin=shiori=/WX");
 }
