@@ -4,6 +4,7 @@ use shiori::commands;
 use tracing_subscriber::filter::LevelFilter;
 
 #[derive(Parser, clap_handler::Handler, Clone)]
+#[clap(version = env!("SHIORI_VERSION"), author)]
 struct ShioriArgs {
     #[clap(subcommand)]
     command: ShioriCommand,

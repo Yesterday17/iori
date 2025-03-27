@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::process::Command;
 
-fn get_hash() -> Result<String, Box<dyn Error>> {
+fn get_commit_hash() -> Result<String, Box<dyn Error>> {
     let output = Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output()?;
@@ -11,6 +11,6 @@ fn get_hash() -> Result<String, Box<dyn Error>> {
 
 fn main() {
     let version = env!("CARGO_PKG_VERSION");
-    let hash = get_hash().unwrap_or_else(|_| "unknown".to_string());
+    let hash = get_commit_hash().unwrap_or_else(|_| "unknown".to_string());
     println!("cargo:rustc-env=IORI_MINYAMI_VERSION={version} ({hash})");
 }
