@@ -15,6 +15,7 @@ pub enum ShioriCommand {
     Download(commands::download::DownloadCommand),
     Inspect(commands::inspect::InspectCommand),
     Merge(commands::merge::MergeCommand),
+    Update(commands::update::UpdateCommand),
 }
 
 #[tokio::main]
