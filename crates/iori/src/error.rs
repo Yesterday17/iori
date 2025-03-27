@@ -54,6 +54,9 @@ pub enum IoriError {
 
     #[error("Can not set cache directory to an existing path: {0}")]
     CacheDirExists(std::path::PathBuf),
+
+    #[error(transparent)]
+    JsonError(#[from] serde_json::Error),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

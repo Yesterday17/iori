@@ -3,6 +3,7 @@ use crate::{
 };
 use std::{
     collections::HashMap,
+    io::Write,
     path::{Path, PathBuf},
 };
 use tokio::{fs::File, process::Command};
@@ -141,22 +142,27 @@ async fn mkvmerge_concat<O>(
 where
     O: AsRef<Path>,
 {
-    let mkvmerge = which::which("mkvmerge")?;
+    log::debug!("Concatenating with mkvmerge...");
 
+    let mkvmerge = which::which("mkvmerge")?;
     segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
-    let mut paths = Vec::with_capacity(segments.len());
+
+    let mut args = vec!["-q".to_string(), "[".to_string()];
     for segment in segments {
         let filename = cache.segment_path(segment).await.unwrap();
-        paths.push(filename);
+        args.push(filename.to_string_lossy().to_string());
     }
+    args.push("]".to_string());
+    args.push("-o".to_string());
+    args.push(output_path.as_ref().to_string_lossy().to_string());
+
+    let mut temp = tempfile::Builder::new().tempfile()?;
+    let temp_path = temp.path().to_path_buf();
+    temp.write_all(serde_json::to_string(&args)?.as_bytes())?;
+    temp.flush()?;
 
     let mut child = Command::new(mkvmerge)
-        .arg("-q")
-        .arg("[")
-        .args(paths)
-        .arg("]")
-        .arg("-o")
-        .arg(output_path.as_ref())
+        .arg(format!("@{}", temp_path.to_string_lossy()))
         .spawn()?;
     child.wait().await?;
 
