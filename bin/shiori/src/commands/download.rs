@@ -43,13 +43,13 @@ pub struct DownloadCommand {
     pub extra: ExtraOptions,
 
     #[clap(short, long)]
-    wait: bool,
+    pub wait: bool,
 
-    /// Additional arguments passed to inspectors.
+    /// Additional arguments
     ///
     /// Format: key=value
     #[clap(short = 'e', long = "arg")]
-    pub inspector_args: Vec<String>,
+    pub extra_args: Vec<String>,
 
     /// URL to download
     pub url: String,
@@ -57,29 +57,6 @@ pub struct DownloadCommand {
 
 impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
-        if !self.extra.skip_inspector {
-            let inspectors = get_default_external_inspector(&self.inspector_args)?;
-            let (_, data) = crate::inspect::inspect(
-                &self.url,
-                inspectors,
-                |c| c.into_iter().next().unwrap(),
-                self.wait,
-            )
-            .await?;
-            for playlist in data {
-                let command: Self = playlist.into();
-                self.clone()
-                    .merge(command)
-                    .download_without_inspector()
-                    .await?;
-            }
-            return Ok(());
-        }
-
-        self.download_without_inspector().await
-    }
-
-    pub async fn download_without_inspector(self) -> anyhow::Result<()> {
         let client = self.http.into_client(&self.url);
 
         let is_m3u8 = match self.extra.playlist_type {
@@ -121,8 +98,6 @@ impl DownloadCommand {
         if self.decrypt.key.is_none() {
             self.decrypt.key = from.decrypt.key;
         }
-
-        self.extra.skip_inspector = true;
 
         self
     }
@@ -253,8 +228,6 @@ pub struct DecryptOptions {
 pub struct ExtraOptions {
     /// Force Dash mode
     pub playlist_type: Option<PlaylistType>,
-
-    pub skip_inspector: bool,
 }
 
 /// Output options
@@ -308,8 +281,19 @@ impl OutputOptions {
 }
 
 #[handler(DownloadCommand)]
-pub async fn download(args: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
-    args.download().await?;
+pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
+    let inspectors = get_default_external_inspector(&me.extra_args)?;
+    let (_, data) = crate::inspect::inspect(
+        &me.url,
+        inspectors,
+        |c| c.into_iter().next().unwrap(),
+        me.wait,
+    )
+    .await?;
+    for playlist in data {
+        let command: DownloadCommand = playlist.into();
+        me.clone().merge(command).download().await?;
+    }
 
     // Check for update, but do not throw error if failed
     if shiori_args.update_check {
@@ -332,7 +316,6 @@ impl From<InspectPlaylist> for DownloadCommand {
             },
             extra: ExtraOptions {
                 playlist_type: Some(data.playlist_type),
-                skip_inspector: true,
             },
             url: data.playlist_url,
 

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increased timeout for update check to 5 seconds.
 - Upgraded clap to 4.5.34.
 
-## [0.1.2] - 2025-03-28
+## 0.1.2 - 2025-03-28
 
 ### Added
 
@@ -46,4 +46,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [0.1.0]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.0
 [0.1.1]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.1
-[0.1.2]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.2
+[0.1.3]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.3
