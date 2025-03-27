@@ -1,4 +1,5 @@
 use std::{
+    hash::{Hash, Hasher},
     path::PathBuf,
     str::FromStr,
     sync::{
@@ -123,15 +124,24 @@ impl M3u8Source {
             let filename = url
                 .path_segments()
                 .and_then(|c| c.last())
-                .map(|r| {
-                    if r.ends_with(".m4s") || r.ends_with("m4f") {
-                        // xx.m4s -> x.mp4
-                        format!("{}.mp4", &r[..r.len() - 4])
-                    } else {
-                        r.to_string()
+                .map(|r| r.to_string())
+                .unwrap_or_else(|| {
+                    // 1. hash of file url
+                    let mut hasher = std::hash::DefaultHasher::new();
+                    url.hash(&mut hasher);
+                    let value = hasher.finish();
+                    let mut filename = format!("{value:016x}");
+
+                    // 2. byte range
+                    if let Some(byte_range) = &segment.byte_range {
+                        filename.push_str(&format!("_{}", byte_range.length));
+                        if let Some(offset) = byte_range.offset {
+                            filename.push_str(&format!("_{}", offset));
+                        }
                     }
-                })
-                .unwrap_or("output.ts".to_string());
+
+                    filename
+                });
             let format = SegmentFormat::from_filename(&filename);
 
             let media_sequence = playlist.media_sequence + i as u64;

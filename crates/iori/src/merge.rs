@@ -1,10 +1,10 @@
+mod auto;
 mod concat;
-mod mkvmerge;
 mod pipe;
 mod skip;
 
+pub use auto::AutoMerger;
 pub use concat::ConcatAfterMerger;
-pub use mkvmerge::AutoMerger;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
 use tokio::io::AsyncWrite;
