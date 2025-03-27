@@ -58,7 +58,7 @@ pub(crate) async fn check_update() -> anyhow::Result<()> {
         .get(
             "https://raw.githubusercontent.com/Yesterday17/iori/refs/heads/master/.versions/shiori",
         )
-        .timeout(std::time::Duration::from_secs(2))
+        .timeout(std::time::Duration::from_secs(5))
         .send()
         .await?
         .text()

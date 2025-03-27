@@ -13,6 +13,6 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_writer(std::io::stderr)
         .init();
-    let args = ShioriArgs::parse();
-    args.run().await
+
+    ShioriArgs::parse().run().await
 }

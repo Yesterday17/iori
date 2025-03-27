@@ -4,7 +4,7 @@ use crate::{
     inspect::{InspectPlaylist, PlaylistType},
 };
 use clap::{Args, Parser};
-use clap_handler::{handler, Handler};
+use clap_handler::handler;
 use fake_user_agent::get_chrome_rua;
 use iori::{
     cache::IoriCache, dash::archive::CommonDashArchiveSource, detect_manifest_type,
@@ -68,11 +68,18 @@ impl DownloadCommand {
             .await?;
             for playlist in data {
                 let command: Self = playlist.into();
-                self.clone().merge(command).run().await?;
+                self.clone()
+                    .merge(command)
+                    .download_without_inspector()
+                    .await?;
             }
             return Ok(());
         }
 
+        self.download_without_inspector().await
+    }
+
+    pub async fn download_without_inspector(self) -> anyhow::Result<()> {
         let client = self.http.into_client(&self.url);
 
         let is_m3u8 = match self.extra.playlist_type {

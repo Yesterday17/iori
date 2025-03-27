@@ -13,7 +13,7 @@ fake_user_agent.workspace = true
 anyhow.workspace = true
 log.workspace = true
 
-clap = { version = "4.4.18", features = ["derive", "env"] }
+clap.workspace = true
 pretty_env_logger = "0.5.0"
 
 [[bin]]

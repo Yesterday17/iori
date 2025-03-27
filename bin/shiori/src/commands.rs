@@ -6,7 +6,7 @@ pub mod inspect;
 pub mod merge;
 pub mod update;
 
-#[derive(Parser, clap_handler::Handler, Clone)]
+#[derive(Parser, Handler, Clone)]
 #[clap(version = env!("SHIORI_VERSION"), author)]
 pub struct ShioriArgs {
     /// Whether to skip update check
@@ -17,8 +17,8 @@ pub struct ShioriArgs {
     command: ShioriCommand,
 }
 
-#[derive(Subcommand, Clone, Handler)]
-pub(crate) enum ShioriCommand {
+#[derive(Subcommand, Handler, Clone)]
+pub enum ShioriCommand {
     Download(download::DownloadCommand),
     Inspect(inspect::InspectCommand),
     Merge(merge::MergeCommand),
