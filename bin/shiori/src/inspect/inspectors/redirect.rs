@@ -2,19 +2,27 @@ use crate::inspect::{Inspect, InspectResult};
 use clap_handler::async_trait;
 use regex::Regex;
 use reqwest::redirect::Policy;
+use shiori_plugin::InspectorBuilder;
 use std::sync::LazyLock;
 
 pub struct ShortLinkInspector;
 
-static TWITTER_SHORT_LINK_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| regex::Regex::new(r"https://t.co/\w+").unwrap());
-
-#[async_trait]
-impl Inspect for ShortLinkInspector {
+impl InspectorBuilder for ShortLinkInspector {
     fn name(&self) -> String {
         "shortlink-redirect".to_string()
     }
 
+    fn build(&self, _args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
+        Ok(Box::new(ShortLinkInspectorImpl))
+    }
+}
+
+struct ShortLinkInspectorImpl;
+static TWITTER_SHORT_LINK_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| regex::Regex::new(r"https://t.co/\w+").unwrap());
+
+#[async_trait]
+impl Inspect for ShortLinkInspectorImpl {
     async fn matches(&self, url: &str) -> bool {
         TWITTER_SHORT_LINK_REGEX.is_match(url)
     }

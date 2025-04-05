@@ -5,12 +5,20 @@ use crate::ShowRoomClient;
 
 pub struct ShowroomInspector;
 
-#[async_trait]
-impl Inspect for ShowroomInspector {
+impl InspectorBuilder for ShowroomInspector {
     fn name(&self) -> String {
         "showroom".to_string()
     }
 
+    fn build(&self, _args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
+        Ok(Box::new(ShowroomInspectorImpl))
+    }
+}
+
+struct ShowroomInspectorImpl;
+
+#[async_trait]
+impl Inspect for ShowroomInspectorImpl {
     async fn matches(&self, url: &str) -> bool {
         url.starts_with("https://www.showroom-live.com/r/")
     }

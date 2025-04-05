@@ -58,10 +58,6 @@ impl ExtismInspector {
 
 #[async_trait]
 impl Inspect for ExtismInspector {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
     async fn matches(&self, url: &str) -> bool {
         self.call("shiori_matches", url.to_string()).await.unwrap()
     }

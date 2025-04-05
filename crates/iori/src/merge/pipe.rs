@@ -1,7 +1,9 @@
-use super::{concat::ConcatMergeNamer, Merger};
+use super::Merger;
 use crate::{
-    cache::CacheSource, error::IoriResult, util::ordered_stream::OrderedStream, SegmentInfo,
-    SegmentType,
+    cache::CacheSource,
+    error::IoriResult,
+    util::{ordered_stream::OrderedStream, path::DuplicateOutputFileNamer},
+    SegmentInfo, SegmentType,
 };
 use std::{future::Future, path::PathBuf, pin::Pin, process::Stdio};
 use tokio::{
@@ -63,7 +65,7 @@ impl PipeMerger {
 
         let mut stream: OrderedStream<Option<SendSegment>> = OrderedStream::new(rx);
         let future = tokio::spawn(async move {
-            let mut namer = ConcatMergeNamer::new(&target_path);
+            let mut namer = DuplicateOutputFileNamer::new(target_path.clone());
             let mut target = Some(
                 tokio::fs::File::create(&target_path)
                     .await

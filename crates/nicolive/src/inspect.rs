@@ -2,22 +2,31 @@ use shiori_plugin::*;
 
 use crate::{model::WatchResponse, program::NicoEmbeddedData, watch::WatchClient};
 
-pub struct NicoLiveInspector {
-    user_session: Option<String>,
-}
+pub struct NicoLiveInspector;
 
-impl NicoLiveInspector {
-    pub fn new(user_session: Option<String>) -> Self {
-        NicoLiveInspector { user_session }
-    }
-}
-
-#[async_trait]
-impl Inspect for NicoLiveInspector {
+impl InspectorBuilder for NicoLiveInspector {
     fn name(&self) -> String {
         "nicolive".to_string()
     }
 
+    fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
+        let key = args.get("nico_user_session");
+        Ok(Box::new(NicoLiveInspectorImpl::new(key)))
+    }
+}
+
+struct NicoLiveInspectorImpl {
+    user_session: Option<String>,
+}
+
+impl NicoLiveInspectorImpl {
+    pub fn new(user_session: Option<String>) -> Self {
+        Self { user_session }
+    }
+}
+
+#[async_trait]
+impl Inspect for NicoLiveInspectorImpl {
     async fn matches(&self, url: &str) -> bool {
         url.starts_with("https://live.nicovideo.jp/watch/lv")
     }

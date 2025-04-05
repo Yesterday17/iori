@@ -1,6 +1,8 @@
 use super::Merger;
-use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
-use std::path::{Path, PathBuf};
+use crate::{
+    cache::CacheSource, error::IoriResult, util::path::DuplicateOutputFileNamer, SegmentInfo,
+};
+use std::path::PathBuf;
 use tokio::fs::File;
 
 /// Concat all segments into a single file after all segments are downloaded.
@@ -45,7 +47,7 @@ impl Merger for ConcatAfterMerger {
 
     async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
         log::info!("Merging chunks...");
-        concat_merge(&mut self.segments, &cache, &self.output_file).await?;
+        concat_merge(&mut self.segments, &cache, self.output_file.clone()).await?;
 
         if !self.keep_segments {
             log::info!("End of merging.");
@@ -69,54 +71,21 @@ fn trim_end<T>(input: &[T], should_skip: fn(&T) -> bool) -> &[T] {
     &input[..end]
 }
 
-pub(crate) struct ConcatMergeNamer {
-    file_count: u32,
-    file_extension: String,
-}
-
-impl ConcatMergeNamer {
-    pub fn new<P>(output_path: P) -> Self
-    where
-        P: AsRef<Path>,
-    {
-        let file_extension = output_path
-            .as_ref()
-            .extension()
-            .unwrap_or_default()
-            .to_str()
-            .unwrap_or_default()
-            .to_string();
-
-        Self {
-            file_count: 0,
-            file_extension,
-        }
-    }
-
-    pub fn next(&mut self) -> PathBuf {
-        self.file_count += 1;
-        PathBuf::from(format!("{}.{}", self.file_count, self.file_extension))
-    }
-}
-
 pub(crate) struct ConcatSegment {
     pub segment: SegmentInfo,
     pub success: bool,
 }
 
-async fn concat_merge<O>(
+async fn concat_merge(
     segments: &mut Vec<ConcatSegment>,
     cache: &impl CacheSource,
-    output_path: O,
-) -> IoriResult<()>
-where
-    O: AsRef<Path>,
-{
+    output_path: PathBuf,
+) -> IoriResult<()> {
     segments.sort_by(|a, b| a.segment.sequence.cmp(&b.segment.sequence));
     let segments = trim_end(&segments, |s| !s.success);
 
-    let mut namer = ConcatMergeNamer::new(&output_path);
-    let mut output = File::create(output_path.as_ref()).await?;
+    let mut namer = DuplicateOutputFileNamer::new(output_path.clone());
+    let mut output = File::create(output_path).await?;
     for segment in segments {
         let success = segment.success;
         let segment = &segment.segment;

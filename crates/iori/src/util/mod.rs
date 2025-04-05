@@ -9,6 +9,7 @@ use crate::IoriResult;
 
 pub mod http;
 pub mod ordered_stream;
+pub mod path;
 
 pub fn file_name_add_suffix<T: AsRef<OsStr>>(path: &mut PathBuf, suffix: T) {
     let mut filename = OsString::new();

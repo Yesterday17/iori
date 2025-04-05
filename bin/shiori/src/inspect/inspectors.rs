@@ -7,7 +7,5 @@ pub use external::ExternalInspector;
 mod hls;
 pub use hls::HlsInspector;
 
-mod template;
-
 mod plugin;
 pub use plugin::ExtismInspector;

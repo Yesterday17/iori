@@ -14,6 +14,7 @@ use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, IntoUrl,
 };
+use shiori_plugin::InspectorArgs;
 use std::{
     num::NonZeroU32,
     path::PathBuf,
@@ -232,7 +233,7 @@ pub struct ExtraOptions {
 
 /// Output options
 #[derive(Args, Clone, Debug, Default)]
-#[group(required = true, multiple = false)]
+#[group(multiple = false)]
 pub struct OutputOptions {
     /// Do not merge stream
     #[clap(long)]
@@ -262,7 +263,17 @@ impl OutputOptions {
     pub fn into_merger(self) -> IoriMerger {
         if self.no_merge {
             IoriMerger::skip()
-        } else if let Some(output) = self.output {
+        } else if let Some(mut output) = self.output {
+            if output.exists() {
+                log::warn!("Output file exists. Will add suffix automatically.");
+                let original_extension = output.extension();
+                let new_extension = match original_extension {
+                    Some(ext) => format!("{}.ts", ext.to_str().unwrap()),
+                    None => "ts".to_string(),
+                };
+                output = output.with_extension(new_extension);
+            }
+
             if self.concat {
                 IoriMerger::concat(output, false)
             } else {
@@ -272,9 +283,10 @@ impl OutputOptions {
             IoriMerger::pipe(true)
         } else if self.pipe_mux {
             IoriMerger::pipe_mux(true, "-".into(), None)
-        } else if let Some(pipe) = self.pipe_to {
-            IoriMerger::pipe_to_file(true, pipe)
+        } else if let Some(file) = self.pipe_to {
+            IoriMerger::pipe_to_file(true, file)
         } else {
+            // TODO: save with inspected filename
             unreachable!()
         }
     }
@@ -282,15 +294,14 @@ impl OutputOptions {
 
 #[handler(DownloadCommand)]
 pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
-    let inspectors = get_default_external_inspector(&me.extra_args)?;
-    let (_, data) = crate::inspect::inspect(
-        &me.url,
-        inspectors,
-        |c| c.into_iter().next().unwrap(),
-        me.wait,
-    )
-    .await?;
+    let inspector_args = InspectorArgs::from_key_value(&me.extra_args);
+    let (_, data) = get_default_external_inspector()?
+        .wait(me.wait)
+        .inspect(&me.url, inspector_args, |c| c.into_iter().next().unwrap())
+        .await?;
+
     for playlist in data {
+        // FIXME: if there are multiple playlists to download, then the output name must not be duplicated
         let command: DownloadCommand = playlist.into();
         me.clone().merge(command).download().await?;
     }
@@ -316,6 +327,10 @@ impl From<InspectPlaylist> for DownloadCommand {
             },
             extra: ExtraOptions {
                 playlist_type: Some(data.playlist_type),
+            },
+            output: OutputOptions {
+                output: data.title.map(Into::into),
+                ..Default::default()
             },
             url: data.playlist_url,
 

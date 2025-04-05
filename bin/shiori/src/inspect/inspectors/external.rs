@@ -1,14 +1,30 @@
 use crate::inspect::{Inspect, InspectCandidate, InspectResult};
 use base64::{prelude::BASE64_STANDARD, Engine};
 use clap_handler::async_trait;
+use shiori_plugin::InspectorBuilder;
 use std::process::{Command, Stdio};
 
-pub struct ExternalInspector {
+pub struct ExternalInspector;
+
+impl InspectorBuilder for ExternalInspector {
+    fn name(&self) -> String {
+        "external".to_string()
+    }
+
+    fn build(&self, args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
+        let Some(command) = args.get("command") else {
+            anyhow::bail!("Missing command arg for external inspector");
+        };
+        Ok(Box::new(ExternalInspectorImpl::new(&command)?))
+    }
+}
+
+struct ExternalInspectorImpl {
     program: String,
     args: Vec<String>,
 }
 
-impl ExternalInspector {
+impl ExternalInspectorImpl {
     pub fn new(command: &str) -> anyhow::Result<Self> {
         let result = shlex::split(command).unwrap_or_default();
         let program = result
@@ -17,16 +33,12 @@ impl ExternalInspector {
             .to_string();
         let args = result.into_iter().skip(1).map(|s| s.to_string()).collect();
 
-        Ok(ExternalInspector { program, args })
+        Ok(Self { program, args })
     }
 }
 
 #[async_trait]
-impl Inspect for ExternalInspector {
-    fn name(&self) -> String {
-        "external".to_string()
-    }
-
+impl Inspect for ExternalInspectorImpl {
     async fn matches(&self, _url: &str) -> bool {
         true
     }

@@ -10,10 +10,35 @@ pub mod extism_pdk {
 pub use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-#[async_trait]
-pub trait Inspect: Send + Sync {
+pub struct InspectorArgs {
+    inner: std::collections::HashMap<String, String>,
+}
+
+impl InspectorArgs {
+    pub fn get(&self, key: &str) -> Option<String> {
+        self.inner.get(key).map(|r| r.to_string())
+    }
+
+    pub fn from_key_value(input: &[String]) -> Self {
+        let args: std::collections::HashMap<String, String> = input
+            .into_iter()
+            .map(|s| {
+                let (key, value) = s.split_once('=').unwrap();
+                (key.to_string(), value.to_string())
+            })
+            .collect();
+        Self { inner: args }
+    }
+}
+
+pub trait InspectorBuilder {
     fn name(&self) -> String;
 
+    fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>>;
+}
+
+#[async_trait]
+pub trait Inspect: Send + Sync {
     /// Check if this handler can handle the URL
     async fn matches(&self, url: &str) -> bool;
 
@@ -86,14 +111,3 @@ pub struct InspectPlaylist {
 pub trait InspectorApp {
     fn choose_candidates(&self, candidates: Vec<InspectCandidate>) -> Vec<InspectCandidate>;
 }
-
-pub trait InspectExt: Inspect {
-    fn to_box(self) -> Box<Self>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
-    }
-}
-
-impl<T: Inspect> InspectExt for T {}
