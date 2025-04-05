@@ -9,6 +9,21 @@ impl InspectorBuilder for NicoLiveInspector {
         "nicolive".to_string()
     }
 
+    fn help(&self) -> Vec<String> {
+        [
+            "Extracts NicoLive live streams or timeshifts.",
+            "",
+            "Available for URLs starting with:",
+            "- https://live.nicovideo.jp/watch/lv",
+            "",
+            "Arguments:",
+            "- nico_user_session: Your NicoLive user session key.",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    }
+
     fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
         let key = args.get("nico_user_session");
         Ok(Box::new(NicoLiveInspectorImpl::new(key)))

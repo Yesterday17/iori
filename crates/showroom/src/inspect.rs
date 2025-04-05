@@ -10,6 +10,18 @@ impl InspectorBuilder for ShowroomInspector {
         "showroom".to_string()
     }
 
+    fn help(&self) -> Vec<String> {
+        [
+            "Extracts Showroom playlists from the given URL.",
+            "",
+            "Template:",
+            "- https://www.showroom-live.com/r/*",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    }
+
     fn build(&self, _args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
         Ok(Box::new(ShowroomInspectorImpl))
     }

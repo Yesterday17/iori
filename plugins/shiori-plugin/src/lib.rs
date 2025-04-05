@@ -19,6 +19,10 @@ impl InspectorArgs {
         self.inner.get(key).map(|r| r.to_string())
     }
 
+    pub fn env(&self, key: &str) -> Option<String> {
+        std::env::var(key).ok()
+    }
+
     pub fn from_key_value(input: &[String]) -> Self {
         let args: std::collections::HashMap<String, String> = input
             .into_iter()
@@ -33,6 +37,10 @@ impl InspectorArgs {
 
 pub trait InspectorBuilder {
     fn name(&self) -> String;
+
+    fn help(&self) -> Vec<String> {
+        vec!["No help available".to_string()]
+    }
 
     fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>>;
 }

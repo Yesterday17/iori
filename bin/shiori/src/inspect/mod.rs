@@ -4,6 +4,8 @@ pub use shiori_plugin::*;
 use std::{borrow::Cow, time::Duration};
 use tokio::time::sleep;
 
+use crate::commands::STYLES;
+
 pub struct Inspectors {
     /// Whether to wait on found
     wait: bool,
@@ -35,6 +37,32 @@ impl Inspectors {
     pub fn wait(mut self, value: bool) -> Self {
         self.wait = value;
         self
+    }
+
+    pub fn help(self) -> String {
+        let mut is_first = true;
+
+        let mut result = format!("{style}Inspectors:{style:#}\n", style = STYLES.get_header());
+
+        let inspectors = self.front.iter().chain(self.tail.iter());
+        for inspector in inspectors {
+            if !is_first {
+                result.push_str("\n");
+            }
+            is_first = false;
+
+            result.push_str(&format!(
+                "  {style}{}:{style:#}\n",
+                inspector.name(),
+                style = STYLES.get_literal()
+            ));
+            for line in inspector.help() {
+                result.push_str(&" ".repeat(10));
+                result.push_str(&line);
+                result.push_str("\n");
+            }
+        }
+        result
     }
 
     pub async fn inspect(

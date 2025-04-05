@@ -9,6 +9,17 @@ impl InspectorBuilder for HlsInspector {
         "hls".to_string()
     }
 
+    fn help(&self) -> Vec<String> {
+        [
+            "Downloads HLS playlists from the given URL.",
+            "",
+            "Requires the URL to contain '.m3u8'.",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    }
+
     fn build(&self, _args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
         Ok(Box::new(HlsInspectorImpl))
     }

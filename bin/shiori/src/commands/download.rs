@@ -295,7 +295,7 @@ impl OutputOptions {
 #[handler(DownloadCommand)]
 pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
     let inspector_args = InspectorArgs::from_key_value(&me.extra_args);
-    let (_, data) = get_default_external_inspector()?
+    let (_, data) = get_default_external_inspector()
         .wait(me.wait)
         .inspect(&me.url, inspector_args, |c| c.into_iter().next().unwrap())
         .await?;

@@ -12,6 +12,18 @@ impl InspectorBuilder for ShortLinkInspector {
         "shortlink-redirect".to_string()
     }
 
+    fn help(&self) -> Vec<String> {
+        [
+            "Redirects shortlinks to the original URL.",
+            "",
+            "Available services:",
+            "- X/Twitter: https://t.co/*",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    }
+
     fn build(&self, _args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
         Ok(Box::new(ShortLinkInspectorImpl))
     }

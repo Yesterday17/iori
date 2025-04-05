@@ -23,7 +23,7 @@ pub struct InspectCommand {
     url: String,
 }
 
-pub(crate) fn get_default_external_inspector() -> anyhow::Result<Inspectors> {
+pub(crate) fn get_default_external_inspector() -> Inspectors {
     let mut inspector = Inspectors::new();
     inspector
         .add(ShortLinkInspector)
@@ -35,13 +35,13 @@ pub(crate) fn get_default_external_inspector() -> anyhow::Result<Inspectors> {
     //     inspectors.push(ExternalInspector::new(&key)?.to_box());
     // }
 
-    Ok(inspector)
+    inspector
 }
 
 #[handler(InspectCommand)]
 async fn handle_inspect(this: InspectCommand) -> anyhow::Result<()> {
     let args = InspectorArgs::from_key_value(&this.inspector_args);
-    let (matched_inspector, data) = get_default_external_inspector()?
+    let (matched_inspector, data) = get_default_external_inspector()
         .wait(this.wait)
         .inspect(&this.url, args, |c| c.into_iter().next().unwrap())
         .await?;
