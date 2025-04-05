@@ -34,7 +34,7 @@ crossterm = "0.28.1"
 shiori-plugin.workspace = true
 extism = "1.0.0"
 tracing-subscriber = "0.3.19"
-self_update = { version = "0.42.0", features = ["rustls", "compression-zip-deflate", "compression-flate2"] }
+self_update = { version = "0.42.0", default-features = false, features = ["rustls", "compression-zip-deflate", "compression-flate2"] }
 
 [[bin]]
 name = "shiori"

@@ -21,14 +21,12 @@ impl InspectorBuilder for HlsInspector {
     }
 
     fn build(&self, _args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
-        Ok(Box::new(HlsInspectorImpl))
+        Ok(Box::new(Self))
     }
 }
 
-struct HlsInspectorImpl;
-
 #[async_trait]
-impl Inspect for HlsInspectorImpl {
+impl Inspect for HlsInspector {
     async fn matches(&self, url: &str) -> bool {
         url.contains(".m3u8")
     }

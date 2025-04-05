@@ -9,7 +9,7 @@ pub struct ShortLinkInspector;
 
 impl InspectorBuilder for ShortLinkInspector {
     fn name(&self) -> String {
-        "shortlink-redirect".to_string()
+        "redirect".to_string()
     }
 
     fn help(&self) -> Vec<String> {
@@ -25,16 +25,15 @@ impl InspectorBuilder for ShortLinkInspector {
     }
 
     fn build(&self, _args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
-        Ok(Box::new(ShortLinkInspectorImpl))
+        Ok(Box::new(Self))
     }
 }
 
-struct ShortLinkInspectorImpl;
 static TWITTER_SHORT_LINK_REGEX: LazyLock<Regex> =
     LazyLock::new(|| regex::Regex::new(r"https://t.co/\w+").unwrap());
 
 #[async_trait]
-impl Inspect for ShortLinkInspectorImpl {
+impl Inspect for ShortLinkInspector {
     async fn matches(&self, url: &str) -> bool {
         TWITTER_SHORT_LINK_REGEX.is_match(url)
     }
