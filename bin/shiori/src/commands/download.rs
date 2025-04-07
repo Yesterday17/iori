@@ -104,6 +104,9 @@ impl DownloadCommand {
         if self.decrypt.key.is_none() {
             self.decrypt.key = from.decrypt.key;
         }
+        if self.output.output.is_none() {
+            self.output.output = from.output.output;
+        }
 
         self
     }
@@ -291,7 +294,6 @@ impl OutputOptions {
         } else if let Some(file) = self.pipe_to {
             IoriMerger::pipe_to_file(true, file)
         } else {
-            // TODO: save with inspected filename
             unreachable!()
         }
     }

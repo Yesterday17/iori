@@ -110,37 +110,3 @@ impl Merger for IoriMerger {
         }
     }
 }
-
-// pub async fn merge<S, P, O>(segments: Vec<S>, cwd: P, output: O) -> IoriResult<()>
-// where
-//     S: StreamingSegment,
-//     P: AsRef<Path>,
-//     O: AsRef<Path>,
-// {
-//     // if more than one type of segment is present, use mkvmerge
-//     let has_video = segments
-//         .iter()
-//         .any(|info| info.r#type() == SegmentType::Video);
-//     let has_audio = segments
-//         .iter()
-//         .any(|info| info.r#type() == SegmentType::Audio);
-//     if has_video && has_audio {
-//         mkvmerge_merge(segments, cwd, output).await?;
-//         return Ok(());
-//     }
-
-//     // if file is mpegts, use concat
-//     let is_segments_mpegts = segments
-//         .iter()
-//         .all(|info| info.file_name().to_lowercase().ends_with(".ts"));
-//     let is_output_mpegts = output.as_ref().extension() == Some(OsStr::new("ts"));
-//     if is_segments_mpegts && is_output_mpegts {
-//         concat_merge(segments, cwd, output).await?;
-//         return Ok(());
-//     }
-
-//     // use mkvmerge as fallback
-//     mkvmerge_merge(segments, cwd, output).await?;
-
-//     Ok(())
-// }

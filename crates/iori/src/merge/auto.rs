@@ -100,7 +100,18 @@ impl Merger for AutoMerger {
             }
             tracks.push(output_path);
         }
-        mkvmerge_merge(tracks, &self.output_file).await?;
+
+        if tracks.len() == 1 {
+            let track_format = tracks[0].extension();
+            let output = match track_format {
+                Some(ext) => self.output_file.with_extension(ext),
+                None => self.output_file.clone(),
+            };
+            tokio::fs::rename(&tracks[0], output).await?;
+            return Ok(());
+        } else {
+            mkvmerge_merge(tracks, &self.output_file).await?;
+        }
 
         if !self.keep_segments {
             log::info!("End of merging.");
@@ -173,16 +184,13 @@ async fn mkvmerge_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
-    if tracks.len() == 1 {
-        tokio::fs::rename(&tracks[0], output.as_ref()).await?;
-        return Ok(());
-    }
+    assert!(tracks.len() > 1);
 
     let mkvmerge = which::which("mkvmerge")?;
     let mut merge = Command::new(mkvmerge)
         .args(tracks.iter())
         .arg("-o")
-        .arg(output.as_ref())
+        .arg(output.as_ref().with_extension("mkv"))
         .spawn()?;
     merge.wait().await?;
 
