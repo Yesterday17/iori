@@ -7,8 +7,13 @@ use clap::{Args, Parser};
 use clap_handler::handler;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::IoriCache, dash::archive::CommonDashArchiveSource, detect_manifest_type,
-    download::ParallelDownloaderBuilder, hls::CommonM3u8LiveSource, merge::IoriMerger, HttpClient,
+    cache::IoriCache,
+    dash::archive::CommonDashArchiveSource,
+    download::ParallelDownloaderBuilder,
+    hls::CommonM3u8LiveSource,
+    merge::IoriMerger,
+    utils::{detect_manifest_type, DuplicateOutputFileNamer},
+    HttpClient,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -300,10 +305,20 @@ pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::R
         .inspect(&me.url, inspector_args, |c| c.into_iter().next().unwrap())
         .await?;
 
+    // TODO: do not use namer if there is only 1 playlist
+    let mut namer = me
+        .output
+        .output
+        .as_ref()
+        .map(|p| DuplicateOutputFileNamer::new(p.clone()));
     for playlist in data {
-        // FIXME: if there are multiple playlists to download, then the output name must not be duplicated
         let command: DownloadCommand = playlist.into();
-        me.clone().merge(command).download().await?;
+        let mut cmd = me.clone().merge(command);
+        if let Some(namer) = namer.as_mut() {
+            let output = namer.next();
+            cmd.output.output = Some(output);
+        }
+        cmd.download().await?;
     }
 
     // Check for update, but do not throw error if failed

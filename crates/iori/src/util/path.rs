@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-pub(crate) struct DuplicateOutputFileNamer {
+pub struct DuplicateOutputFileNamer {
     output_path: PathBuf,
     /// The count of files that have been generated.
     file_count: u32,

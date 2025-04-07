@@ -11,6 +11,10 @@ pub mod http;
 pub mod ordered_stream;
 pub mod path;
 
+/// Add suffix to file name without changing extension.
+///
+/// Note this function does not handle multiple suffixes.
+/// For example, `test.tar.gz` with `_suffix` will be `test.tar_suffix.gz`.
 pub fn file_name_add_suffix<T: AsRef<OsStr>>(path: &mut PathBuf, suffix: T) {
     let mut filename = OsString::new();
 
@@ -61,4 +65,23 @@ pub async fn detect_manifest_type(url: &str, client: HttpClient) -> IoriResult<b
     }
 
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_filename_suffix() {
+        let mut path = PathBuf::from("test.mp4");
+        file_name_add_suffix(&mut path, "suffix");
+        assert_eq!(path.to_string_lossy(), "test_suffix.mp4");
+    }
+
+    #[test]
+    fn test_filename_multiple_suffix() {
+        let mut path = PathBuf::from("test.raw.mp4");
+        file_name_add_suffix(&mut path, "suffix");
+        assert_eq!(path.to_string_lossy(), "test.raw_suffix.mp4");
+    }
 }

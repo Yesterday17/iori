@@ -10,8 +10,11 @@ mod error;
 pub use error::*;
 
 pub(crate) mod util;
-pub use util::detect_manifest_type;
-pub use util::http::HttpClient;
+pub use crate::util::http::HttpClient;
+pub mod utils {
+    pub use crate::util::detect_manifest_type;
+    pub use crate::util::path::DuplicateOutputFileNamer;
+}
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
