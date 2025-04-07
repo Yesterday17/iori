@@ -2013,6 +2013,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "fake_user_agent",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

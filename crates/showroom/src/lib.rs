@@ -5,11 +5,37 @@ pub mod model;
 use anyhow::{anyhow, Context};
 use fake_user_agent::get_chrome_rua;
 use model::*;
-use reqwest::Client;
+use reqwest::{
+    header::{HeaderMap, HeaderValue, COOKIE},
+    Client,
+};
 
 pub struct ShowRoomClient(Client);
 
 impl ShowRoomClient {
+    /// Key saved from: https://hls-archive-aes.live.showroom-live.com/aes.key
+    /// Might be useful for timeshift
+    pub const ARCHIVE_KEY: &str = "2a63847146f96dd3a17077f6c72daffb";
+
+    pub fn new(sr_id: Option<String>) -> Self {
+        let mut builder = Client::builder()
+            .user_agent(get_chrome_rua())
+            .connection_verbose(true);
+
+        if let Some(sr_id) = sr_id {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                COOKIE,
+                HeaderValue::from_str(&format!("sr_id={sr_id}"))
+                    .expect("sr_id is not a valid header value"),
+            );
+
+            builder = builder.default_headers(headers);
+        }
+
+        Self(builder.build().unwrap())
+    }
+
     pub async fn get_id_by_room_name(&self, room_name: &str) -> anyhow::Result<u64> {
         let data: serde_json::Value = self
             .0
@@ -42,7 +68,7 @@ impl ShowRoomClient {
         Ok(data)
     }
 
-    pub async fn streaming_url(&self, room_id: u64) -> anyhow::Result<StreamlingList> {
+    pub async fn live_streaming_url(&self, room_id: u64) -> anyhow::Result<LiveStreamlingList> {
         let data = self
             .0
             .get("https://www.showroom-live.com/api/live/streaming_url")
@@ -57,17 +83,43 @@ impl ShowRoomClient {
             .with_context(|| "streaming url json deserialize")?;
         Ok(data)
     }
-}
 
-impl Default for ShowRoomClient {
-    fn default() -> Self {
-        Self(
-            Client::builder()
-                .user_agent(get_chrome_rua())
-                .connection_verbose(true)
-                .build()
-                .unwrap(),
-        )
+    pub async fn timeshift_info(
+        &self,
+        room_url_key: &str,
+        view_url_key: &str,
+    ) -> anyhow::Result<TimeshiftInfo> {
+        // https://www.showroom-live.com/api/timeshift/find?room_url_key=stu48_8th_Empathy_&view_url_key=K86763
+        let data = self
+            .0
+            .get("https://www.showroom-live.com/api/timeshift/find")
+            .query(&[
+                ("room_url_key", room_url_key),
+                ("view_url_key", view_url_key),
+            ])
+            .send()
+            .await?
+            .json()
+            .await
+            .with_context(|| "timeshift info json deserialize")?;
+        Ok(data)
+    }
+
+    pub async fn timeshift_streaming_url(
+        &self,
+        room_id: u64,
+        live_id: u64,
+    ) -> anyhow::Result<TimeshiftStreamingList> {
+        let data = self
+            .0
+            .get("https://www.showroom-live.com/api/timeshift/streaming_url")
+            .query(&[("room_id", room_id), ("live_id", live_id)])
+            .send()
+            .await?
+            .json()
+            .await
+            .with_context(|| "timeshift streaming url json deserialize")?;
+        Ok(data)
     }
 }
 
@@ -77,7 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_id_by_room_name() {
-        let client = ShowRoomClient::default();
+        let client = ShowRoomClient::new(None);
         let room_id = client.get_id_by_room_name(S46_NAGISA_KOJIMA).await.unwrap();
         assert_eq!(room_id, 479510);
     }
