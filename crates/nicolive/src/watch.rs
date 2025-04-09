@@ -30,6 +30,8 @@ impl WatchClient {
     {
         let client = Client::builder()
             .user_agent(get_chrome_rua())
+            // https://github.com/jgraef/reqwest-websocket/issues/2
+            .http1_only()
             .build()
             .unwrap();
         let response = client.get(ws_url.as_ref()).upgrade().send().await?;
