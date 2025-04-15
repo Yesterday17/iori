@@ -130,6 +130,7 @@ async fn handle_inspect_result(
             handle_inspect_result(inspector, result, choose_candidate).await?
         }
         InspectResult::Playlist(data) => InspectBranch::Found(vec![data]),
+        InspectResult::Playlists(data) => InspectBranch::Found(data),
         InspectResult::Redirect(redirect_url) => InspectBranch::Redirect(redirect_url),
         InspectResult::None => InspectBranch::NotFound,
     })

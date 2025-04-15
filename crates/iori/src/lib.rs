@@ -5,6 +5,7 @@ pub mod download;
 pub mod fetch;
 pub mod hls;
 pub mod merge;
+pub mod raw;
 
 mod error;
 pub use error::*;
@@ -101,6 +102,7 @@ pub enum SegmentFormat {
     M4a,
     Cmfv,
     Cmfa,
+    PlainText(String),
     Other(String),
 }
 
@@ -112,6 +114,7 @@ impl SegmentFormat {
             Self::M4a => "m4a",
             Self::Cmfv => "cmfv",
             Self::Cmfa => "cmfa",
+            Self::PlainText(ext) => ext.as_str(),
             Self::Other(ext) => ext.as_str(),
         }
     }
@@ -124,6 +127,7 @@ impl SegmentFormat {
             "m4a" => Self::M4a,
             "cmfv" => Self::Cmfv,
             "cmfa" => Self::Cmfa,
+            "txt" | "ass" | "srt" | "vtt" | "json" => Self::PlainText(ext.to_string()),
             _ => Self::Other(ext.to_string()),
         }
     }

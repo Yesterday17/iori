@@ -70,6 +70,8 @@ pub enum InspectResult {
     Candidates(Vec<InspectCandidate>),
     /// Inspect data is found
     Playlist(InspectPlaylist),
+    /// Multiple playlists are found and need to be downloaded
+    Playlists(Vec<InspectPlaylist>),
     /// Redirect happens
     Redirect(String),
     /// Inspect data is not found
@@ -88,6 +90,7 @@ pub enum PlaylistType {
     #[default]
     HLS,
     DASH,
+    Raw(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

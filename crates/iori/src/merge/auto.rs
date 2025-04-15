@@ -1,5 +1,6 @@
 use crate::{
     cache::CacheSource, error::IoriResult, util::file_name_add_suffix, SegmentFormat, SegmentInfo,
+    SegmentType,
 };
 use std::{
     collections::HashMap,
@@ -84,9 +85,12 @@ impl Merger for AutoMerger {
         let mut tracks = Vec::new();
         for (stream_id, segments) in self.segments.iter() {
             let segments: Vec<_> = segments.iter().map(|s| &s.segment).collect();
-            let can_concat = segments
-                .iter()
-                .all(|s| matches!(s.format, SegmentFormat::Mpeg2TS));
+            let can_concat = segments.iter().all(|s| {
+                matches!(
+                    s.format,
+                    SegmentFormat::Mpeg2TS | SegmentFormat::PlainText(_)
+                ) || matches!(s.r#type, SegmentType::Subtitle)
+            });
 
             let first_segment = segments[0];
             let mut output_path = self.output_file.to_owned();

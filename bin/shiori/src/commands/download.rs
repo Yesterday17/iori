@@ -12,6 +12,7 @@ use iori::{
     download::ParallelDownloaderBuilder,
     hls::CommonM3u8LiveSource,
     merge::IoriMerger,
+    raw::RawDataSource,
     utils::{detect_manifest_type, DuplicateOutputFileNamer},
     HttpClient,
 };
@@ -65,12 +66,17 @@ impl DownloadCommand {
     pub async fn download(self) -> anyhow::Result<()> {
         let client = self.http.into_client(&self.url);
 
-        let is_m3u8 = match self.extra.playlist_type {
-            Some(PlaylistType::HLS) => true,
-            Some(PlaylistType::DASH) => false,
+        let playlist_type = match self.extra.playlist_type {
+            Some(ty) => ty,
             None => detect_manifest_type(&self.url, client.clone())
                 .await
-                .unwrap_or(true),
+                .map(|is_m3u8| {
+                    if is_m3u8 {
+                        PlaylistType::HLS
+                    } else {
+                        PlaylistType::DASH
+                    }
+                })?,
         };
 
         let downloader = ParallelDownloaderBuilder::new()
@@ -79,19 +85,26 @@ impl DownloadCommand {
             .cache(self.cache.into_cache()?)
             .merger(self.output.into_merger());
 
-        if is_m3u8 {
-            let source = CommonM3u8LiveSource::new(
-                client,
-                self.url,
-                self.decrypt.key.as_deref(),
-                self.decrypt.shaka_packager_command,
-            )
-            .with_retry(self.download.manifest_retries);
-            downloader.download(source).await?;
-        } else {
-            let source =
-                CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
-            downloader.download(source).await?;
+        match playlist_type {
+            PlaylistType::HLS => {
+                let source = CommonM3u8LiveSource::new(
+                    client,
+                    self.url,
+                    self.decrypt.key.as_deref(),
+                    self.decrypt.shaka_packager_command,
+                )
+                .with_retry(self.download.manifest_retries);
+                downloader.download(source).await?;
+            }
+            PlaylistType::DASH => {
+                let source =
+                    CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
+                downloader.download(source).await?;
+            }
+            PlaylistType::Raw(ext) => {
+                let source = RawDataSource::new(self.url, ext);
+                downloader.download(source).await?;
+            }
         }
 
         Ok(())
@@ -107,6 +120,7 @@ impl DownloadCommand {
         if self.output.output.is_none() {
             self.output.output = from.output.output;
         }
+        self.extra.playlist_type = from.extra.playlist_type;
 
         self
     }

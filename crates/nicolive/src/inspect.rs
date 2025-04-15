@@ -1,6 +1,14 @@
+use std::str::FromStr;
+
+use chrono::{DateTime, Utc};
 use shiori_plugin::*;
 
-use crate::{model::WatchResponse, program::NicoEmbeddedData, watch::WatchClient};
+use crate::{
+    danmaku::{DanmakuList, NewDanmakuClient},
+    model::{WatchMessageMessageServer, WatchMessageStream, WatchResponse},
+    program::NicoEmbeddedData,
+    watch::WatchClient,
+};
 
 pub struct NicoLiveInspector;
 
@@ -18,6 +26,7 @@ impl InspectorBuilder for NicoLiveInspector {
             "",
             "Arguments:",
             "- nico_user_session: Your NicoLive user session key.",
+            "- nico_danmaku: Whether to download danmaku together with the video. (yes/no, default: no)",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -26,17 +35,42 @@ impl InspectorBuilder for NicoLiveInspector {
 
     fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
         let key = args.get("nico_user_session");
-        Ok(Box::new(NicoLiveInspectorImpl::new(key)))
+        let download_danmaku = args
+            .get("nico_danmaku")
+            .map(|d| d == "yes")
+            .unwrap_or(false);
+        Ok(Box::new(NicoLiveInspectorImpl::new(key, download_danmaku)))
     }
 }
 
 struct NicoLiveInspectorImpl {
     user_session: Option<String>,
+    download_danmaku: bool,
 }
 
 impl NicoLiveInspectorImpl {
-    pub fn new(user_session: Option<String>) -> Self {
-        Self { user_session }
+    pub fn new(user_session: Option<String>, download_danmaku: bool) -> Self {
+        Self {
+            user_session,
+            download_danmaku,
+        }
+    }
+
+    pub async fn download_danmaku(
+        &self,
+        message_server: WatchMessageMessageServer,
+        program_end_time: u64,
+    ) -> anyhow::Result<DanmakuList> {
+        let client = NewDanmakuClient::new(message_server.view_uri).await?;
+        let end_time = program_end_time + 30 * 60;
+        let backward = client.get_backward_segment(end_time.to_string()).await?;
+        let segment = backward.segment.unwrap();
+        let start_time = DateTime::<Utc>::from_str(&message_server.vpos_base_time)
+            .map(|r| r.timestamp())
+            .ok();
+
+        let danmaku = client.recv_all(segment.uri, start_time).await?;
+        Ok(danmaku)
     }
 }
 
@@ -56,12 +90,21 @@ impl Inspect for NicoLiveInspectorImpl {
         let watcher = WatchClient::new(&wss_url).await?;
         watcher.start_watching(&best_quality).await?;
 
-        let stream = loop {
+        let mut stream: Option<WatchMessageStream> = None;
+        let mut message_server: Option<WatchMessageMessageServer> = None;
+        loop {
             let msg = watcher.recv().await?;
-            if let Some(WatchResponse::Stream(stream)) = msg {
-                break stream;
+            if let Some(WatchResponse::Stream(got_stream)) = msg {
+                stream = Some(got_stream);
+            } else if let Some(WatchResponse::MessageServer(got_message_server)) = msg {
+                message_server = Some(got_message_server);
             }
-        };
+
+            if stream.is_some() && (!self.download_danmaku || message_server.is_some()) {
+                break;
+            }
+        }
+        let stream = stream.unwrap();
 
         // keep seats
         tokio::spawn(async move {
@@ -79,12 +122,31 @@ impl Inspect for NicoLiveInspectorImpl {
             log::info!("watcher disconnected");
         });
 
-        Ok(InspectResult::Playlist(InspectPlaylist {
+        let mut result = vec![InspectPlaylist {
             title: Some(data.program_title()),
             playlist_url: stream.uri,
             playlist_type: PlaylistType::HLS,
             cookies: stream.cookies.into_cookies(),
             ..Default::default()
-        }))
+        }];
+        if let Some(message_server) = message_server {
+            let danmaku = self
+                .download_danmaku(message_server, data.program_end_time())
+                .await?;
+            result.push(InspectPlaylist {
+                title: Some(data.program_title()),
+                playlist_url: danmaku.to_json(true)?,
+                playlist_type: PlaylistType::Raw("json".to_string()),
+                ..Default::default()
+            });
+            result.push(InspectPlaylist {
+                title: Some(data.program_title()),
+                playlist_url: danmaku.to_ass()?,
+                playlist_type: PlaylistType::Raw("ass".to_string()),
+                ..Default::default()
+            });
+        }
+
+        Ok(InspectResult::Playlists(result))
     }
 }
