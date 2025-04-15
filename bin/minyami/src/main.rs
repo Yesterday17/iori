@@ -311,7 +311,7 @@ impl MinyamiArgs {
                 format!("wss://a.live2.nicovideo.jp/wsapi/v2/watch/{live_id}/timeshift?audience_token={audience_token}")
             };
 
-            let source = NicoTimeshiftSource::new(client, wss_url)
+            let source = NicoTimeshiftSource::new(client, wss_url, quality)
                 .await?
                 .with_retry(self.manifest_retries);
             self.download(source, cache).await?;

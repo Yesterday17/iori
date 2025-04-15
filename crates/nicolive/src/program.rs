@@ -120,9 +120,23 @@ impl NicoEmbeddedData {
         let wss_url = self
             .websocket_url()
             .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
+        let quality = self.best_quality()?;
 
-        let source = NicoTimeshiftSource::new(Default::default(), wss_url).await?;
+        let source = NicoTimeshiftSource::new(Default::default(), wss_url, &quality).await?;
         Ok(source)
+    }
+
+    pub fn best_quality(&self) -> anyhow::Result<String> {
+        let quality = self
+            .data
+            .get("program")
+            .and_then(|program| program.get("stream"))
+            .and_then(|stream| stream.as_object())
+            .and_then(|stream| stream.get("maxQuality"))
+            .and_then(|quality| quality.as_str())
+            .ok_or_else(|| anyhow::anyhow!("no max quality"))?;
+
+        Ok(quality.to_string())
     }
 }
 
