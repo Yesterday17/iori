@@ -24,6 +24,10 @@ impl HttpClient {
     }
 
     pub fn add_cookies(&self, cookies: Vec<String>, url: impl IntoUrl) {
+        if cookies.is_empty() {
+            return;
+        }
+
         let url = url.into_url().unwrap();
         let mut lock = self.cookies_store.lock().unwrap();
         for cookie in cookies {
