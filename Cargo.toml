@@ -1,5 +1,5 @@
 [workspace]
-members = ["bin/*", "crates/*", "plugins/*"]
+members = ["bin/*", "crates/*", "plugins/*", "platforms/*"]
 resolver = "2"
 
 [workspace.package]
@@ -12,8 +12,8 @@ license = "Apache-2.0"
 iori = { path = "crates/iori" }
 iori-ssa = { path = "crates/ssa" }
 
-iori-nicolive = { path = "crates/nicolive" }
-iori-showroom = { path = "crates/showroom" }
+iori-nicolive = { path = "platforms/nicolive" }
+iori-showroom = { path = "platforms/showroom" }
 
 shiori-plugin = { path = "plugins/shiori-plugin" }
 
