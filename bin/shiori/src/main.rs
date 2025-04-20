@@ -9,7 +9,8 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
+                .try_from_env()
+                .unwrap_or_else(|_| "i18n_embed::requester=off".into()),
         )
         .with_writer(std::io::stderr)
         .init();

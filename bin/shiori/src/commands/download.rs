@@ -1,6 +1,7 @@
 use super::inspect::get_default_external_inspector;
 use crate::{
     commands::{update::check_update, ShioriArgs},
+    i18n::ClapI18n,
     inspect::{InspectPlaylist, PlaylistType},
 };
 use clap::{Args, Parser};
@@ -50,15 +51,14 @@ pub struct DownloadCommand {
     pub extra: ExtraOptions,
 
     #[clap(short, long)]
+    #[clap(about_ll = "download-wait")]
     pub wait: bool,
 
-    /// Additional arguments
-    ///
-    /// Format: key=value
     #[clap(short = 'e', long = "arg")]
+    #[clap(about_ll = "download-extra-args")]
     pub extra_args: Vec<String>,
 
-    /// URL to download
+    #[clap(about_ll = "download-url")]
     pub url: String,
 }
 
@@ -128,20 +128,16 @@ impl DownloadCommand {
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
-    /// Additional HTTP headers
     #[clap(short = 'H', long = "header")]
+    #[clap(about_ll = "download-http-headers")]
     pub headers: Vec<String>,
 
-    /// Advanced: Additional HTTP cookies
-    ///
-    /// Will not take effect if `Cookies` is set in [headers].
-    ///
-    /// Do not use this option unless you know what you are doing.
     #[clap(long = "cookie")]
+    #[clap(about_ll = "download-http-cookies")]
     pub cookies: Vec<String>,
 
-    /// HTTP timeout, in seconds
     #[clap(short, long, default_value = "10")]
+    #[clap(about_ll = "download-http-timeout")]
     pub timeout: u64,
 }
 
@@ -181,16 +177,16 @@ impl Default for HttpOptions {
 
 #[derive(Args, Clone, Debug)]
 pub struct DownloadOptions {
-    /// Threads limit
     #[clap(long, alias = "threads", default_value = "5")]
+    #[clap(about_ll = "download-concurrency")]
     pub concurrency: NonZeroU32,
 
-    /// Segment retry limit
     #[clap(long, default_value = "5")]
+    #[clap(about_ll = "download-segment-retries")]
     pub segment_retries: u32,
 
-    /// Manifest retry limit
     #[clap(long, default_value = "3")]
+    #[clap(about_ll = "download-manifest-retries")]
     pub manifest_retries: u32,
 }
 
@@ -206,23 +202,16 @@ impl Default for DownloadOptions {
 
 #[derive(Args, Clone, Debug, Default)]
 pub struct CacheOptions {
-    /// Use in-memory cache and do not write cache to disk while downloading
     #[clap(short = 'm', long)]
+    #[clap(about_ll = "download-cache-in-menory-cache")]
     pub in_memory_cache: bool,
 
-    /// Temporary directory
-    ///
-    /// The default temp dir is the current directory or the system temp dir.
-    /// Will not take effect if `cache_dir` is set.
     #[clap(long, env = "TEMP")]
+    #[clap(about_ll = "download-cache-temp-dir")]
     pub temp_dir: Option<PathBuf>,
 
-    /// Cache directory
-    ///
-    /// Speficy a directory to store cache files.
-    ///
-    /// If specified, the cache will be stored in this directory directly without creating a subdirectory.
     #[clap(long)]
+    #[clap(about_ll = "download-cache-cache-dir")]
     pub cache_dir: Option<PathBuf>,
 }
 
@@ -247,7 +236,6 @@ impl CacheOptions {
     }
 }
 
-/// Decrypt related arguments
 #[derive(Args, Clone, Debug, Default)]
 pub struct DecryptOptions {
     #[clap(long = "key")]
@@ -263,31 +251,31 @@ pub struct ExtraOptions {
     pub playlist_type: Option<PlaylistType>,
 }
 
-/// Output options
 #[derive(Args, Clone, Debug, Default)]
 #[group(multiple = false)]
 pub struct OutputOptions {
-    /// Do not merge stream
     #[clap(long)]
+    #[clap(about_ll = "download-output-no-merge")]
     pub no_merge: bool,
 
     #[clap(long)]
+    #[clap(about_ll = "download-output-concat")]
     pub concat: bool,
 
-    /// Write stream to a file
     #[clap(short, long)]
+    #[clap(about_ll = "download-output-output")]
     pub output: Option<PathBuf>,
 
-    /// Write to stdout
     #[clap(short = 'P', long)]
+    #[clap(about_ll = "download-output-pipe")]
     pub pipe: bool,
 
-    /// Pipe to a file and mux with ffmpeg
     #[clap(short = 'M', long)]
+    #[clap(about_ll = "download-output-pipe-mux")]
     pub pipe_mux: bool,
 
-    /// Pipe to a file
     #[clap(long)]
+    #[clap(about_ll = "download-output-pipe-to")]
     pub pipe_to: Option<PathBuf>,
 }
 

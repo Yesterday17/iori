@@ -1,6 +1,8 @@
 use clap::{builder::styling, ArgAction, Parser, Subcommand};
 use clap_handler::Handler;
 
+use crate::ll;
+
 pub mod download;
 pub mod inspect;
 pub mod merge;
@@ -13,7 +15,8 @@ pub const STYLES: styling::Styles = styling::Styles::styled()
     .placeholder(styling::AnsiColor::Cyan.on_default());
 
 #[derive(Parser, Handler, Clone)]
-#[clap(version = env!("SHIORI_VERSION"), author, styles = STYLES)]
+#[clap(name = "shiori", version = env!("SHIORI_VERSION"), author, styles = STYLES)]
+#[clap(about = ll!("shiori-about"))]
 pub struct ShioriArgs {
     /// Whether to skip update check
     #[clap(long = "skip-update", action = ArgAction::SetFalse)]
