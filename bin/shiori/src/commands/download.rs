@@ -211,10 +211,17 @@ pub struct CacheOptions {
     pub in_memory_cache: bool,
 
     /// Temporary directory
+    ///
+    /// The default temp dir is the current directory or the system temp dir.
+    /// Will not take effect if `cache_dir` is set.
     #[clap(long, env = "TEMP")]
     pub temp_dir: Option<PathBuf>,
 
     /// Cache directory
+    ///
+    /// Speficy a directory to store cache files.
+    ///
+    /// If specified, the cache will be stored in this directory directly without creating a subdirectory.
     #[clap(long)]
     pub cache_dir: Option<PathBuf>,
 }
@@ -226,7 +233,10 @@ impl CacheOptions {
         } else if let Some(cache_dir) = self.cache_dir {
             IoriCache::file(cache_dir)?
         } else {
-            let mut cache_dir = self.temp_dir.unwrap_or_else(|| std::env::temp_dir());
+            let mut cache_dir = self
+                .temp_dir
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| std::env::temp_dir());
 
             let started_at = SystemTime::now();
             let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();

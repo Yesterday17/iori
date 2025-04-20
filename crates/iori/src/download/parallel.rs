@@ -140,7 +140,7 @@ where
                                 }
 
                                 retries -= 1;
-                                log::warn!("Processing {filename} failed, retry later. {e}")
+                                log::warn!("Processing {filename} failed, retry later. {e}");
                             }
                         }
                     }
