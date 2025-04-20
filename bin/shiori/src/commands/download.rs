@@ -321,14 +321,16 @@ pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::R
         .inspect(&me.url, inspector_args, |c| c.into_iter().next().unwrap())
         .await?;
 
-    // TODO: do not use namer if there is only 1 playlist
+    let playlist_downloads: Vec<DownloadCommand> = data.into_iter().map(|r| r.into()).collect();
+
     let mut namer = me
         .output
         .output
         .as_ref()
         .map(|p| DuplicateOutputFileNamer::new(p.clone()));
-    for playlist in data {
-        let command: DownloadCommand = playlist.into();
+
+    for playlist in playlist_downloads {
+        let command: DownloadCommand = playlist;
         let mut cmd = me.clone().merge(command);
         if let Some(namer) = namer.as_mut() {
             let output = namer.next();

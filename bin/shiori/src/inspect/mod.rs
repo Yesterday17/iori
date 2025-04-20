@@ -8,7 +8,7 @@ use crate::commands::STYLES;
 
 pub struct Inspectors {
     /// Whether to wait on found
-    wait: bool,
+    wait: Option<u64>,
 
     front: Vec<Box<dyn InspectorBuilder + Send + Sync + 'static>>,
     tail: Vec<Box<dyn InspectorBuilder + Send + Sync + 'static>>,
@@ -17,7 +17,7 @@ pub struct Inspectors {
 impl Inspectors {
     pub fn new() -> Self {
         Self {
-            wait: false,
+            wait: None,
             front: Vec::new(),
             tail: Vec::new(),
         }
@@ -35,7 +35,12 @@ impl Inspectors {
     }
 
     pub fn wait(mut self, value: bool) -> Self {
-        self.wait = value;
+        self.wait = if value { Some(5) } else { None };
+        self
+    }
+
+    pub fn wait_for(mut self, value: u64) -> Self {
+        self.wait = Some(value);
         self
     }
 
@@ -83,9 +88,12 @@ impl Inspectors {
         for (builder, inspector) in inspectors {
             if inspector.matches(&url).await {
                 loop {
-                    let result = inspector.inspect(&url).await?;
-                    let result =
-                        handle_inspect_result(&inspector, result, choose_candidate).await?;
+                    let result = inspector
+                        .inspect(&url)
+                        .await
+                        .inspect_err(|e| log::error!("Failed to inspect {url}: {:?}", e))
+                        .ok();
+                    let result = handle_inspect_result(&inspector, result, choose_candidate).await;
                     match result {
                         InspectBranch::Continue => break,
                         InspectBranch::Redirect(redirect_url) => {
@@ -94,8 +102,8 @@ impl Inspectors {
                         }
                         InspectBranch::Found(data) => return Ok((builder.name(), data)),
                         InspectBranch::NotFound => {
-                            if self.wait {
-                                sleep(Duration::from_secs(5)).await;
+                            if let Some(wait_time) = self.wait {
+                                sleep(Duration::from_secs(wait_time)).await;
                             } else {
                                 anyhow::bail!("Not found")
                             }
@@ -119,19 +127,23 @@ enum InspectBranch {
 #[async_recursion::async_recursion]
 async fn handle_inspect_result(
     inspector: &Box<dyn Inspect>,
-    result: InspectResult,
+    result: Option<InspectResult>,
     choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
-) -> anyhow::Result<InspectBranch> {
-    Ok(match result {
-        InspectResult::NotMatch => InspectBranch::Continue,
-        InspectResult::Candidates(candidates) => {
+) -> InspectBranch {
+    match result {
+        Some(InspectResult::NotMatch) => InspectBranch::Continue,
+        Some(InspectResult::Candidates(candidates)) => {
             let candidate = choose_candidate(candidates);
-            let result = inspector.inspect_candidate(candidate).await?;
-            handle_inspect_result(inspector, result, choose_candidate).await?
+            let result = inspector
+                .inspect_candidate(candidate)
+                .await
+                .inspect_err(|e| log::error!("Failed to inspect candidate: {:?}", e))
+                .ok();
+            handle_inspect_result(inspector, result, choose_candidate).await
         }
-        InspectResult::Playlist(data) => InspectBranch::Found(vec![data]),
-        InspectResult::Playlists(data) => InspectBranch::Found(data),
-        InspectResult::Redirect(redirect_url) => InspectBranch::Redirect(redirect_url),
-        InspectResult::None => InspectBranch::NotFound,
-    })
+        Some(InspectResult::Playlist(data)) => InspectBranch::Found(vec![data]),
+        Some(InspectResult::Playlists(data)) => InspectBranch::Found(data),
+        Some(InspectResult::Redirect(redirect_url)) => InspectBranch::Redirect(redirect_url),
+        Some(InspectResult::None) | None => InspectBranch::NotFound,
+    }
 }
