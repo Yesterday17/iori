@@ -10,7 +10,7 @@ use crate::{
     error::{IoriError, IoriResult},
     fetch::fetch_segment,
     hls::{segment::M3u8Segment, source::AdvancedM3u8Source},
-    util::http::HttpClient,
+    util::{http::HttpClient, mix::mix_vec},
     StreamingSource,
 };
 
@@ -88,16 +88,17 @@ impl StreamingSource for CommonM3u8LiveSource {
                     as u64;
 
                 for (segments, latest_media_sequence) in
-                    segments.into_iter().zip(latest_media_sequences.iter_mut())
+                    segments.iter().zip(latest_media_sequences.iter_mut())
                 {
                     *latest_media_sequence = segments
                         .last()
                         .map(|r| r.media_sequence)
                         .or_else(|| latest_media_sequence.clone());
+                }
 
-                    if let Err(_) = sender.send(Ok(segments)) {
-                        break;
-                    }
+                let mixed_segments = mix_vec(segments);
+                if let Err(_) = sender.send(Ok(mixed_segments)) {
+                    break;
                 }
 
                 if is_end {

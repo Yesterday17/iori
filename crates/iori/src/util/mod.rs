@@ -8,6 +8,7 @@ use http::HttpClient;
 use crate::IoriResult;
 
 pub mod http;
+pub mod mix;
 pub mod ordered_stream;
 pub mod path;
 
