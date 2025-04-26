@@ -65,6 +65,18 @@ impl NicoEmbeddedData {
     }
 
     pub fn websocket_url(&self) -> Option<String> {
+        let url = self.raw_websocket_url()?;
+        if let Some(frontend_id) = self.frontend_id() {
+            let mut url = url::Url::parse(&url).ok()?;
+            url.query_pairs_mut()
+                .append_pair("frontend_id", &frontend_id.to_string());
+            Some(url.to_string())
+        } else {
+            Some(url)
+        }
+    }
+
+    fn raw_websocket_url(&self) -> Option<String> {
         self.data
             .get("site")
             .and_then(|site| site.get("relive"))
@@ -72,6 +84,13 @@ impl NicoEmbeddedData {
             .and_then(|url| url.as_str())
             .and_then(|url| if url.is_empty() { None } else { Some(url) })
             .map(|url| url.to_string())
+    }
+
+    fn frontend_id(&self) -> Option<i64> {
+        self.data
+            .get("site")
+            .and_then(|site| site.get("frontendId"))
+            .and_then(|id| id.as_i64())
     }
 
     pub fn program_title(&self) -> String {
@@ -147,7 +166,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_live_info() -> anyhow::Result<()> {
         let data =
-            NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv342260645", None).await?;
+            NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv347149115", None).await?;
         println!("{:?}", data.websocket_url());
         Ok(())
     }
