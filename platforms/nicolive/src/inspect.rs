@@ -27,6 +27,7 @@ impl InspectorBuilder for NicoLiveInspector {
             "Arguments:",
             "- nico_user_session: Your NicoLive user session key.",
             "- nico_danmaku: Whether to download danmaku together with the video. (yes/no, default: no)",
+            "- nico_chase_play: Whether to chase play the video. (yes/no, default: no)",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -39,20 +40,30 @@ impl InspectorBuilder for NicoLiveInspector {
             .get("nico_danmaku")
             .map(|d| d == "yes")
             .unwrap_or(false);
-        Ok(Box::new(NicoLiveInspectorImpl::new(key, download_danmaku)))
+        let chase_play = args
+            .get("nico_chase_play")
+            .map(|d| d == "yes")
+            .unwrap_or(false);
+        Ok(Box::new(NicoLiveInspectorImpl::new(
+            key,
+            download_danmaku,
+            chase_play,
+        )))
     }
 }
 
 struct NicoLiveInspectorImpl {
     user_session: Option<String>,
     download_danmaku: bool,
+    chase_play: bool,
 }
 
 impl NicoLiveInspectorImpl {
-    pub fn new(user_session: Option<String>, download_danmaku: bool) -> Self {
+    pub fn new(user_session: Option<String>, download_danmaku: bool, chase_play: bool) -> Self {
         Self {
             user_session,
             download_danmaku,
+            chase_play,
         }
     }
 
@@ -88,7 +99,9 @@ impl Inspect for NicoLiveInspectorImpl {
         let best_quality = data.best_quality()?;
 
         let watcher = WatchClient::new(&wss_url).await?;
-        watcher.start_watching(&best_quality).await?;
+        watcher
+            .start_watching(&best_quality, self.chase_play)
+            .await?;
 
         let mut stream: Option<WatchMessageStream> = None;
         let mut message_server: Option<WatchMessageMessageServer> = None;

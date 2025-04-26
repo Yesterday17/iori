@@ -3,8 +3,6 @@ use std::sync::LazyLock;
 use regex::Regex;
 use reqwest::Client;
 
-use crate::source::NicoTimeshiftSource;
-
 const NICO_METADATA_REGEXP: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"<script id="embedded-data" data-props="([^"]+)""#).unwrap());
 
@@ -129,20 +127,6 @@ impl NicoEmbeddedData {
             .ok_or_else(|| anyhow::anyhow!("can not extract audience token from url: {wss_url}"))?;
 
         Ok(audience_token.to_string())
-    }
-
-    pub async fn get_source(
-        &self,
-        // title: Option<String>,
-    ) -> anyhow::Result<NicoTimeshiftSource> {
-        // let title = title.unwrap_or_else(|| self.program_title());
-        let wss_url = self
-            .websocket_url()
-            .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
-        let quality = self.best_quality()?;
-
-        let source = NicoTimeshiftSource::new(Default::default(), wss_url, &quality).await?;
-        Ok(source)
     }
 
     pub fn best_quality(&self) -> anyhow::Result<String> {

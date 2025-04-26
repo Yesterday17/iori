@@ -108,7 +108,7 @@ impl WatchClient {
     }
 
     // Initialize messages
-    pub async fn start_watching(&self, quality: &str) -> anyhow::Result<()> {
+    pub async fn start_watching(&self, quality: &str, chase_play: bool) -> anyhow::Result<()> {
         self.send(Message::Text(
             json!({
                 "type": "startWatching",
@@ -117,7 +117,7 @@ impl WatchClient {
                         "quality": quality,
                         "protocol": "hls",
                         "latency": "low",
-                        "chasePlay": false,
+                        "chasePlay": chase_play,
                         "accessRightMethod": "single_cookie"
                     },
                     "room": {
@@ -170,7 +170,7 @@ mod tests {
         let wss_url = data.websocket_url().expect("No websocket url found");
 
         let watcher = WatchClient::new(wss_url).await.unwrap();
-        watcher.start_watching("super_high").await.unwrap();
+        watcher.start_watching("super_high", false).await.unwrap();
 
         loop {
             let msg = watcher.recv().await.unwrap();

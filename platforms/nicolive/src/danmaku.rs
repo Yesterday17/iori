@@ -233,7 +233,7 @@ mod tests {
         let wss_url = data.websocket_url().expect("No websocket url found");
 
         let watcher = WatchClient::new(wss_url).await.unwrap();
-        watcher.start_watching("super_high").await.unwrap();
+        watcher.start_watching("super_high", false).await.unwrap();
 
         let message_server = loop {
             let msg = watcher.recv().await.unwrap();

@@ -20,9 +20,14 @@ pub struct NicoTimeshiftSource {
 }
 
 impl NicoTimeshiftSource {
-    pub async fn new(client: HttpClient, wss_url: String, quality: &str) -> anyhow::Result<Self> {
+    pub async fn new(
+        client: HttpClient,
+        wss_url: String,
+        quality: &str,
+        chase_play: bool,
+    ) -> anyhow::Result<Self> {
         let watcher = crate::watch::WatchClient::new(&wss_url).await?;
-        watcher.start_watching(quality).await?;
+        watcher.start_watching(quality, chase_play).await?;
 
         let stream = loop {
             let msg = watcher.recv().await?;
