@@ -17,17 +17,22 @@ impl InspectorBuilder for ShowroomInspector {
             "Template:",
             "- https://www.showroom-live.com/r/*",
             "- https://www.showroom-live.com/timeshift/*",
-            "",
-            "Arguments:",
-            "- sr_id: Your Showroom user session key.",
         ]
         .iter()
         .map(|s| s.to_string())
         .collect()
     }
 
-    fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
-        Ok(Box::new(ShowroomInspectorImpl(args.get("sr_id"))))
+    fn arguments(&self, command: &mut dyn InspectorCommand) {
+        command.add_argument(
+            "showroom-user-session",
+            Some("sr_id"),
+            "[Showroom] Your Showroom user session key.",
+        );
+    }
+
+    fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
+        Ok(Box::new(ShowroomInspectorImpl(args.get_string("sr-id"))))
     }
 }
 

@@ -22,28 +22,33 @@ impl InspectorBuilder for NicoLiveInspector {
             "Extracts NicoLive live streams or timeshifts.",
             "",
             "Available for URLs starting with:",
-            "- https://live.nicovideo.jp/watch/lv",
-            "",
-            "Arguments:",
-            "- nico_user_session: Your NicoLive user session key.",
-            "- nico_danmaku: Whether to download danmaku together with the video. (yes/no, default: no)",
-            "- nico_chase_play: Whether to chase play the video. (yes/no, default: no)",
+            "- https://live.nicovideo.jp/watch/lv*",
         ]
         .iter()
         .map(|s| s.to_string())
         .collect()
     }
 
-    fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
-        let key = args.get("nico_user_session");
-        let download_danmaku = args
-            .get("nico_danmaku")
-            .map(|d| d == "yes")
-            .unwrap_or(false);
-        let chase_play = args
-            .get("nico_chase_play")
-            .map(|d| d == "yes")
-            .unwrap_or(false);
+    fn arguments(&self, command: &mut dyn InspectorCommand) {
+        command.add_argument(
+            "nico-user-session",
+            Some("user_session"),
+            "[NicoLive] Your NicoLive user session key.",
+        );
+        command.add_boolean_argument(
+            "nico-download-danmaku",
+            "[NicoLive] Whether to download danmaku together with the video. (default: no)",
+        );
+        command.add_boolean_argument(
+            "nico-chase-play",
+            "[NicoLive] Whether to chase play the video. (default: no)",
+        );
+    }
+
+    fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
+        let key = args.get_string("nico-user-session");
+        let download_danmaku = args.get_boolean("nico-download-danmaku");
+        let chase_play = args.get_boolean("nico-chase-play");
         Ok(Box::new(NicoLiveInspectorImpl::new(
             key,
             download_danmaku,

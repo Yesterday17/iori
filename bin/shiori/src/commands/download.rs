@@ -1,4 +1,4 @@
-use super::inspect::get_default_external_inspector;
+use super::inspect::{get_default_external_inspector, InspectorOptions};
 use crate::{
     commands::{update::check_update, ShioriArgs},
     i18n::ClapI18n,
@@ -21,7 +21,6 @@ use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, IntoUrl,
 };
-use shiori_plugin::InspectorArgs;
 use std::{
     num::NonZeroU32,
     path::PathBuf,
@@ -31,7 +30,10 @@ use std::{
 
 #[derive(Parser, Clone, Default)]
 #[clap(name = "download", visible_alias = "dl", short_flag = 'D')]
-pub struct DownloadCommand {
+pub struct DownloadCommand<I>
+where
+    I: Args + Default,
+{
     #[clap(flatten)]
     pub http: HttpOptions,
 
@@ -58,11 +60,17 @@ pub struct DownloadCommand {
     #[clap(about_ll = "download-extra-args")]
     pub extra_args: Vec<String>,
 
+    #[clap(flatten)]
+    pub inspector_options: I,
+
     #[clap(about_ll = "download-url")]
     pub url: String,
 }
 
-impl DownloadCommand {
+impl<Ext> DownloadCommand<Ext>
+where
+    Ext: Args + Default,
+{
     pub async fn download(self) -> anyhow::Result<()> {
         let client = self.http.into_client(&self.url);
 
@@ -311,15 +319,19 @@ impl OutputOptions {
     }
 }
 
-#[handler(DownloadCommand)]
-pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
-    let inspector_args = InspectorArgs::from_key_value(&me.extra_args);
+type ShioriDownloadCommand = DownloadCommand<InspectorOptions>;
+
+#[handler(ShioriDownloadCommand)]
+pub async fn download(me: ShioriDownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
     let (_, data) = get_default_external_inspector()
         .wait(me.wait)
-        .inspect(&me.url, inspector_args, |c| c.into_iter().next().unwrap())
+        .inspect(&me.url, &me.inspector_options, &me.extra_args, |c| {
+            c.into_iter().next().unwrap()
+        })
         .await?;
 
-    let playlist_downloads: Vec<DownloadCommand> = data.into_iter().map(|r| r.into()).collect();
+    let playlist_downloads: Vec<ShioriDownloadCommand> =
+        data.into_iter().map(|r| r.into()).collect();
 
     let mut namer = me
         .output
@@ -328,7 +340,7 @@ pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::R
         .map(|p| DuplicateOutputFileNamer::new(p.clone()));
 
     for playlist in playlist_downloads {
-        let command: DownloadCommand = playlist;
+        let command: ShioriDownloadCommand = playlist;
         let mut cmd = me.clone().merge(command);
         if let Some(namer) = namer.as_mut() {
             let output = namer.next();
@@ -344,7 +356,10 @@ pub async fn download(me: DownloadCommand, shiori_args: ShioriArgs) -> anyhow::R
     Ok(())
 }
 
-impl From<InspectPlaylist> for DownloadCommand {
+impl<Ext> From<InspectPlaylist> for DownloadCommand<Ext>
+where
+    Ext: Args + Default,
+{
     fn from(data: InspectPlaylist) -> Self {
         Self {
             http: HttpOptions {
@@ -360,7 +375,31 @@ impl From<InspectPlaylist> for DownloadCommand {
                 playlist_type: Some(data.playlist_type),
             },
             output: OutputOptions {
-                output: data.title.map(Into::into),
+                output: data.title.map(|title| {
+                    let path = std::path::Path::new(&title);
+                    // Replace invalid characters with underscores
+                    let filename = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(|name| {
+                            name.replace(
+                                |c: char| {
+                                    c == '/'
+                                        || c == '\\'
+                                        || c == ':'
+                                        || c == '*'
+                                        || c == '?'
+                                        || c == '"'
+                                        || c == '<'
+                                        || c == '>'
+                                        || c == '|'
+                                },
+                                "_",
+                            )
+                        })
+                        .unwrap_or_else(|| title.clone());
+                    filename.into()
+                }),
                 ..Default::default()
             },
             url: data.playlist_url,

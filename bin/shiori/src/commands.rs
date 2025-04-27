@@ -29,7 +29,7 @@ pub struct ShioriArgs {
 #[derive(Subcommand, Handler, Clone)]
 pub enum ShioriCommand {
     #[clap(after_help = inspect::get_default_external_inspector().help())]
-    Download(download::DownloadCommand),
+    Download(download::DownloadCommand<inspect::InspectorOptions>),
     #[clap(after_help = inspect::get_default_external_inspector().help())]
     Inspect(inspect::InspectCommand),
     Merge(merge::MergeCommand),

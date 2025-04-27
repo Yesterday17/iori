@@ -2,7 +2,7 @@ use crate::inspect::{Inspect, InspectResult};
 use clap_handler::async_trait;
 use regex::Regex;
 use reqwest::redirect::Policy;
-use shiori_plugin::InspectorBuilder;
+use shiori_plugin::{InspectorArguments, InspectorBuilder};
 use std::sync::LazyLock;
 
 pub struct ShortLinkInspector;
@@ -24,7 +24,7 @@ impl InspectorBuilder for ShortLinkInspector {
         .collect()
     }
 
-    fn build(&self, _args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
+    fn build(&self, _args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
         Ok(Box::new(Self))
     }
 }

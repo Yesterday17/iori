@@ -70,17 +70,24 @@ impl Inspectors {
         result
     }
 
+    pub fn add_arguments(&self, command: &mut impl InspectorCommand) {
+        for inspector in self.front.iter().chain(self.tail.iter()) {
+            inspector.arguments(command);
+        }
+    }
+
     pub async fn inspect(
         self,
         url: &str,
-        args: InspectorArgs,
+        args: &dyn InspectorArguments,
+        extra_args: &[String],
         choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
     ) -> anyhow::Result<(String, Vec<InspectPlaylist>)> {
         let inspectors = self
             .front
             .iter()
             .chain(self.tail.iter())
-            .map(|b| b.build(&args).map(|i| (b, i)))
+            .map(|b| b.build(args).map(|i| (b, i)))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         let mut url = Cow::Borrowed(url);

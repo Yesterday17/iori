@@ -1,7 +1,7 @@
 use crate::inspect::{Inspect, InspectCandidate, InspectResult};
 use base64::{prelude::BASE64_STANDARD, Engine};
 use clap_handler::async_trait;
-use shiori_plugin::InspectorBuilder;
+use shiori_plugin::{InspectorArguments, InspectorBuilder};
 use std::process::{Command, Stdio};
 
 pub struct ExternalInspector;
@@ -11,8 +11,8 @@ impl InspectorBuilder for ExternalInspector {
         "external".to_string()
     }
 
-    fn build(&self, args: &shiori_plugin::InspectorArgs) -> anyhow::Result<Box<dyn Inspect>> {
-        let Some(command) = args.get("command") else {
+    fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
+        let Some(command) = args.get_string("command") else {
             anyhow::bail!("Missing command arg for external inspector");
         };
         Ok(Box::new(ExternalInspectorImpl::new(&command)?))

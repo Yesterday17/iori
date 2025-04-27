@@ -10,29 +10,20 @@ pub mod extism_pdk {
 pub use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-pub struct InspectorArgs {
-    inner: std::collections::HashMap<String, String>,
+pub trait InspectorCommand {
+    fn add_argument(
+        &mut self,
+        long: &'static str,
+        value_name: Option<&'static str>,
+        help: &'static str,
+    );
+
+    fn add_boolean_argument(&mut self, long: &'static str, help: &'static str);
 }
 
-impl InspectorArgs {
-    pub fn get(&self, key: &str) -> Option<String> {
-        self.inner.get(key).map(|r| r.to_string())
-    }
-
-    pub fn env(&self, key: &str) -> Option<String> {
-        std::env::var(key).ok()
-    }
-
-    pub fn from_key_value(input: &[String]) -> Self {
-        let args: std::collections::HashMap<String, String> = input
-            .into_iter()
-            .map(|s| {
-                let (key, value) = s.split_once('=').unwrap();
-                (key.to_string(), value.to_string())
-            })
-            .collect();
-        Self { inner: args }
-    }
+pub trait InspectorArguments: Send + Sync {
+    fn get_string(&self, argument: &'static str) -> Option<String>;
+    fn get_boolean(&self, argument: &'static str) -> bool;
 }
 
 pub trait InspectorBuilder {
@@ -42,7 +33,9 @@ pub trait InspectorBuilder {
         vec!["No help available".to_string()]
     }
 
-    fn build(&self, args: &InspectorArgs) -> anyhow::Result<Box<dyn Inspect>>;
+    fn arguments(&self, _command: &mut dyn InspectorCommand) {}
+
+    fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>>;
 }
 
 #[async_trait]
