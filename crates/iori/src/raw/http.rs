@@ -1,7 +1,4 @@
-use reqwest::{
-    header::{ACCEPT, ACCEPT_RANGES, CONTENT_LENGTH, RANGE},
-    Version,
-};
+use reqwest::header::{ACCEPT, ACCEPT_RANGES, CONTENT_LENGTH, RANGE};
 use std::sync::Arc;
 use tokio::{io::AsyncWrite, sync::mpsc};
 
@@ -13,6 +10,7 @@ use crate::{
 pub struct HttpFileSource {
     url: Arc<String>,
     client: HttpClient,
+    ext: String,
 }
 
 impl HttpFileSource {
@@ -20,6 +18,7 @@ impl HttpFileSource {
         Self {
             url: Arc::new(url),
             client,
+            ext,
         }
     }
 }
@@ -103,7 +102,7 @@ impl StreamingSource for HttpFileSource {
             segments.push(HttpSegment {
                 url: self.url.clone(),
                 filename: format!("01"),
-                ext: "raw".to_string(),
+                ext: self.ext.clone(),
                 sequence: 0,
                 range: None,
             });
@@ -125,7 +124,7 @@ impl StreamingSource for HttpFileSource {
                         range.start,
                         range.end.unwrap_or(content_length - 1)
                     ),
-                    ext: "raw".to_string(),
+                    ext: self.ext.clone(),
                     sequence: seq,
                     range: Some(range),
                 });
