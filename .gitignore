@@ -17,3 +17,6 @@ target/
 *.mkv
 *.mp4
 *.m3u8
+
+# nix
+.direnv
