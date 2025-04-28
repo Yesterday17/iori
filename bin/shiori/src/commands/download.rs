@@ -152,6 +152,9 @@ pub struct HttpOptions {
     #[clap(short, long, default_value = "10")]
     #[clap(about_ll = "download-http-timeout")]
     pub timeout: u64,
+
+    #[clap(long, alias = "http1")]
+    pub http1_only: bool,
 }
 
 impl HttpOptions {
@@ -166,14 +169,16 @@ impl HttpOptions {
             );
         }
 
-        let client = HttpClient::new(
-            Client::builder()
-                .default_headers(headers)
-                .http1_title_case_headers()
-                .user_agent(get_chrome_rua())
-                .timeout(Duration::from_secs(self.timeout))
-                .danger_accept_invalid_certs(true),
-        );
+        let mut builder = Client::builder()
+            .default_headers(headers)
+            .user_agent(get_chrome_rua())
+            .timeout(Duration::from_secs(self.timeout))
+            .danger_accept_invalid_certs(true);
+        if self.http1_only {
+            builder = builder.http1_only().http1_title_case_headers();
+        }
+
+        let client = HttpClient::new(builder);
         client.add_cookies(self.cookies, url);
         client
     }
@@ -185,6 +190,7 @@ impl Default for HttpOptions {
             headers: Vec::new(),
             cookies: Vec::new(),
             timeout: 10,
+            http1_only: false,
         }
     }
 }

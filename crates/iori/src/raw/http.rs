@@ -146,10 +146,7 @@ impl StreamingSource for HttpFileSource {
 
         let mut request = self.client.get(segment.url.as_str()).header(ACCEPT, "*/*");
         if let Some(range) = &segment.range {
-            // Force to use HTTP/1.1 for range download
-            request = request
-                .version(Version::HTTP_11)
-                .header(RANGE, range.to_string());
+            request = request.header(RANGE, range.to_string());
         }
 
         let response = request.send().await?;
