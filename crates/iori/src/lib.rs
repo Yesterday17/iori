@@ -102,7 +102,7 @@ pub enum SegmentFormat {
     M4a,
     Cmfv,
     Cmfa,
-    PlainText(String),
+    Raw(String),
     Other(String),
 }
 
@@ -114,7 +114,7 @@ impl SegmentFormat {
             Self::M4a => "m4a",
             Self::Cmfv => "cmfv",
             Self::Cmfa => "cmfa",
-            Self::PlainText(ext) => ext.as_str(),
+            Self::Raw(ext) => ext.as_str(),
             Self::Other(ext) => ext.as_str(),
         }
     }
@@ -127,7 +127,7 @@ impl SegmentFormat {
             "m4a" => Self::M4a,
             "cmfv" => Self::Cmfv,
             "cmfa" => Self::Cmfa,
-            "txt" | "ass" | "srt" | "vtt" | "json" => Self::PlainText(ext.to_string()),
+            "txt" | "ass" | "srt" | "vtt" | "json" => Self::Raw(ext.to_string()),
             _ => Self::Other(ext.to_string()),
         }
     }

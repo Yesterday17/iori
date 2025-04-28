@@ -11,6 +11,7 @@ license.workspace = true
 iori.workspace = true
 iori-nicolive.workspace = true
 iori-showroom.workspace = true
+iori-gigafile.workspace = true
 
 tokio = { workspace = true, features = ["full"] }
 reqwest.workspace = true

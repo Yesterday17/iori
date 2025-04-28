@@ -5,6 +5,9 @@ use tokio::{
 
 use crate::{IoriResult, StreamingSegment, StreamingSource};
 
+mod http;
+pub use http::*;
+
 pub struct RawDataSource {
     data: String,
     ext: String,
@@ -55,7 +58,7 @@ impl StreamingSegment for RawSegment {
     }
 
     fn format(&self) -> crate::SegmentFormat {
-        crate::SegmentFormat::PlainText(self.ext.clone())
+        crate::SegmentFormat::Raw(self.ext.clone())
     }
 }
 

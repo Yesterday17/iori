@@ -13,7 +13,7 @@ use iori::{
     download::ParallelDownloaderBuilder,
     hls::CommonM3u8LiveSource,
     merge::IoriMerger,
-    raw::RawDataSource,
+    raw::{HttpFileSource, RawDataSource},
     utils::{detect_manifest_type, DuplicateOutputFileNamer},
     HttpClient,
 };
@@ -110,8 +110,13 @@ where
                 downloader.download(source).await?;
             }
             PlaylistType::Raw(ext) => {
-                let source = RawDataSource::new(self.url, ext);
-                downloader.download(source).await?;
+                if self.url.starts_with("http") {
+                    let source = HttpFileSource::new(client, self.url, ext);
+                    downloader.download(source).await?;
+                } else {
+                    let source = RawDataSource::new(self.url, ext);
+                    downloader.download(source).await?;
+                }
             }
         }
 

@@ -14,7 +14,7 @@ iori-ssa = { path = "crates/ssa" }
 
 iori-nicolive = { path = "platforms/nicolive" }
 iori-showroom = { path = "platforms/showroom" }
-
+iori-gigafile = { path = "platforms/gigafile" }
 shiori-plugin = { path = "plugins/shiori-plugin" }
 
 regex = "1.9.3"
