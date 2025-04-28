@@ -54,7 +54,10 @@ impl Inspect for GigafileInspectorImpl {
         let client = GigafileClient::new(self.0.clone());
         let (url, cookie) = client.get_download_url(url).await?;
 
-        let client = Client::new();
+        let client = Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap();
         let response = client
             .get(&url)
             .header(COOKIE, &cookie)
@@ -82,7 +85,7 @@ impl Inspect for GigafileInspectorImpl {
         };
 
         Ok(InspectResult::Playlist(InspectPlaylist {
-            title: title,
+            title,
             playlist_url: url,
             playlist_type: PlaylistType::Raw(ext),
             headers: vec![format!("Cookie: {cookie}")],

@@ -1,4 +1,7 @@
-use reqwest::header::{ACCEPT, ACCEPT_RANGES, CONTENT_LENGTH, RANGE};
+use reqwest::{
+    header::{ACCEPT, ACCEPT_RANGES, CONTENT_LENGTH, RANGE},
+    Version,
+};
 use std::sync::Arc;
 use tokio::{io::AsyncWrite, sync::mpsc};
 
@@ -143,11 +146,13 @@ impl StreamingSource for HttpFileSource {
 
         let mut request = self.client.get(segment.url.as_str()).header(ACCEPT, "*/*");
         if let Some(range) = &segment.range {
-            request = request.header(RANGE, range.to_string());
+            // Force to use HTTP/1.1 for range download
+            request = request
+                .version(Version::HTTP_11)
+                .header(RANGE, range.to_string());
         }
 
         let response = request.send().await?;
-        println!("{:?}", response);
 
         let stream = response.bytes_stream().map_err(std::io::Error::other);
         let mut reader = tokio_util::io::StreamReader::new(stream);

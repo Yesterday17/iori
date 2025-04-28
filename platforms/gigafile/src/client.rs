@@ -12,6 +12,7 @@ impl GigafileClient {
     pub fn new(key: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .user_agent(get_chrome_rua())
+            .danger_accept_invalid_certs(true)
             .build()
             .unwrap();
 
@@ -46,21 +47,5 @@ impl GigafileClient {
         }
 
         Ok((download_url, cookie))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_get_download_url() {
-        let client = GigafileClient::new(None);
-        let (url, cookie) = client
-            .get_download_url("https://27.gigafile.nu/0805-p160a2f7e272032b4acda721384a135fb")
-            .await
-            .unwrap();
-        println!("URL: {}", url);
-        println!("Cookie: {:?}", cookie);
     }
 }

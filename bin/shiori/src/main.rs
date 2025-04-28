@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
                 .try_from_env()
-                .unwrap_or_else(|_| "i18n_embed::requester=off".into()),
+                .unwrap_or_else(|_| "info,i18n_embed::requester=off".into()),
         )
         .with_writer(std::io::stderr)
         .init();

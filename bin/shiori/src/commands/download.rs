@@ -169,6 +169,7 @@ impl HttpOptions {
         let client = HttpClient::new(
             Client::builder()
                 .default_headers(headers)
+                .http1_title_case_headers()
                 .user_agent(get_chrome_rua())
                 .timeout(Duration::from_secs(self.timeout))
                 .danger_accept_invalid_certs(true),
