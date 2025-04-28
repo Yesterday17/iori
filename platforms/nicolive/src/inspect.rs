@@ -37,11 +37,11 @@ impl InspectorBuilder for NicoLiveInspector {
         );
         command.add_boolean_argument(
             "nico-download-danmaku",
-            "[NicoLive] Whether to download danmaku together with the video. (default: no)",
+            "[NicoLive] Download danmaku together with the video.",
         );
         command.add_boolean_argument(
             "nico-chase-play",
-            "[NicoLive] Whether to chase play the video. (default: no)",
+            "[NicoLive] Download an ongoing nico live from start.",
         );
     }
 

@@ -2,7 +2,6 @@ use anyhow::Result;
 use fake_user_agent::get_chrome_rua;
 use reqwest::header::SET_COOKIE;
 use reqwest::Client;
-// use scraper::{Html, Selector};
 
 pub struct GigafileClient {
     client: Client,

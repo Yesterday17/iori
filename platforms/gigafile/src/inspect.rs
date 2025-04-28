@@ -30,16 +30,14 @@ impl InspectorBuilder for GigafileInspector {
     }
 
     fn arguments(&self, command: &mut dyn shiori_plugin::InspectorCommand) {
-        command.add_argument("gigafile-key", Some("key"), "[Gigafile] Download key");
+        command.add_argument("giga-key", Some("key"), "[Gigafile] Download key");
     }
 
     fn build(
         &self,
         args: &dyn shiori_plugin::InspectorArguments,
     ) -> anyhow::Result<Box<dyn shiori_plugin::Inspect>> {
-        Ok(Box::new(GigafileInspectorImpl(
-            args.get_string("gigafile-key"),
-        )))
+        Ok(Box::new(GigafileInspectorImpl(args.get_string("giga-key"))))
     }
 }
 
