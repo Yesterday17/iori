@@ -226,7 +226,7 @@ pub struct CacheOptions {
     #[clap(about_ll = "download-cache-in-menory-cache")]
     pub in_memory_cache: bool,
 
-    #[clap(long, env = "TEMP")]
+    #[clap(long, env = "TEMP_DIR")]
     #[clap(about_ll = "download-cache-temp-dir")]
     pub temp_dir: Option<PathBuf>,
 
