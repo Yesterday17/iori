@@ -30,7 +30,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     }
 
     if office_ids.is_empty() {
-        return Err(anyhow::anyhow!("找不到运营id，请手动输入"));
+        log::warn!("未找到运营id");
     }
 
     // 弹幕参数
