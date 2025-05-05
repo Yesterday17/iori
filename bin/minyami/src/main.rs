@@ -323,8 +323,12 @@ impl MinyamiArgs {
             (true, true) => unimplemented!(),
             // DASH Archive
             (true, false) => {
-                let source =
-                    CommonDashArchiveSource::new(client, self.m3u8.clone(), self.key.as_deref())?;
+                let source = CommonDashArchiveSource::new(
+                    client,
+                    self.m3u8.clone(),
+                    self.key.as_deref(),
+                    self.shaka_packager.clone(),
+                )?;
                 self.download(source, cache).await?;
             }
             // HLS Live

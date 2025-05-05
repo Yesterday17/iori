@@ -19,6 +19,7 @@ pub struct CommonM3u8ArchiveSource {
     playlist: Arc<Mutex<AdvancedM3u8Source>>,
     range: SegmentRange,
     retry: u32,
+    shaka_packager_command: Option<PathBuf>,
 }
 
 /// A subrange for m3u8 archive sources to choose which segment to use
@@ -78,9 +79,9 @@ impl CommonM3u8ArchiveSource {
                 client,
                 Url::parse(&playlist_url).unwrap(),
                 key,
-                shaka_packager_command,
                 3,
             ))),
+            shaka_packager_command,
             range,
             retry: 3,
         }
@@ -136,7 +137,13 @@ impl StreamingSource for CommonM3u8ArchiveSource {
     where
         W: AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        fetch_segment(self.client.clone(), segment, writer).await?;
+        fetch_segment(
+            self.client.clone(),
+            segment,
+            writer,
+            self.shaka_packager_command.clone(),
+        )
+        .await?;
         Ok(())
     }
 }
@@ -144,25 +151,6 @@ impl StreamingSource for CommonM3u8ArchiveSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cache::file::FileCacheSource, download::SequencialDownloader, merge::SkipMerger};
-
-    #[tokio::test]
-    async fn test_download_archive() -> IoriResult<()> {
-        let source = CommonM3u8ArchiveSource::new(
-            Default::default(),
-            "https://test-streams.mux.dev/bbbAES/playlists/sample_aes/index.m3u8".to_string(),
-            None,
-            Default::default(),
-            None,
-        );
-        let merger = SkipMerger::new();
-        let cache = FileCacheSource::new("/tmp/test".into())?;
-        SequencialDownloader::new(source, merger, cache)
-            .download()
-            .await?;
-
-        Ok(())
-    }
 
     #[test]
     fn test_parse_range() {

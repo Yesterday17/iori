@@ -105,8 +105,12 @@ where
                 downloader.download(source).await?;
             }
             PlaylistType::DASH => {
-                let source =
-                    CommonDashArchiveSource::new(client, self.url, self.decrypt.key.as_deref())?;
+                let source = CommonDashArchiveSource::new(
+                    client,
+                    self.url,
+                    self.decrypt.key.as_deref(),
+                    self.decrypt.shaka_packager_command.clone(),
+                )?;
                 downloader.download(source).await?;
             }
             PlaylistType::Raw(ext) => {

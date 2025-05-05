@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
@@ -10,6 +12,7 @@ pub async fn fetch_segment<S, W>(
     client: HttpClient,
     segment: &S,
     tmp_file: &mut W,
+    shaka_packager_command: Option<PathBuf>,
 ) -> IoriResult<()>
 where
     S: StreamingSegment + ToSegmentData,
@@ -19,7 +22,9 @@ where
 
     // TODO: use bytes_stream to improve performance
     // .bytes_stream();
-    let decryptor = segment.key().map(|key| key.to_decryptor());
+    let decryptor = segment
+        .key()
+        .map(|key| key.to_decryptor(shaka_packager_command));
     if let Some(decryptor) = decryptor {
         let bytes = match segment.initial_segment() {
             crate::InitialSegment::Encrypted(data) => {

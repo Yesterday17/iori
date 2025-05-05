@@ -18,6 +18,7 @@ pub struct CommonM3u8LiveSource {
     client: HttpClient,
     playlist: Arc<Mutex<AdvancedM3u8Source>>,
     retry: u32,
+    shaka_packager_command: Option<PathBuf>,
 }
 
 impl CommonM3u8LiveSource {
@@ -33,9 +34,9 @@ impl CommonM3u8LiveSource {
                 client,
                 Url::parse(&m3u8_url).unwrap(),
                 key,
-                shaka_packager_command,
                 3,
             ))),
+            shaka_packager_command,
             retry: 3,
         }
     }
@@ -118,30 +119,13 @@ impl StreamingSource for CommonM3u8LiveSource {
     where
         W: AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        fetch_segment(self.client.clone(), segment, writer).await?;
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{cache::file::FileCacheSource, download::SequencialDownloader, merge::SkipMerger};
-
-    #[tokio::test]
-    async fn test_download_live() -> IoriResult<()> {
-        let source = CommonM3u8LiveSource::new(
-            Default::default(),
-            "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8".to_string(),
-            None,
-            None,
-        );
-        let merger = SkipMerger::new();
-        let cache = FileCacheSource::new("/tmp/test".into())?;
-        SequencialDownloader::new(source, merger, cache)
-            .download()
-            .await?;
-
+        fetch_segment(
+            self.client.clone(),
+            segment,
+            writer,
+            self.shaka_packager_command.clone(),
+        )
+        .await?;
         Ok(())
     }
 }

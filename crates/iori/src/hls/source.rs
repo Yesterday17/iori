@@ -1,6 +1,5 @@
 use std::{
     hash::{Hash, Hasher},
-    path::PathBuf,
     str::FromStr,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -26,7 +25,6 @@ pub struct M3u8Source {
     m3u8_url: String,
 
     key: Option<String>,
-    shaka_packager_command: Option<PathBuf>,
 
     initial_playlist: Option<MediaPlaylist>,
 
@@ -44,7 +42,6 @@ impl M3u8Source {
         m3u8_url: String,
         initial_playlist: Option<MediaPlaylist>,
         key: Option<&str>,
-        shaka_packager_command: Option<PathBuf>,
         segment_type: Option<SegmentType>,
         stream_id: u64,
         retry: u32,
@@ -53,7 +50,6 @@ impl M3u8Source {
             m3u8_url,
             initial_playlist,
             key: key.map(str::to_string),
-            shaka_packager_command,
 
             sequence: AtomicU64::new(0),
             client,
@@ -87,7 +83,6 @@ impl M3u8Source {
                     &playlist_url,
                     playlist.media_sequence,
                     self.key.clone(),
-                    self.shaka_packager_command.clone(),
                 )
                 .await?
                 .map(Arc::new);
@@ -181,24 +176,16 @@ pub struct AdvancedM3u8Source {
     streams: Vec<M3u8Source>,
 
     key: Option<String>,
-    shaka_packager_command: Option<PathBuf>,
     client: HttpClient,
 
     retry: u32,
 }
 
 impl AdvancedM3u8Source {
-    pub fn new(
-        client: HttpClient,
-        m3u8_url: Url,
-        key: Option<&str>,
-        shaka_packager_command: Option<PathBuf>,
-        retry: u32,
-    ) -> Self {
+    pub fn new(client: HttpClient, m3u8_url: Url, key: Option<&str>, retry: u32) -> Self {
         Self {
             m3u8_url,
             key: key.map(str::to_string),
-            shaka_packager_command,
             client,
             streams: Vec::new(),
 
@@ -243,7 +230,6 @@ impl AdvancedM3u8Source {
                     variant_url.to_string(),
                     None,
                     self.key.as_deref(),
-                    self.shaka_packager_command.clone(),
                     Some(SegmentType::Video),
                     0,
                     self.retry,
@@ -282,7 +268,6 @@ impl AdvancedM3u8Source {
                                 .to_string(),
                             None,
                             self.key.as_deref(),
-                            self.shaka_packager_command.clone(),
                             Some(SegmentType::Audio),
                             1,
                             self.retry,
@@ -298,7 +283,6 @@ impl AdvancedM3u8Source {
                             video_url.to_string(),
                             None,
                             self.key.as_deref(),
-                            self.shaka_packager_command.clone(),
                             Some(SegmentType::Video),
                             2,
                             self.retry,
@@ -312,7 +296,6 @@ impl AdvancedM3u8Source {
                     self.m3u8_url.to_string(),
                     Some(pl),
                     self.key.as_deref(),
-                    self.shaka_packager_command.clone(),
                     Some(SegmentType::Video),
                     0,
                     self.retry,

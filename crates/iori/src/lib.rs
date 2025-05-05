@@ -94,7 +94,7 @@ pub enum InitialSegment {
     None,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub enum SegmentFormat {
     #[default]
     Mpeg2TS,

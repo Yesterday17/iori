@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -21,10 +22,16 @@ pub struct CommonDashArchiveSource {
     mpd: Url,
     key: Option<Arc<IoriKey>>,
     sequence: AtomicU64,
+    shaka_packager_command: Option<PathBuf>,
 }
 
 impl CommonDashArchiveSource {
-    pub fn new(client: HttpClient, mpd: String, key: Option<&str>) -> IoriResult<Self> {
+    pub fn new(
+        client: HttpClient,
+        mpd: String,
+        key: Option<&str>,
+        shaka_packager_command: Option<PathBuf>,
+    ) -> IoriResult<Self> {
         let key = if let Some(k) = key {
             Some(Arc::new(IoriKey::clear_key(k)?))
         } else {
@@ -36,6 +43,7 @@ impl CommonDashArchiveSource {
             mpd: Url::parse(&mpd)?,
             key,
             sequence: AtomicU64::new(0),
+            shaka_packager_command,
         })
     }
 }
@@ -245,7 +253,13 @@ impl StreamingSource for CommonDashArchiveSource {
     where
         W: AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        fetch_segment(self.client.clone(), segment, writer).await?;
+        fetch_segment(
+            self.client.clone(),
+            segment,
+            writer,
+            self.shaka_packager_command.clone(),
+        )
+        .await?;
         Ok(())
     }
 }
