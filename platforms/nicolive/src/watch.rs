@@ -6,19 +6,28 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     StreamExt,
 };
-use reqwest::Client;
-use reqwest_websocket::{Message, RequestBuilderExt, WebSocket};
+use reqwest::header::{
+    CONNECTION, HOST, ORIGIN, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_VERSION, UPGRADE, USER_AGENT,
+};
 use serde_json::json;
 use tokio::{
     sync::Mutex,
     time::{Instant, Interval},
 };
+use tokio_tungstenite::tungstenite::{
+    handshake::client::generate_key,
+    http::{Request, Uri},
+    Message,
+};
 
 use crate::model::*;
 
+type TungsteniteWebSocket =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
 pub struct WatchClient {
-    sender: Mutex<SplitSink<WebSocket, Message>>,
-    receiver: Mutex<SplitStream<WebSocket>>,
+    sender: Mutex<SplitSink<TungsteniteWebSocket, Message>>,
+    receiver: Mutex<SplitStream<TungsteniteWebSocket>>,
 
     keep_seat_interval: Mutex<Option<Interval>>,
 }
@@ -28,14 +37,27 @@ impl WatchClient {
     where
         S: AsRef<str>,
     {
-        let client = Client::builder()
-            .user_agent(get_chrome_rua())
-            // https://github.com/jgraef/reqwest-websocket/issues/2
-            .http1_only()
-            .build()
-            .unwrap();
-        let response = client.get(ws_url.as_ref()).upgrade().send().await?;
-        let websocket = response.into_websocket().await?;
+        let ws_url: Uri = ws_url.as_ref().parse()?;
+        let authority = ws_url
+            .authority()
+            .ok_or_else(|| anyhow::anyhow!("Invaild authority"))?
+            .as_str();
+        let host = authority
+            .find('@')
+            .map(|idx| authority.split_at(idx + 1).1)
+            .unwrap_or_else(|| authority);
+        let request = Request::builder()
+            .method("GET")
+            .header(HOST, host)
+            .header(CONNECTION, "Upgrade")
+            .header(UPGRADE, "websocket")
+            .header(SEC_WEBSOCKET_VERSION, "13")
+            .header(SEC_WEBSOCKET_KEY, generate_key())
+            .header(USER_AGENT, get_chrome_rua())
+            .header(ORIGIN, "https://live.nicovideo.jp")
+            .uri(ws_url)
+            .body(())?;
+        let (websocket, _) = tokio_tungstenite::connect_async(request).await?;
         let (sender, receiver) = websocket.split();
 
         Ok(Self {
@@ -46,18 +68,46 @@ impl WatchClient {
         })
     }
 
+    pub async fn reconnect(
+        &self,
+        ws_url: &str,
+        quality: &str,
+        chase_play: bool,
+    ) -> anyhow::Result<()> {
+        log::info!("Reconnecting...");
+
+        // lock before making new connection
+        let mut sender = self.sender.lock().await;
+        let mut receiver = self.receiver.lock().await;
+
+        let (websocket, _) = tokio_tungstenite::connect_async(ws_url).await?;
+        let (_sender, _receiver) = websocket.split();
+
+        *sender = _sender;
+        *receiver = _receiver;
+
+        // release lock after reconnected
+        drop(sender);
+        drop(receiver);
+
+        self.send_start_watching(quality, chase_play, true).await?;
+        Ok(())
+    }
+
     pub async fn recv(&self) -> anyhow::Result<Option<WatchResponse>> {
         while let Some(msg) = self.receiver.lock().await.next().await {
             let msg = msg?;
             if let Message::Text(text) = msg {
                 let data: WatchResponse = serde_json::from_str(&text)?;
+                log::debug!("recv: {:?}", data);
                 match data {
                     WatchResponse::Ping => {
                         self.pong().await?;
+                        self.send_keep_seat().await?;
                     }
                     WatchResponse::ServerTime(_) => (), // dismiss server time
                     WatchResponse::Seat(seat) => {
-                        self.notify_new_visit().await?;
+                        // self.notify_new_visit().await?;
                         *self.keep_seat_interval.lock().await = Some(tokio::time::interval_at(
                             Instant::now() + Duration::from_secs(seat.keep_interval_sec),
                             Duration::from_secs(seat.keep_interval_sec),
@@ -81,12 +131,16 @@ impl WatchClient {
         Ok(None)
     }
 
-    pub(crate) async fn send(&self, msg: Message) -> Result<(), reqwest_websocket::Error> {
+    pub(crate) async fn send(
+        &self,
+        msg: Message,
+    ) -> Result<(), tokio_tungstenite::tungstenite::Error> {
+        log::debug!("send: {:?}", msg);
         self.sender.lock().await.send(msg).await
     }
 
     async fn pong(&self) -> anyhow::Result<()> {
-        self.send(Message::Text(json!({"type":"pong"}).to_string()))
+        self.send(Message::text(json!({"type":"pong"}).to_string()))
             .await?;
         Ok(())
     }
@@ -101,15 +155,29 @@ impl WatchClient {
             ticker.tick().await;
         }
 
+        self.send_keep_seat().await?;
+        Ok(())
+    }
+
+    async fn send_keep_seat(&self) -> anyhow::Result<()> {
         log::debug!("keep seat");
-        self.send(Message::Text(json!({"type": "keepSeat"}).to_string()))
+        self.send(Message::text(json!({"type": "keepSeat"}).to_string()))
             .await?;
         Ok(())
     }
 
     // Initialize messages
     pub async fn start_watching(&self, quality: &str, chase_play: bool) -> anyhow::Result<()> {
-        self.send(Message::Text(
+        self.send_start_watching(quality, chase_play, false).await
+    }
+
+    async fn send_start_watching(
+        &self,
+        quality: &str,
+        chase_play: bool,
+        reconnect: bool,
+    ) -> anyhow::Result<()> {
+        self.send(Message::text(
             json!({
                 "type": "startWatching",
                 "data": {
@@ -124,7 +192,7 @@ impl WatchClient {
                         "protocol": "webSocket",
                         "commentable": true
                     },
-                    "reconnect": false
+                    "reconnect": reconnect
                 }
             })
             .to_string(),
@@ -135,7 +203,7 @@ impl WatchClient {
     }
 
     async fn get_akashic(&self) -> anyhow::Result<()> {
-        self.send(Message::Text(
+        self.send(Message::text(
             json!({
                 "type": "getAkashic",
                 "data": {
@@ -150,7 +218,7 @@ impl WatchClient {
     }
 
     async fn notify_new_visit(&self) -> anyhow::Result<()> {
-        self.send(Message::Text(
+        self.send(Message::text(
             json!({"type":"notifyNewVisit", "data": {}}).to_string(),
         ))
         .await?;

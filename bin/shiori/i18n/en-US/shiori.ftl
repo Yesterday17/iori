@@ -1,10 +1,6 @@
 shiori-about = Yet another m3u8 downloader
 
 download-wait = Wait for stream to start when no stream is detected
-download-extra-args = 
-  Additional arguments
-
-  Format: key=value
 download-url = URL to download
 
 download-http-headers = Additional HTTP headers for all HTTP requests, format is key: value

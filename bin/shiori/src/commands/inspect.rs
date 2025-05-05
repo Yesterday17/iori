@@ -15,12 +15,6 @@ pub struct InspectCommand {
     #[clap(short, long)]
     wait: bool,
 
-    /// Additional arguments passed to inspectors.
-    ///
-    /// Format: key=value
-    #[clap(short = 'e', long = "arg")]
-    inspector_args: Vec<String>,
-
     #[clap(flatten)]
     inspector_options: InspectorOptions,
 
@@ -47,12 +41,9 @@ pub(crate) fn get_default_external_inspector() -> Inspectors {
 async fn handle_inspect(this: InspectCommand) -> anyhow::Result<()> {
     let (matched_inspector, data) = get_default_external_inspector()
         .wait(this.wait)
-        .inspect(
-            &this.url,
-            &this.inspector_options,
-            &this.inspector_args,
-            |c| c.into_iter().next().unwrap(),
-        )
+        .inspect(&this.url, &this.inspector_options, |c| {
+            c.into_iter().next().unwrap()
+        })
         .await?;
 
     eprintln!("{matched_inspector}: {data:?}");

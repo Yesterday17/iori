@@ -102,6 +102,7 @@ impl Inspect for NicoLiveInspectorImpl {
             .websocket_url()
             .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
         let best_quality = data.best_quality()?;
+        let chase_play = self.chase_play;
 
         let watcher = WatchClient::new(&wss_url).await?;
         watcher
@@ -129,10 +130,16 @@ impl Inspect for NicoLiveInspectorImpl {
             loop {
                 tokio::select! {
                     msg = watcher.recv() => {
-                        let Ok(msg) = msg else {
-                            break;
-                        };
-                        log::debug!("message: {:?}", msg);
+                        if let Err(e) = msg {
+                            log::error!("{e:?}");
+                            if let Err(e) = watcher
+                                .reconnect(&wss_url, &best_quality, chase_play)
+                                .await
+                            {
+                                log::error!("Failed to reconnect: {e:?}");
+                                break;
+                            }
+                        }
                     }
                     _ = watcher.keep_seat() => (),
                 }

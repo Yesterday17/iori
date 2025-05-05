@@ -56,10 +56,6 @@ where
     #[clap(about_ll = "download-wait")]
     pub wait: bool,
 
-    #[clap(short = 'e', long = "arg")]
-    #[clap(about_ll = "download-extra-args")]
-    pub extra_args: Vec<String>,
-
     #[clap(flatten)]
     pub inspector_options: I,
 
@@ -341,7 +337,7 @@ type ShioriDownloadCommand = DownloadCommand<InspectorOptions>;
 pub async fn download(me: ShioriDownloadCommand, shiori_args: ShioriArgs) -> anyhow::Result<()> {
     let (_, data) = get_default_external_inspector()
         .wait(me.wait)
-        .inspect(&me.url, &me.inspector_options, &me.extra_args, |c| {
+        .inspect(&me.url, &me.inspector_options, |c| {
             c.into_iter().next().unwrap()
         })
         .await?;

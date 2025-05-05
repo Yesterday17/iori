@@ -50,6 +50,7 @@
             pkg-config
             rust-analyzer
             protobuf
+            mkvtoolnix-cli
           ];
         };
       }

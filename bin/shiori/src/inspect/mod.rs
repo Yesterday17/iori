@@ -80,7 +80,6 @@ impl Inspectors {
         self,
         url: &str,
         args: &dyn InspectorArguments,
-        extra_args: &[String],
         choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
     ) -> anyhow::Result<(String, Vec<InspectPlaylist>)> {
         let inspectors = self

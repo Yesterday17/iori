@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-05-05
+
+### Breaking Changes
+
+- Changed the environment variable to control `temp_dir` form `TEMP` to `TEMP_DIR`.
+- Updated inspector argument input. Now you can use the following arguments directly instead of using `-e/--args`:
+  - `nico-user-session`
+  - `nico-download-danmaku`
+  - `nico-chase-play`
+  - `showroom-user-session`
+
+### New Features
+
+- **Nicolive**: Added `--nico-chase-play` to download nico live from start.
+- **Gigafile**: Experimental support for downloading file from [Gigafile](https://gigafile.nu/).
+
+### Updated
+
+- Changed default temp dir to `current_dir` instead of `temp_dir`.
+- Added some i18n for command line options.
+- Segments from different streams will be mixed before download. This makes `--pipe-mux` available to play vods.
+- **Nicolive**: Added `frontend_id` to `webSocketUrl` to match the behavior of web.
+
+### Fixed
+
+- Fixed panic on error occurs when using `--wait` in `shiori download`.
+- Fixed pipe output.
+
 ## [0.1.4] - 2025-04-16
 
 ### Updated
