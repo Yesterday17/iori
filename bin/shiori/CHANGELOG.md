@@ -14,11 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `nico-user-session`
   - `nico-download-danmaku`
   - `nico-chase-play`
+  - `nico-reserve-timeshift`
+  - `nico-danmaku-only`
   - `showroom-user-session`
 
 ### New Features
 
 - **Nicolive**: Added `--nico-chase-play` to download nico live from start.
+- **Nicolive**: Added `--nico-reserve-timeshift` to reserve timeshift automatically.
+- **Nicolive**: Added `--nico-danmaku-only` to control whether to skip video download.
 - **Gigafile**: Experimental support for downloading file from [Gigafile](https://gigafile.nu/).
 
 ### Updated
@@ -27,11 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added some i18n for command line options.
 - Segments from different streams will be mixed before download. This makes `--pipe-mux` available to play vods.
 - **Nicolive**: Added `frontend_id` to `webSocketUrl` to match the behavior of web.
+- **Nicolive**: Supported reconnection for Nicolive `WebSocket` client.
 
 ### Fixed
 
 - Fixed panic on error occurs when using `--wait` in `shiori download`.
 - Fixed pipe output.
+- **Nicolive**: Fixed panic when operator is not found in `xml2ass`.
 
 ## [0.1.4] - 2025-04-16
 

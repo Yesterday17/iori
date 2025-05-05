@@ -37,7 +37,7 @@ impl InspectorBuilder for NicoLiveInspector {
         );
         command.add_boolean_argument(
             "nico-download-danmaku",
-            "[NicoLive] Download danmaku together with the video.",
+            "[NicoLive] Download danmaku together with the video. This option is ignored if `--nico-danmaku-only` is set to true.",
         );
         command.add_boolean_argument(
             "nico-chase-play",
@@ -47,19 +47,25 @@ impl InspectorBuilder for NicoLiveInspector {
             "nico-reserve-timeshift",
             "[NicoLive] Whether to reserve a timeshift if not reserved.",
         );
+        command.add_boolean_argument(
+            "nico-danmaku-only",
+            "[NicoLive] Only download danmaku without video.",
+        );
     }
 
     fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
-        let key = args.get_string("nico-user-session");
+        let user_session = args.get_string("nico-user-session");
         let download_danmaku = args.get_boolean("nico-download-danmaku");
         let chase_play = args.get_boolean("nico-chase-play");
         let reserve_timeshift = args.get_boolean("nico-reserve-timeshift");
-        Ok(Box::new(NicoLiveInspectorImpl::new(
-            key,
+        let danmaku_only = args.get_boolean("nico-danmaku-only");
+        Ok(Box::new(NicoLiveInspectorImpl {
+            user_session,
             download_danmaku,
             chase_play,
             reserve_timeshift,
-        )))
+            danmaku_only,
+        }))
     }
 }
 
@@ -68,23 +74,10 @@ struct NicoLiveInspectorImpl {
     download_danmaku: bool,
     chase_play: bool,
     reserve_timeshift: bool,
+    danmaku_only: bool,
 }
 
 impl NicoLiveInspectorImpl {
-    pub fn new(
-        user_session: Option<String>,
-        download_danmaku: bool,
-        chase_play: bool,
-        reserve_timeshift: bool,
-    ) -> Self {
-        Self {
-            user_session,
-            download_danmaku,
-            chase_play,
-            reserve_timeshift,
-        }
-    }
-
     pub async fn download_danmaku(
         &self,
         message_server: WatchMessageMessageServer,
@@ -124,6 +117,7 @@ impl Inspect for NicoLiveInspectorImpl {
 
         let best_quality = data.best_quality()?;
         let chase_play = self.chase_play;
+        let download_danmaku = self.download_danmaku || self.danmaku_only;
 
         let watcher = WatchClient::new(&wss_url).await?;
         watcher
@@ -140,7 +134,7 @@ impl Inspect for NicoLiveInspectorImpl {
                 message_server = Some(got_message_server);
             }
 
-            if stream.is_some() && (!self.download_danmaku || message_server.is_some()) {
+            if stream.is_some() && (!download_danmaku || message_server.is_some()) {
                 break;
             }
         }
@@ -168,13 +162,17 @@ impl Inspect for NicoLiveInspectorImpl {
             log::info!("watcher disconnected");
         });
 
-        let mut result = vec![InspectPlaylist {
-            title: Some(data.program_title()),
-            playlist_url: stream.uri,
-            playlist_type: PlaylistType::HLS,
-            cookies: stream.cookies.into_cookies(),
-            ..Default::default()
-        }];
+        let mut result = vec![];
+        if !self.danmaku_only {
+            result.push(InspectPlaylist {
+                title: Some(data.program_title()),
+                playlist_url: stream.uri,
+                playlist_type: PlaylistType::HLS,
+                cookies: stream.cookies.into_cookies(),
+                ..Default::default()
+            });
+        }
+
         if let Some(message_server) = message_server {
             let danmaku = self
                 .download_danmaku(message_server, data.program_end_time())
