@@ -157,10 +157,10 @@ impl NewDanmakuClient {
                             continue;
                         }
 
-                        eprintln!("unhandled state: {state:?}");
+                        log::warn!("unhandled state: {state:?}");
                     }
                     Payload::Signal(signal) => {
-                        eprintln!("unhandled signal: {signal:?}");
+                        log::warn!("unhandled signal: {signal:?}");
                     }
                 }
             }

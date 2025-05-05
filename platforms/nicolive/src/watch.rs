@@ -216,15 +216,6 @@ impl WatchClient {
 
         Ok(())
     }
-
-    async fn notify_new_visit(&self) -> anyhow::Result<()> {
-        self.send(Message::text(
-            json!({"type":"notifyNewVisit", "data": {}}).to_string(),
-        ))
-        .await?;
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]

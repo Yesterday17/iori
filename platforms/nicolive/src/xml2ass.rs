@@ -14,23 +14,7 @@ pub fn sec2hms(sec: f64) -> String {
     result
 }
 
-pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
-    // 弹幕参数
-    let aa_size = 18; // AA弹幕字体大小
-    let aa_high_adjust = 0; // AA弹幕行间间隔
-    let office_size = 40; // 运营弹幕字体大小
-    let office_bg_height = 72; // 运营弹幕背景遮盖高度
-    let font_name = "Source Han Sans JP"; // 弹幕字体
-    let danmaku_size = 68; // 弹幕字体大小
-    let danmaku_line_height = 64; // 弹幕行高度
-    let danmaku_font_space = 2; // 弹幕行间间隔
-    let time_danmaku = 8f64; // 普通弹幕持续时间，默认8秒
-    let limit_line_amount = 11; // 屏上弹幕行数限制
-    let mut danmaku_passageway = vec![0.0; limit_line_amount]; // 计算弹幕应该在哪一行出现
-    let mut dm_count = 0; // 处理同时出过多弹幕的情况
-    let mut vpos_now = 0.0;
-
-    let mut vote_check = false; // 判断投票是否开启
+pub fn get_color<'a>(styles: impl IntoIterator<Item = &'a str>) -> String {
     let color_map: HashMap<_, _> = vec![
         ("black", "000000"),
         ("white", "FFFFFF"),
@@ -59,6 +43,49 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     ]
     .into_iter()
     .collect(); // 颜色列表
+
+    let mut color = String::from("FFFFFF");
+    let mut color_important = None;
+
+    // ass_color = format!("\\1c&H{}{}{}&", &color[4..6], &color[2..4], &color[0..2]);
+    for style in styles {
+        let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
+        if let Some(m) = re.captures(&style) {
+            color_important = m.get(1).map(|m| m.as_str());
+        } else if let Some(color_got) = color_map.get(style) {
+            color = color_got.to_string();
+        }
+    }
+
+    if let Some(color_important) = color_important {
+        color = color_important.to_string();
+    }
+
+    let mut ass_color = format!("\\1c&H{}{}{}&", &color[4..6], &color[2..4], &color[0..2]);
+    if color == "000000" {
+        ass_color += "\\3c&HFFFFFF&";
+    }
+
+    ass_color
+}
+
+pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
+    // 弹幕参数
+    let aa_size = 18; // AA弹幕字体大小
+    let aa_high_adjust = 0; // AA弹幕行间间隔
+    let office_size = 40; // 运营弹幕字体大小
+    let office_bg_height = 72; // 运营弹幕背景遮盖高度
+    let font_name = "Source Han Sans JP"; // 弹幕字体
+    let danmaku_size = 68; // 弹幕字体大小
+    let danmaku_line_height = 64; // 弹幕行高度
+    let danmaku_font_space = 2; // 弹幕行间间隔
+    let time_danmaku = 8f64; // 普通弹幕持续时间，默认8秒
+    let limit_line_amount = 11; // 屏上弹幕行数限制
+    let mut danmaku_passageway = vec![0.0; limit_line_amount]; // 计算弹幕应该在哪一行出现
+    let mut dm_count = 0; // 处理同时出过多弹幕的情况
+    let mut vpos_now = 0.0;
+
+    let mut vote_check = false; // 判断投票是否开启
     let video_width = 1280; // 视频宽度，默认3M码率生放，不用改
     let video_height = 720; // 视频高度，默认3M码率生放，不用改
     let font_size = 64; // 普通弹幕字体大小
@@ -79,7 +106,6 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     let mut end_time_w = "".to_string();
     let mut text_w = "".to_string();
     let mut vpos_w = 0.0;
-    let mut ass_color = String::new();
 
     let mut start_time_q = String::new();
     let mut start_time_r = String::new();
@@ -99,8 +125,6 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
         // FIXME: round
         let start_time = sec2hms(vpos / 100.0);
         let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
-        let mut color = "FFFFFF".to_string();
-        let mut color_important = None;
 
         let mut passageway_index = 0;
         let mut passageway_min = 0;
@@ -119,6 +143,15 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
             "/jump",
             "/play",
             "/redirect",
+            "ニコニ広告しました",
+            "Display Forbidden",
+            "Hidden Restricted",
+            "30分延長しました",
+            "Ended",
+            "Display Restricted",
+            "Hide Marquee",
+            "【ギフト貢献",
+            "/ichiba",
         ];
         if ng_words.iter().any(|ngword| text.contains(ngword)) {
             continue;
@@ -129,7 +162,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
 
         // 释放之前捕捉的运营弹幕
         if official_check {
-            if vpos - vpos_w > 800.0 || user_id.is_operator() {
+            if vpos - vpos_w > 1400.0 || user_id.is_operator() {
                 if user_id.is_operator() {
                     end_time_w = start_time.clone();
                 }
@@ -138,24 +171,23 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                     video_width / 2,
                     office_bg_height / 2,
                 );
-                let mut event_dm = if text_w.contains("href") {
+                text_w = text_w.replace("/perm", "");
+                let ass_color_w = if text_w.contains("href") || text_w.contains("http") {
                     let link = Regex::new(r#"<a href=(.*?)><u>"#).unwrap();
                     // TODO: maybe not correct
-                    let text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
-                    format!(
-                        "Dialogue: 5,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\pos({},{})\\bord0\\1c&HFF8000&\\u1\\fsp0}}{}",
-                        video_width / 2,
-                        office_bg_height / 2,
-                        text_w.replace("/perm ", "")
-                    )
+                    text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
+                    let link = Regex::new(r#"http(.*?)"#).unwrap();
+                    text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
+                    "\\1c&HFF8000&\\u1".to_string()
                 } else {
-                    format!(
-                        "Dialogue: 5,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\pos({},{})\\bord0{ass_color}\\fsp0}}{}",
-                        video_width / 2,
-                        office_bg_height / 2,
-                        text_w.replace("/perm ", "")
-                    )
+                    get_color([])
                 };
+
+                let mut event_dm = format!(
+                    "Dialogue: 5,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\pos({},{})\\bord0{ass_color_w}\\fsp0}}{text_w}",
+                    video_width / 2,
+                    office_bg_height / 2,
+                );
                 if text.chars().count() > 50 {
                     event_dm = event_dm.replace("fsp0", "fsp0\\fs30");
                 }
@@ -166,22 +198,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
         }
 
         // 颜色调整
-        for style in mail.split(' ') {
-            let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
-            if let Some(m) = re.captures(style) {
-                color_important = m.get(1).map(|m| m.as_str());
-            } else if let Some(color_got) = color_map.get(style) {
-                color = color_got.to_string();
-            }
-
-            if let Some(color_important) = color_important {
-                color = color_important.to_string();
-            }
-            ass_color = format!("\\1c&H{}{}{}&", &color[4..6], &color[2..4], &color[0..2]);
-            if color == "000000" {
-                ass_color += "\\3c&HFFFFFF&";
-            }
-        }
+        let ass_color = get_color(mail.split(' '));
 
         // 处理运营弹幕
         if user_id.is_operator() {
@@ -546,28 +563,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 let vpos = chat.vpos.unwrap() as f64;
                 let start_time = sec2hms(vpos / 100.0);
                 let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
-
-                let mut color = "FFFFFF";
-                let mut color_important = None;
-
-                for style in styles {
-                    let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
-                    if let Some(m) = re.captures(style) {
-                        color_important = m.get(1).map(|m| m.as_str());
-                    } else if let Some(color_got) = color_map.get(style) {
-                        color = color_got;
-                    }
-                }
-
-                if let Some(color_important) = color_important {
-                    color = color_important;
-                }
-
-                let mut ass_color =
-                    format!("\\1c&H{}{}{}&", &color[4..6], &color[2..4], &color[0..2]);
-                if color == "000000" {
-                    ass_color += "\\3c&HFFFFFF&";
-                }
+                let ass_color = get_color(styles);
 
                 // 分成多行生成弹幕并整合成完整AA弹幕
                 let text_aa = text.split('\n');
