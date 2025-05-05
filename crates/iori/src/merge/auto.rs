@@ -110,7 +110,6 @@ impl Merger for AutoMerger {
                 None => self.output_file.clone(),
             };
             tokio::fs::rename(&tracks[0], output).await?;
-            return Ok(());
         } else {
             mkvmerge_merge(tracks, &self.output_file).await?;
         }
