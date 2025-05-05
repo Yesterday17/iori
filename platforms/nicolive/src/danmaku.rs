@@ -157,6 +157,11 @@ impl NewDanmakuClient {
                             continue;
                         }
 
+                        // ignore program status change and trial panel
+                        if state.program_status.is_some() || state.trial_panel.is_some() {
+                            continue;
+                        }
+
                         log::warn!("unhandled state: {state:?}");
                     }
                     Payload::Signal(signal) => {

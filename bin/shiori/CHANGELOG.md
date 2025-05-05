@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking Changes
 
 - Changed the environment variable to control `temp_dir` form `TEMP` to `TEMP_DIR`.
-- Updated inspector argument input. Now you can use the following arguments directly instead of using `-e/--args`:
+- Updated inspector argument input. Now you should use the following arguments directly instead of using `-e/--args`:
   - `nico-user-session`
   - `nico-download-danmaku`
   - `nico-chase-play`
