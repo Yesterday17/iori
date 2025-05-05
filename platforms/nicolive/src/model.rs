@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 
 use crate::danmaku::protocol::{
@@ -219,7 +221,7 @@ pub struct DanmakuMessageChat {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mail: Option<String>,
-    pub user_id: String,
+    pub user_id: DanmakuUserId,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub premium: Option<i64>,
@@ -289,9 +291,9 @@ impl DanmakuMessageChat {
                 Some(commands.join(" "))
             },
             user_id: if chat.raw_user_id() > 0 {
-                chat.raw_user_id().to_string()
+                DanmakuUserId::new(chat.raw_user_id().to_string())
             } else {
-                chat.hashed_user_id().to_string()
+                DanmakuUserId::new(chat.hashed_user_id().to_string())
             },
             premium: if let AccountStatus::Premium = chat.account_status() {
                 Some(1)
@@ -360,7 +362,7 @@ impl DanmakuMessageChat {
             } else {
                 Some(commands.join(" "))
             },
-            user_id: "operator".to_string(),
+            user_id: DanmakuUserId::OPERATOR,
             premium: Some(3),
             anonymity: Some(1),
             content: chat.content,
@@ -382,7 +384,7 @@ impl DanmakuMessageChat {
             date_usec: time.nanos as u64 / 1000,
             name: None,
             mail: Some("184".to_string()),
-            user_id: "operator".to_string(),
+            user_id: DanmakuUserId::OPERATOR,
             premium: Some(3),
             anonymity: Some(1),
             content: match enquete.status() {
@@ -411,5 +413,21 @@ impl DanmakuMessageChat {
                 Status::Closed => "/vote stop".to_string(),
             },
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[serde(transparent)]
+pub struct DanmakuUserId(Cow<'static, str>);
+
+impl DanmakuUserId {
+    pub const OPERATOR: Self = Self(Cow::Borrowed("operator"));
+
+    pub fn new(id: String) -> Self {
+        Self(Cow::Owned(id))
+    }
+
+    pub fn is_operator(&self) -> bool {
+        self == &Self::OPERATOR
     }
 }

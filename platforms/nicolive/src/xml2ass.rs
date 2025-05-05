@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
-use regex::Regex;
-
 use crate::danmaku::DanmakuList;
+use regex::Regex;
+use std::collections::HashMap;
 
 // 转换时间的函数
 pub fn sec2hms(sec: f64) -> String {
@@ -17,22 +15,6 @@ pub fn sec2hms(sec: f64) -> String {
 }
 
 pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
-    // 获取运营弹幕ID和需要过滤弹幕的ID
-    let mut office_ids = Vec::new();
-    let mut filtered_chats = Vec::new();
-    for chat in chats.iter() {
-        let user_id = &chat.user_id;
-        let premium = chat.premium;
-        if matches!(premium, Some(3)) || matches!(premium, Some(7)) || matches!(premium, Some(-1)) {
-            office_ids.push(user_id.clone());
-        }
-        filtered_chats.push(chat);
-    }
-
-    if office_ids.is_empty() {
-        log::warn!("未找到运营id");
-    }
-
     // 弹幕参数
     let aa_size = 18; // AA弹幕字体大小
     let aa_high_adjust = 0; // AA弹幕行间间隔
@@ -105,7 +87,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     let mut text_o = Vec::new();
     let mut text_r = Vec::new();
 
-    for chat in filtered_chats.iter() {
+    for chat in chats.iter() {
         let ref text = chat.content;
         let ref user_id = chat.user_id;
         let mail = chat.mail.as_deref().unwrap_or("");
@@ -147,8 +129,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
 
         // 释放之前捕捉的运营弹幕
         if official_check {
-            if vpos - vpos_w > 800.0 || office_ids.contains(&user_id) {
-                if office_ids.contains(&user_id) {
+            if vpos - vpos_w > 800.0 || user_id.is_operator() {
+                if user_id.is_operator() {
                     end_time_w = start_time.clone();
                 }
                 let event_bg = format!(
@@ -202,7 +184,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
         }
 
         // 处理运营弹幕
-        if office_ids.contains(user_id) {
+        if user_id.is_operator() {
             // 处理投票开始和投票结果
             if text.starts_with("/vote") && !text.starts_with("/vote stop") {
                 let split_text: Vec<_> = shlex::split(text)
@@ -556,7 +538,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     }
 
     if include_aa {
-        for chat in filtered_chats.iter() {
+        for chat in chats.iter() {
             let mail = chat.mail.as_deref().unwrap_or_default();
             let styles: Vec<_> = mail.split(' ').collect();
             if styles.contains(&"mincho") || styles.contains(&"gothic") {
