@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{BufReader, BufWriter, Read, Write},
     path::PathBuf,
 };
 
@@ -30,12 +30,20 @@ fn main() -> Result<(), iori_ssa::Error> {
     let iv = hex::decode(args.iv).expect("Invalid iv");
 
     let input = args.input.map_or_else(
-        || Box::new(std::io::stdin()) as Box<dyn Read>,
-        |input| Box::new(File::open(input).expect("Failed to open input file")),
+        || Box::new(BufReader::new(std::io::stdin())) as Box<dyn Read>,
+        |input| {
+            Box::new(BufReader::new(
+                File::open(input).expect("Failed to open input file"),
+            ))
+        },
     );
     let output = args.output.map_or_else(
-        || Box::new(std::io::stdout()) as Box<dyn Write>,
-        |output| Box::new(File::create(output).expect("Failed to create output file")),
+        || Box::new(BufWriter::new(std::io::stdout())) as Box<dyn Write>,
+        |output| {
+            Box::new(BufWriter::new(
+                File::create(output).expect("Failed to create output file"),
+            ))
+        },
     );
 
     iori_ssa::decrypt(

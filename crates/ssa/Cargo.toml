@@ -15,3 +15,10 @@ mpeg2ts = "0.3.1"
 
 thiserror = "1.0"
 log.workspace = true
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "decrypt"
+harness = false

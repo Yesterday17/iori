@@ -41,7 +41,7 @@ impl InspectorBuilder for NicoLiveInspector {
         );
         command.add_boolean_argument(
             "nico-chase-play",
-            "[NicoLive] Download an ongoing nico live from start.",
+            "[NicoLive] Download an ongoing live from start.",
         );
         command.add_boolean_argument(
             "nico-reserve-timeshift",
