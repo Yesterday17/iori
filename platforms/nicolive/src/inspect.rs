@@ -43,16 +43,22 @@ impl InspectorBuilder for NicoLiveInspector {
             "nico-chase-play",
             "[NicoLive] Download an ongoing nico live from start.",
         );
+        command.add_boolean_argument(
+            "nico-reserve-timeshift",
+            "[NicoLive] Whether to reserve a timeshift if not reserved.",
+        );
     }
 
     fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
         let key = args.get_string("nico-user-session");
         let download_danmaku = args.get_boolean("nico-download-danmaku");
         let chase_play = args.get_boolean("nico-chase-play");
+        let reserve_timeshift = args.get_boolean("nico-reserve-timeshift");
         Ok(Box::new(NicoLiveInspectorImpl::new(
             key,
             download_danmaku,
             chase_play,
+            reserve_timeshift,
         )))
     }
 }
@@ -61,14 +67,21 @@ struct NicoLiveInspectorImpl {
     user_session: Option<String>,
     download_danmaku: bool,
     chase_play: bool,
+    reserve_timeshift: bool,
 }
 
 impl NicoLiveInspectorImpl {
-    pub fn new(user_session: Option<String>, download_danmaku: bool, chase_play: bool) -> Self {
+    pub fn new(
+        user_session: Option<String>,
+        download_danmaku: bool,
+        chase_play: bool,
+        reserve_timeshift: bool,
+    ) -> Self {
         Self {
             user_session,
             download_danmaku,
             chase_play,
+            reserve_timeshift,
         }
     }
 
@@ -98,9 +111,17 @@ impl Inspect for NicoLiveInspectorImpl {
 
     async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
         let data = NicoEmbeddedData::new(url, self.user_session.as_deref()).await?;
-        let wss_url = data
-            .websocket_url()
-            .ok_or_else(|| anyhow::anyhow!("no websocket url"))?;
+        let wss_url = if let Some(wss_url) = data.websocket_url() {
+            wss_url
+        } else if self.reserve_timeshift {
+            data.timeshift_reserve().await?;
+            let data = NicoEmbeddedData::new(url, self.user_session.as_deref()).await?;
+            data.websocket_url()
+                .ok_or_else(|| anyhow::anyhow!("no websocket url"))?
+        } else {
+            anyhow::bail!("no websocket url");
+        };
+
         let best_quality = data.best_quality()?;
         let chase_play = self.chase_play;
 
