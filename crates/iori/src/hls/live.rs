@@ -121,7 +121,8 @@ impl StreamingSource for CommonM3u8LiveSource {
 
                 // playlist does not end, wait for a while and fetch again
                 let seconds_to_wait = segments_average_duration.clamp(1000, 5000);
-                tokio::time::sleep_until(before_load + Duration::from_millis(seconds_to_wait)).await;
+                tokio::time::sleep_until(before_load + Duration::from_millis(seconds_to_wait))
+                    .await;
             }
         });
 
