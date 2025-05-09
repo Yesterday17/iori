@@ -87,13 +87,13 @@ impl StreamingSource for CommonM3u8LiveSource {
                 let segments_average_duration = segments
                     .iter()
                     .map(|ss| {
-                        let total_duration = ss.iter().map(|s| s.duration).sum::<f32>();
+                        let total_seconds = ss.iter().map(|s| s.duration).sum::<f32>();
                         let segments_count = ss.len() as f32;
 
                         if segments_count == 0. {
                             0
                         } else {
-                            (total_duration / segments_count) as u64
+                            (total_seconds * 1000. / segments_count) as u64
                         }
                     })
                     .min()
@@ -120,8 +120,8 @@ impl StreamingSource for CommonM3u8LiveSource {
                 }
 
                 // playlist does not end, wait for a while and fetch again
-                let seconds_to_wait = segments_average_duration.clamp(1, 5);
-                tokio::time::sleep_until(before_load + Duration::from_secs(seconds_to_wait)).await;
+                let seconds_to_wait = segments_average_duration.clamp(1000, 5000);
+                tokio::time::sleep_until(before_load + Duration::from_millis(seconds_to_wait)).await;
             }
         });
 
