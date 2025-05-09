@@ -84,9 +84,20 @@ impl StreamingSource for CommonM3u8LiveSource {
                     }
                 };
 
-                let segment_average_duration = (segments[0].iter().map(|s| s.duration).sum::<f32>()
-                    / segments[0].len() as f32)
-                    as u64;
+                let segments_average_duration = segments
+                    .iter()
+                    .map(|ss| {
+                        let total_duration = ss.iter().map(|s| s.duration).sum::<f32>();
+                        let segments_count = ss.len() as f32;
+
+                        if segments_count == 0. {
+                            0
+                        } else {
+                            (total_duration / segments_count) as u64
+                        }
+                    })
+                    .min()
+                    .unwrap_or(5);
 
                 for (segments, latest_media_sequence) in
                     segments.iter().zip(latest_media_sequences.iter_mut())
@@ -98,8 +109,10 @@ impl StreamingSource for CommonM3u8LiveSource {
                 }
 
                 let mixed_segments = mix_vec(segments);
-                if let Err(_) = sender.send(Ok(mixed_segments)) {
-                    break;
+                if !mixed_segments.is_empty() {
+                    if let Err(_) = sender.send(Ok(mixed_segments)) {
+                        break;
+                    }
                 }
 
                 if is_end {
@@ -107,7 +120,7 @@ impl StreamingSource for CommonM3u8LiveSource {
                 }
 
                 // playlist does not end, wait for a while and fetch again
-                let seconds_to_wait = segment_average_duration.min(5);
+                let seconds_to_wait = segments_average_duration.clamp(1, 5);
                 tokio::time::sleep_until(before_load + Duration::from_secs(seconds_to_wait)).await;
             }
         });

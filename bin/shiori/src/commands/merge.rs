@@ -9,6 +9,7 @@ use iori::{
 };
 use tokio::{
     fs::{read_dir, File},
+    io::BufReader,
     sync::Mutex,
 };
 
@@ -43,6 +44,7 @@ impl CacheSource for ExistingLocalCache {
         let lock = self.files.lock().await;
         let file = lock.get(&segment.sequence).unwrap();
         let file = File::open(file).await?;
+        let file = BufReader::new(file);
         Ok(Box::new(file))
     }
 

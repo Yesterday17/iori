@@ -25,6 +25,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_mix_single_vec() {
+        let vecs = vec![vec![1, 3, 5]];
+        let mixed_vec = mix_vec(vecs);
+        assert_eq!(mixed_vec, vec![1, 3, 5]);
+    }
+
+    #[test]
     fn test_mix_vec() {
         let vecs = vec![vec![1, 3, 5], vec![2, 4, 6]];
         let mixed_vec = mix_vec(vecs);
