@@ -1,5 +1,5 @@
 use crate::{
-    cache::CacheSource, error::IoriResult, merge::Merger, SegmentInfo, StreamingSegment,
+    cache::CacheSource, error::IoriResult, merge::Merger, IoriError, SegmentInfo, StreamingSegment,
     StreamingSource,
 };
 use std::{
@@ -9,6 +9,7 @@ use std::{
         Arc,
     },
 };
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, Semaphore};
 
 struct ParallelDownloader<S, M, C>
@@ -123,6 +124,11 @@ where
                     loop {
                         // Workaround for `higher-ranked lifetime error`
                         let result = assert_send(source.fetch_segment(&segment, &mut writer)).await;
+                        let result = match result {
+                            // graceful shutdown
+                            Ok(_) => writer.shutdown().await.map_err(|e| IoriError::IOError(e)),
+                            Err(e) => Err(e),
+                        };
                         match result {
                             Ok(_) => break,
                             Err(e) => {
