@@ -8,7 +8,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-iori.workspace = true
+iori = { workspace = true, features = ["opendal-fs"] }
 iori-nicolive.workspace = true
 iori-showroom.workspace = true
 iori-gigafile.workspace = true

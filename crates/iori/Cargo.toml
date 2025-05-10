@@ -44,8 +44,10 @@ opendal = { version = "0.53.1", optional = true }
 command-fds = { version = "0.3.0", features = ["tokio"] }
 
 [features]
-default = ["opendal"]
+default = []
 opendal = ["dep:opendal"]
+opendal-fs = ["opendal/services-fs"]
+opendal-s3 = ["opendal/services-s3"]
 
 [dev-dependencies]
 anyhow.workspace = true

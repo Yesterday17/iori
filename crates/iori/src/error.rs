@@ -58,6 +58,7 @@ pub enum IoriError {
     #[error(transparent)]
     JsonError(#[from] serde_json::Error),
 
+    #[cfg(feature = "opendal")]
     #[error(transparent)]
     OpendalError(#[from] opendal::Error),
 }

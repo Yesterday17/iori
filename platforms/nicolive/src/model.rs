@@ -110,7 +110,7 @@ pub struct WatchMessageMessageServer {
 pub struct WatchMessageStatistics {
     pub viewers: i32,
     pub comments: i32,
-    pub ad_points: i32,
+    pub ad_points: Option<i32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -129,12 +129,12 @@ pub struct WatchMessageEventStateCommentState {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchMessageAkashic {
-    pub content_url: String,
-    pub log_server_url: String,
-    pub play_id: String,
-    pub player_id: String,
+    pub content_url: Option<String>,
+    pub log_server_url: Option<String>,
+    pub play_id: Option<String>,
+    pub player_id: Option<String>,
     pub status: String,
-    pub token: String,
+    pub token: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

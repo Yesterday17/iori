@@ -19,7 +19,11 @@ impl OpendalCacheSource {
     }
 
     fn segment_key(&self, segment: &crate::SegmentInfo) -> String {
-        format!("{}/{}", self.prefix, segment.sequence)
+        let prefix = &self.prefix;
+        let filename = segment.file_name.replace('/', "__");
+        let stream_id = segment.stream_id;
+        let sequence = segment.sequence;
+        format!("{prefix}/{stream_id:02}_{sequence:06}_{filename}")
     }
 }
 

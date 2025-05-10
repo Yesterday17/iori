@@ -8,7 +8,10 @@ use clap::{Args, Parser};
 use clap_handler::handler;
 use fake_user_agent::get_chrome_rua;
 use iori::{
-    cache::IoriCache,
+    cache::{
+        opendal::{services, Operator},
+        IoriCache,
+    },
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloaderBuilder,
     hls::CommonM3u8LiveSource,
@@ -233,6 +236,9 @@ pub struct CacheOptions {
     #[clap(long)]
     #[clap(about_ll = "download-cache-cache-dir")]
     pub cache_dir: Option<PathBuf>,
+
+    #[clap(long = "experimental-opendal")]
+    pub opendal: bool,
 }
 
 impl CacheOptions {
@@ -251,7 +257,14 @@ impl CacheOptions {
             let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();
             cache_dir.push(format!("shiori_{started_at}_{}", rand::random::<u8>()));
 
-            IoriCache::file(cache_dir)?
+            if self.opendal {
+                let cache_dir = cache_dir.to_str().expect("Invalid cache directory");
+                let builder = services::Fs::default().root(cache_dir);
+                let op = Operator::new(builder)?.finish();
+                IoriCache::opendal(op, "shiori")
+            } else {
+                IoriCache::file(cache_dir)?
+            }
         })
     }
 }
