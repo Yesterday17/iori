@@ -1,0 +1,16 @@
+[package]
+name = "srr"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+iori = { workspace = true, features = ["opendal-s3"] }
+iori-showroom.workspace = true
+tokio = { workspace = true, features = ["full"] }
+anyhow.workspace = true
+
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+log.workspace = true
