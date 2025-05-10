@@ -11,40 +11,56 @@ impl InspectorBuilder for ExternalInspector {
         "external".to_string()
     }
 
+    fn arguments(&self, command: &mut dyn shiori_plugin::InspectorCommand) {
+        command.add_argument("plugin-command", Some("command"), "");
+    }
+
     fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
-        let Some(command) = args.get_string("command") else {
-            anyhow::bail!("Missing command arg for external inspector");
-        };
-        Ok(Box::new(ExternalInspectorImpl::new(&command)?))
+        let command = args.get_string("plugin-command");
+        Ok(Box::new(ExternalInspectorImpl::new(command)?))
     }
 }
 
 struct ExternalInspectorImpl {
-    program: String,
+    program: Option<String>,
     args: Vec<String>,
 }
 
 impl ExternalInspectorImpl {
-    pub fn new(command: &str) -> anyhow::Result<Self> {
-        let result = shlex::split(command).unwrap_or_default();
+    pub fn new(command: Option<String>) -> anyhow::Result<Self> {
+        let Some(command) = command else {
+            return Ok(Self {
+                program: None,
+                args: Vec::new(),
+            });
+        };
+
+        let result = shlex::split(&command).unwrap_or_default();
         let program = result
             .first()
             .ok_or_else(|| anyhow::anyhow!("Invalid command"))?
             .to_string();
         let args = result.into_iter().skip(1).map(|s| s.to_string()).collect();
 
-        Ok(Self { program, args })
+        Ok(Self {
+            program: Some(program),
+            args,
+        })
+    }
+
+    fn program(&self) -> &str {
+        self.program.as_deref().unwrap()
     }
 }
 
 #[async_trait]
 impl Inspect for ExternalInspectorImpl {
     async fn matches(&self, _url: &str) -> bool {
-        true
+        self.program.is_some()
     }
 
     async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
-        let mut child = Command::new(&self.program)
+        let mut child = Command::new(self.program())
             .args(self.args.as_slice())
             .arg("inspect")
             .arg(url)
@@ -63,7 +79,7 @@ impl Inspect for ExternalInspectorImpl {
         &self,
         candidate: InspectCandidate,
     ) -> anyhow::Result<InspectResult> {
-        let mut child = Command::new(&self.program)
+        let mut child = Command::new(self.program())
             .args(self.args.as_slice())
             .arg("inspect-candidate")
             .arg({

@@ -1,5 +1,5 @@
 use crate::inspect::{
-    inspectors::{HlsInspector, ShortLinkInspector},
+    inspectors::{ExternalInspector, HlsInspector, ShortLinkInspector},
     Inspectors,
 };
 use clap::Parser;
@@ -28,11 +28,8 @@ pub(crate) fn get_default_external_inspector() -> Inspectors {
         .add(ShowroomInspector)
         .add(NicoLiveInspector)
         .add(GigafileInspector)
-        .add(HlsInspector);
-
-    // if let Ok(key) = std::env::var("SHIORI_EXTERNAL_INSPECTOR") {
-    //     inspectors.push(ExternalInspector::new(&key)?.to_box());
-    // }
+        .add(HlsInspector)
+        .add(ExternalInspector);
 
     inspector
 }

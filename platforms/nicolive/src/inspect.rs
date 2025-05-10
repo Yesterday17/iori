@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use shiori_plugin::*;
 
 use crate::{
-    danmaku::{DanmakuList, DanmakuClient},
+    danmaku::{DanmakuClient, DanmakuList},
     model::{WatchMessageMessageServer, WatchMessageStream, WatchResponse},
     program::NicoEmbeddedData,
     watch::WatchClient,
