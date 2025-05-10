@@ -1,12 +1,3 @@
-#[cfg(feature = "extism")]
-mod extism;
-
-#[cfg(feature = "extism")]
-pub mod extism_pdk {
-    pub use crate::extism::*;
-    pub use extism_pdk::*;
-}
-
 pub use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
