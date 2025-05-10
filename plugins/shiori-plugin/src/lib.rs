@@ -110,6 +110,9 @@ pub struct InspectPlaylist {
     ///
     /// Inspector may have already sent a request to the server, in which case we can reuse the data
     pub initial_playlist_data: Option<String>,
+
+    /// Hints how many streams does this playlist contains.
+    pub streams_hint: Option<u32>,
 }
 
 pub trait InspectorApp {

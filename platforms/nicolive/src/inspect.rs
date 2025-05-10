@@ -169,6 +169,7 @@ impl Inspect for NicoLiveInspectorImpl {
                 playlist_url: stream.uri,
                 playlist_type: PlaylistType::HLS,
                 cookies: stream.cookies.into_cookies(),
+                streams_hint: Some(2),
                 ..Default::default()
             });
         }

@@ -4,7 +4,7 @@ download-wait = 当未检测到直播流时，是否等待直播流开始
 download-url = 视频地址
 
 download-http-headers = 设置 HTTP header，格式为 key: value
-download-http-cookies = 
+download-http-cookies =
   {"["}高级选项] 设置 Cookie
 
   当 headers 中有 Cookie 时，该选项不会生效。
@@ -32,5 +32,5 @@ download-output-no-merge = 跳过合并
 download-output-concat = 使用 Concat 合并文件
 download-output-output = 输出文件名
 download-output-pipe = 输出到标准输出
-download-output-pipe-mux = 使用 FFmpeg Mux 输出到标准输出
+download-output-pipe-mux = 使用 FFmpeg 混流，仅在 `--pipe` 生效时有效
 download-output-pipe-to = 使用 Pipe 输出到指定路径

@@ -316,12 +316,14 @@ impl OutputOptions {
     pub fn into_merger(self) -> IoriMerger {
         if self.no_merge {
             IoriMerger::skip()
-        } else if self.pipe {
-            IoriMerger::pipe(true)
-        } else if self.pipe_mux {
-            IoriMerger::pipe_mux(true, "-".into(), None)
-        } else if let Some(file) = self.pipe_to {
-            IoriMerger::pipe_to_file(true, file)
+        } else if self.pipe || self.pipe_to.is_some() {
+            if self.pipe_mux {
+                IoriMerger::pipe_mux(true, self.pipe_to.unwrap_or("-".into()), None)
+            } else if let Some(file) = self.pipe_to {
+                IoriMerger::pipe_to_file(true, file)
+            } else {
+                IoriMerger::pipe(true)
+            }
         } else if let Some(mut output) = self.output {
             if output.exists() {
                 log::warn!("Output file exists. Will add suffix automatically.");
@@ -425,6 +427,7 @@ where
                         .unwrap_or_else(|| title.clone());
                     filename.into()
                 }),
+                pipe_mux: data.streams_hint.unwrap_or(1) > 1,
                 ..Default::default()
             },
             url: data.playlist_url,

@@ -7,8 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       binary_name:
+        type: choice
         description: "Binary name for release"
         required: true
+        options:
+          - ssadecrypt
+          - shiori
+          - minyami
         default: ssadecrypt
 
 jobs:

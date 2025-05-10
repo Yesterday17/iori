@@ -22,7 +22,7 @@ download-cache-temp-dir =
 
   The default temp dir is the current directory or the system temp dir.
   Will not take effect if `cache_dir` is set.
-download-cache-cache-dir = 
+download-cache-cache-dir =
     {"["}Advanced] Cache directory
 
     Speficy a directory to store cache files.
@@ -33,5 +33,5 @@ download-output-no-merge = Do not merge stream
 download-output-concat = Merge files using concat
 download-output-output = Output filename
 download-output-pipe = Pipe to stdout
-download-output-pipe-mux = Mux with ffmpeg and pipe to stdout
+download-output-pipe-mux = Mux with ffmpeg. Only works when `--pipe` is set.
 download-output-pipe-to = Pipe to a file
