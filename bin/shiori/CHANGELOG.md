@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-05-05
+## [0.2.0] - 2025-05-11
 
 ### Breaking Changes
 
@@ -24,20 +24,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Nicolive**: Added `--nico-reserve-timeshift` to reserve timeshift automatically.
 - **Nicolive**: Added `--nico-danmaku-only` to control whether to skip video download.
 - **Gigafile**: Experimental support for downloading file from [Gigafile](https://gigafile.nu/).
+- Added `--http1` flag to force the http client to connect with `HTTP 1.1`.
 
 ### Updated
 
 - Changed default temp dir to `current_dir` instead of `temp_dir`.
 - Added some i18n for command line options.
-- Segments from different streams will be mixed before download. This makes `--pipe-mux` available to play vods.
+- **iori**: Segments from different streams will be mixed before download. This makes `--pipe-mux` available to play vods.
 - **Nicolive**: Added `frontend_id` to `webSocketUrl` to match the behavior of web.
 - **Nicolive**: Supported reconnection for Nicolive `WebSocket` client.
+- **Nicolive**: Optimized `xml2ass` logic.
+- Supported experimental `opendal` cache source in `iori` with `--opendal` flag.
 
 ### Fixed
 
 - Fixed panic on error occurs when using `--wait` in `shiori download`.
-- Fixed pipe output.
+- Fixed issue where the `--pipe` argument was not working.
 - **Nicolive**: Fixed panic when operator is not found in `xml2ass`.
+- **iori**: Fixed an issue with m3u8 retrieval intervals caused by precision problems.
 
 ## [0.1.4] - 2025-04-16
 
@@ -97,3 +101,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.1]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.1
 [0.1.3]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.3
 [0.1.4]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.4
+[0.2.0]: https://github.com/Yesterday17/iori/tree/shiori-v0.2.0
