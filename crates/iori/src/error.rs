@@ -57,6 +57,9 @@ pub enum IoriError {
 
     #[error(transparent)]
     JsonError(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    OpendalError(#[from] opendal::Error),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

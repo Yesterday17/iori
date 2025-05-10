@@ -38,9 +38,14 @@ reqwest_cookie_store = "0.8.0"
 serde_json.workspace = true
 tokio-util = { version = "0.7.15", features = ["io"] }
 futures = "0.3.31"
+opendal = { version = "0.53.1", optional = true }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 command-fds = { version = "0.3.0", features = ["tokio"] }
+
+[features]
+default = ["opendal"]
+opendal = ["dep:opendal"]
 
 [dev-dependencies]
 anyhow.workspace = true

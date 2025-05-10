@@ -1,5 +1,7 @@
 pub mod file;
 pub mod memory;
+#[cfg(feature = "opendal")]
+pub mod opendal;
 
 use crate::{error::IoriResult, SegmentInfo};
 use std::{future::Future, path::PathBuf, sync::Arc};
@@ -77,6 +79,8 @@ where
 pub enum IoriCache {
     Memory(memory::MemoryCacheSource),
     File(file::FileCacheSource),
+    #[cfg(feature = "opendal")]
+    Opendal(opendal::OpendalCacheSource),
 }
 
 impl IoriCache {
@@ -87,6 +91,11 @@ impl IoriCache {
     pub fn file(path: impl Into<PathBuf>) -> IoriResult<Self> {
         Ok(Self::File(file::FileCacheSource::new(path.into())?))
     }
+
+    #[cfg(feature = "opendal")]
+    pub fn opendal(operator: ::opendal::Operator, prefix: impl Into<String>) -> Self {
+        Self::Opendal(opendal::OpendalCacheSource::new(operator, prefix))
+    }
 }
 
 impl CacheSource for IoriCache {
@@ -94,6 +103,8 @@ impl CacheSource for IoriCache {
         match self {
             IoriCache::Memory(cache) => cache.open_writer(segment).await,
             IoriCache::File(cache) => cache.open_writer(segment).await,
+            #[cfg(feature = "opendal")]
+            IoriCache::Opendal(cache) => cache.open_writer(segment).await,
         }
     }
 
@@ -101,6 +112,8 @@ impl CacheSource for IoriCache {
         match self {
             IoriCache::Memory(cache) => cache.open_reader(segment).await,
             IoriCache::File(cache) => cache.open_reader(segment).await,
+            #[cfg(feature = "opendal")]
+            IoriCache::Opendal(cache) => cache.open_reader(segment).await,
         }
     }
 
@@ -108,6 +121,8 @@ impl CacheSource for IoriCache {
         match self {
             IoriCache::Memory(cache) => cache.segment_path(segment).await,
             IoriCache::File(cache) => cache.segment_path(segment).await,
+            #[cfg(feature = "opendal")]
+            IoriCache::Opendal(cache) => cache.segment_path(segment).await,
         }
     }
 
@@ -115,6 +130,8 @@ impl CacheSource for IoriCache {
         match self {
             IoriCache::Memory(cache) => cache.invalidate(segment).await,
             IoriCache::File(cache) => cache.invalidate(segment).await,
+            #[cfg(feature = "opendal")]
+            IoriCache::Opendal(cache) => cache.invalidate(segment).await,
         }
     }
 
@@ -122,6 +139,8 @@ impl CacheSource for IoriCache {
         match self {
             IoriCache::Memory(cache) => cache.clear().await,
             IoriCache::File(cache) => cache.clear().await,
+            #[cfg(feature = "opendal")]
+            IoriCache::Opendal(cache) => cache.clear().await,
         }
     }
 
@@ -129,6 +148,8 @@ impl CacheSource for IoriCache {
         match self {
             IoriCache::Memory(cache) => cache.location_hint(),
             IoriCache::File(cache) => cache.location_hint(),
+            #[cfg(feature = "opendal")]
+            IoriCache::Opendal(cache) => cache.location_hint(),
         }
     }
 }
