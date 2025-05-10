@@ -30,13 +30,13 @@ pub mod protocol {
     }
 }
 
-pub struct NewDanmakuClient {
+pub struct DanmakuClient {
     client: Client,
 
     view_uri: String,
 }
 
-impl NewDanmakuClient {
+impl DanmakuClient {
     pub async fn new(view_uri: String) -> anyhow::Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
@@ -226,7 +226,7 @@ impl DanmakuList {
 
 #[cfg(test)]
 mod tests {
-    use super::NewDanmakuClient;
+    use super::DanmakuClient;
     use crate::{model::WatchResponse, program::NicoEmbeddedData, watch::WatchClient};
     use chrono::{DateTime, Utc};
     use std::str::FromStr;
@@ -247,7 +247,7 @@ mod tests {
             }
         };
 
-        let client = NewDanmakuClient::new(message_server.view_uri).await?;
+        let client = DanmakuClient::new(message_server.view_uri).await?;
         let start_time = DateTime::<Utc>::from_str(&message_server.vpos_base_time)
             .map(|r| r.timestamp())
             .ok();

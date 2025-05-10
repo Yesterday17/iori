@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use shiori_plugin::*;
 
 use crate::{
-    danmaku::{DanmakuList, NewDanmakuClient},
+    danmaku::{DanmakuList, DanmakuClient},
     model::{WatchMessageMessageServer, WatchMessageStream, WatchResponse},
     program::NicoEmbeddedData,
     watch::WatchClient,
@@ -83,7 +83,7 @@ impl NicoLiveInspectorImpl {
         message_server: WatchMessageMessageServer,
         program_end_time: u64,
     ) -> anyhow::Result<DanmakuList> {
-        let client = NewDanmakuClient::new(message_server.view_uri).await?;
+        let client = DanmakuClient::new(message_server.view_uri).await?;
         let end_time = program_end_time + 30 * 60;
         let backward = client.get_backward_segment(end_time.to_string()).await?;
         let segment = backward.segment.unwrap();
