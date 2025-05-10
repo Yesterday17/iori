@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use iori::{
     cache::{
         opendal::{
@@ -11,6 +13,76 @@ use iori::{
     merge::IoriMerger,
     HttpClient,
 };
+use iori_showroom::ShowRoomClient;
+use tokio_cron_scheduler::{Job, JobScheduler};
+use uuid::Uuid;
+
+async fn update_config(
+    sched: &mut JobScheduler,
+    room_slugs: Vec<String>,
+    map: &mut HashMap<String, Uuid>,
+    operator: Operator,
+) -> anyhow::Result<()> {
+    // missing: exists in room_slugs, but does not exist in map
+    let missing_slugs: Vec<_> = room_slugs
+        .clone()
+        .into_iter()
+        .filter(|r| !map.contains_key(r))
+        .collect();
+    for slug in missing_slugs {
+        if !map.contains_key(&slug) {
+            let operator = operator.clone();
+            let _slug = slug.clone();
+            let uuid = sched
+                .add(Job::new_async("1/10 * * * * *", move |_, _| {
+                    let operator = operator.clone();
+                    let slug = _slug.clone();
+                    Box::pin(async move {
+                        record_room(slug.clone(), operator).await.unwrap();
+                    })
+                })?)
+                .await?;
+            map.insert(slug, uuid);
+        }
+    }
+
+    // removed: does not exist in room slugs, but in map
+    let removed_slugs: Vec<_> = map
+        .keys()
+        .filter(|k| !room_slugs.contains(k))
+        .map(ToString::to_string)
+        .collect();
+    for slug in removed_slugs {
+        if let Some(uuid) = map.remove(&slug) {
+            sched.remove(&uuid).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn record_room(room_slug: String, operator: Operator) -> anyhow::Result<()> {
+    let client = ShowRoomClient::new(None);
+    let room_id = client.get_id_by_room_name(&room_slug).await?;
+    let stream = client.live_streaming_url(room_id).await?;
+    let stream = stream.best(false);
+
+    let room_info = client.live_info(room_id).await?;
+    let prefix = format!("{room_slug}/{}", room_info.live_id);
+
+    let client = HttpClient::default();
+    let source = CommonM3u8LiveSource::new(client, stream.url.clone(), None, None);
+
+    let cache = IoriCache::opendal(operator.clone(), prefix);
+    let merger = IoriMerger::skip();
+    ParallelDownloaderBuilder::new()
+        .cache(cache)
+        .merger(merger)
+        .download(source)
+        .await?;
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,11 +95,6 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_writer(std::io::stderr)
         .init();
-
-    let client = iori_showroom::ShowRoomClient::new(None);
-    let room_id = client.get_id_by_room_name("plusnewidol").await?;
-    let stream = client.live_streaming_url(room_id).await?;
-    let stream = stream.best(false);
 
     let operator = Operator::new(
         services::S3::default()
@@ -42,16 +109,18 @@ async fn main() -> anyhow::Result<()> {
     )?
     .finish();
 
-    let client = HttpClient::default();
-    let source = CommonM3u8LiveSource::new(client, stream.url.clone(), None, None);
+    let mut watchers = HashMap::<String, Uuid>::new();
 
-    let cache = IoriCache::opendal(operator, "test");
-    let merger = IoriMerger::skip();
-    ParallelDownloaderBuilder::new()
-        .cache(cache)
-        .merger(merger)
-        .download(source)
-        .await?;
+    let mut sched = JobScheduler::new().await?;
+    update_config(
+        &mut sched,
+        vec!["48_TAKAO_SAYAKA".to_string()],
+        &mut watchers,
+        operator.clone(),
+    )
+    .await?;
+
+    sched.start().await?;
 
     Ok(())
 }

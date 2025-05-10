@@ -53,26 +53,16 @@ macro_rules! ball {
 
 pub trait ClapI18n {
     fn about_ll(self, key: &'static str) -> Self;
-
-    fn long_about_ll(self, key: &'static str) -> Self;
 }
 
 impl ClapI18n for clap::Command {
     fn about_ll(self, key: &'static str) -> Self {
         self.about(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
     }
-
-    fn long_about_ll(self, key: &'static str) -> Self {
-        self.long_about(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
-    }
 }
 
 impl ClapI18n for clap::Arg {
     fn about_ll(self, key: &'static str) -> Self {
         self.help(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
-    }
-
-    fn long_about_ll(self, key: &'static str) -> Self {
-        self.long_help(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
     }
 }
