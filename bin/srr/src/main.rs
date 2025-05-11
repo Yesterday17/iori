@@ -30,8 +30,6 @@ async fn update_config(
     map: &mut HashMap<String, Uuid>,
     operator: Operator,
 ) -> anyhow::Result<()> {
-    let client = ShowRoomClient::new(None).await?;
-
     let mut lock = HashMap::<String, AtomicBool>::new();
     for room_slug in room_slugs.iter() {
         lock.insert(room_slug.clone(), AtomicBool::new(false));
@@ -47,12 +45,12 @@ async fn update_config(
     for slug in missing_slugs {
         if !map.contains_key(&slug) {
             let operator = operator.clone();
-            let client = client.clone();
+            let client = ShowRoomClient::new(None).await?;
             let room_id = client.get_id_by_room_slug(&slug).await?;
             let room_slug = slug.clone();
             let lock = lock.clone();
             let uuid = sched
-                .add(Job::new_async("1/20 * * * * *", move |_, _| {
+                .add(Job::new_async("1/10 * * * * *", move |_, _| {
                     let operator = operator.clone();
                     let client = client.clone();
                     let room_slug = room_slug.clone();
@@ -99,13 +97,18 @@ async fn record_room(
 ) -> anyhow::Result<()> {
     log::debug!("Attempt to record room {room_slug}, id = {room_id}");
 
+    let room_info = client.room_profile(room_id).await?;
+    if !room_info.is_live() {
+        log::debug!("Room {room_slug} is not live, skipping...");
+        return Ok(());
+    }
+
     let stream = client.live_streaming_url(room_id).await?;
     let Some(stream) = stream.best(false) else {
         log::debug!("Room {room_slug} is not live, skipping...");
         return Ok(());
     };
 
-    let room_info = client.room_profile(room_id).await?;
     let live_id = room_info.live_id;
     let live_started_at = chrono::DateTime::from_timestamp(room_info.current_live_started_at, 0)
         .unwrap()

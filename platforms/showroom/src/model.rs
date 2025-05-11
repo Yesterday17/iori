@@ -118,3 +118,9 @@ pub struct RoomProfile {
     pub live_id: u64,                 // 0 for not live
     pub current_live_started_at: i64, // 0 for not live
 }
+
+impl RoomProfile {
+    pub fn is_live(&self) -> bool {
+        self.live_id != 0
+    }
+}

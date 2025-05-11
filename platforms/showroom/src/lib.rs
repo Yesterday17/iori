@@ -50,8 +50,10 @@ impl ShowRoomClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             COOKIE,
-            HeaderValue::from_str(&format!("sr_id={sr_id}"))
-                .expect("sr_id is not a valid header value"),
+            HeaderValue::from_str(&format!(
+                "sr_id={sr_id}; uuid=b950e897-c6ab-46bc-828f-fa231a73cf3d; i18n_redirected=ja"
+            ))
+            .expect("sr_id is not a valid header value"),
         );
         builder = builder.default_headers(headers);
 
