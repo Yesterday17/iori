@@ -64,7 +64,7 @@ impl Inspect for ShowroomInspectorImpl {
     }
 
     async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
-        let client = ShowRoomClient::new(self.0.clone());
+        let client = ShowRoomClient::new(self.0.clone()).await?;
 
         if self.is_timeshift_url(url) {
             let (room_url_key, view_url_key) = self.extract_timeshift_keys(url).unwrap();

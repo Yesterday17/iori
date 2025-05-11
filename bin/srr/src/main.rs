@@ -4,6 +4,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::Duration,
 };
 mod config;
 
@@ -29,7 +30,7 @@ async fn update_config(
     map: &mut HashMap<String, Uuid>,
     operator: Operator,
 ) -> anyhow::Result<()> {
-    let client = ShowRoomClient::new(None);
+    let client = ShowRoomClient::new(None).await?;
 
     let mut lock = HashMap::<String, AtomicBool>::new();
     for room_slug in room_slugs.iter() {
@@ -64,6 +65,7 @@ async fn update_config(
                             if let Err(e) = record_room(client, &room_slug, room_id, operator).await
                             {
                                 log::error!("Failed to record room {room_slug}: {e}");
+                                tokio::time::sleep(Duration::from_secs(20)).await;
                             }
                             lock.fetch_and(false, Ordering::Relaxed);
                         }

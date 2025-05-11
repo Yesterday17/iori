@@ -6,35 +6,56 @@ use anyhow::{anyhow, Context};
 use fake_user_agent::get_chrome_rua;
 use model::*;
 use reqwest::{
-    header::{HeaderMap, HeaderValue, COOKIE},
+    header::{HeaderMap, HeaderValue, COOKIE, SET_COOKIE},
     Client,
 };
 
 #[derive(Clone)]
 pub struct ShowRoomClient(Client);
 
+async fn get_sr_id() -> anyhow::Result<String> {
+    let response = reqwest::get("https://www.showroom-live.com/api/live/onlive_num").await?;
+    let cookies = response.headers().get_all(SET_COOKIE);
+    for cookie in cookies {
+        let Some((kv, _)) = cookie.to_str()?.split_once(';') else {
+            continue;
+        };
+        let Some((key, value)) = kv.split_once('=') else {
+            continue;
+        };
+        if key == "sr_id" {
+            return Ok(value.to_string());
+        }
+    }
+
+    // fallback guest id
+    Ok("u9ZYLQddhas3AEWr7t2ohQ-zHaVWmkuVg9IGr5IWtTr6-S2U24EA3e4jgg1nSL0Q".to_string())
+}
+
 impl ShowRoomClient {
     /// Key saved from: https://hls-archive-aes.live.showroom-live.com/aes.key
     /// Might be useful for timeshift
     pub const ARCHIVE_KEY: &str = "2a63847146f96dd3a17077f6c72daffb";
 
-    pub fn new(sr_id: Option<String>) -> Self {
+    pub async fn new(sr_id: Option<String>) -> anyhow::Result<Self> {
         let mut builder = Client::builder()
             .user_agent(get_chrome_rua())
             .connection_verbose(true);
 
-        if let Some(sr_id) = sr_id {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                COOKIE,
-                HeaderValue::from_str(&format!("sr_id={sr_id}"))
-                    .expect("sr_id is not a valid header value"),
-            );
+        let sr_id = match sr_id {
+            Some(s) => s,
+            None => get_sr_id().await?,
+        };
 
-            builder = builder.default_headers(headers);
-        }
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            COOKIE,
+            HeaderValue::from_str(&format!("sr_id={sr_id}"))
+                .expect("sr_id is not a valid header value"),
+        );
+        builder = builder.default_headers(headers);
 
-        Self(builder.build().unwrap())
+        Ok(Self(builder.build().unwrap()))
     }
 
     pub async fn get_id_by_room_slug(&self, room_slug: &str) -> anyhow::Result<u64> {
@@ -144,7 +165,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_id_by_room_name() {
-        let client = ShowRoomClient::new(None);
+        let client = ShowRoomClient::new(None).await.unwrap();
         let room_id = client.get_id_by_room_slug(S46_NAGISA_KOJIMA).await.unwrap();
         assert_eq!(room_id, 479510);
     }
