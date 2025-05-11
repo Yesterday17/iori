@@ -33,7 +33,7 @@ ratatui = "0.29.0"
 crossterm = "0.28.1"
 
 shiori-plugin.workspace = true
-tracing-subscriber = "0.3.19"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 self_update = { version = "0.42.0", default-features = false, features = [
     "rustls",
     "compression-zip-deflate",
