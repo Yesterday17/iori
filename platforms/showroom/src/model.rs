@@ -22,11 +22,12 @@ impl LiveInfo {
 
 #[derive(Debug, Deserialize)]
 pub struct LiveStreamlingList {
+    #[serde(default)]
     pub streaming_url_list: Vec<LiveStream>,
 }
 
 impl LiveStreamlingList {
-    pub fn best(&self, prefer_lhls: bool) -> &LiveStream {
+    pub fn best(&self, prefer_lhls: bool) -> Option<&LiveStream> {
         let mut streams = self.streaming_url_list.iter().collect::<Vec<_>>();
         streams.sort_by_key(|k| {
             k.quality.unwrap_or(0)
@@ -37,7 +38,7 @@ impl LiveStreamlingList {
                 }
         });
 
-        streams.last().unwrap()
+        streams.last().map(|r| *r)
     }
 }
 

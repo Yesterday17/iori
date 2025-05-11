@@ -16,3 +16,5 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 log.workspace = true
 tokio-cron-scheduler = "0.14.0"
 uuid = "1.16.0"
+serde = { workspace = true, features = ["derive"] }
+toml = "0.8.22"

@@ -10,6 +10,7 @@ use reqwest::{
     Client,
 };
 
+#[derive(Clone)]
 pub struct ShowRoomClient(Client);
 
 impl ShowRoomClient {

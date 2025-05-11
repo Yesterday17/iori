@@ -98,7 +98,9 @@ impl Inspect for ShowroomInspectorImpl {
             }
 
             let streams = client.live_streaming_url(room_id).await?;
-            let stream = streams.best(false);
+            let Some(stream) = streams.best(false) else {
+                return Ok(InspectResult::None);
+            };
 
             Ok(InspectResult::Playlist(InspectPlaylist {
                 title: Some(info.room_name),

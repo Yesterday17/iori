@@ -1,11 +1,16 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
+mod config;
 
+use config::Config;
 use iori::{
     cache::{
-        opendal::{
-            services::{self},
-            Operator,
-        },
+        opendal::{Configurator, Operator},
         IoriCache,
     },
     download::ParallelDownloaderBuilder,
@@ -14,6 +19,7 @@ use iori::{
     HttpClient,
 };
 use iori_showroom::ShowRoomClient;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio_cron_scheduler::{Job, JobScheduler};
 use uuid::Uuid;
 
@@ -23,6 +29,14 @@ async fn update_config(
     map: &mut HashMap<String, Uuid>,
     operator: Operator,
 ) -> anyhow::Result<()> {
+    let client = ShowRoomClient::new(None);
+
+    let mut lock = HashMap::<String, AtomicBool>::new();
+    for room_slug in room_slugs.iter() {
+        lock.insert(room_slug.clone(), AtomicBool::new(false));
+    }
+    let lock = Arc::new(lock);
+
     // missing: exists in room_slugs, but does not exist in map
     let missing_slugs: Vec<_> = room_slugs
         .clone()
@@ -32,13 +46,27 @@ async fn update_config(
     for slug in missing_slugs {
         if !map.contains_key(&slug) {
             let operator = operator.clone();
-            let _slug = slug.clone();
+            let client = client.clone();
+            let room_id = client.get_id_by_room_name(&slug).await?;
+            let room_slug = slug.clone();
+            let lock = lock.clone();
             let uuid = sched
                 .add(Job::new_async("1/10 * * * * *", move |_, _| {
                     let operator = operator.clone();
-                    let slug = _slug.clone();
+                    let client = client.clone();
+                    let room_slug = room_slug.clone();
+                    let lock = lock.clone();
                     Box::pin(async move {
-                        record_room(slug.clone(), operator).await.unwrap();
+                        let lock = lock.get(&room_slug).unwrap();
+                        let was_locked = lock.fetch_or(true, Ordering::Relaxed);
+
+                        if !was_locked {
+                            if let Err(e) = record_room(client, &room_slug, room_id, operator).await
+                            {
+                                log::error!("Failed to record room {room_slug}: {e}");
+                            }
+                            lock.fetch_and(false, Ordering::Relaxed);
+                        }
                     })
                 })?)
                 .await?;
@@ -61,20 +89,31 @@ async fn update_config(
     Ok(())
 }
 
-async fn record_room(room_slug: String, operator: Operator) -> anyhow::Result<()> {
-    let client = ShowRoomClient::new(None);
-    let room_id = client.get_id_by_room_name(&room_slug).await?;
+async fn record_room(
+    client: ShowRoomClient,
+    room_slug: &str,
+    room_id: u64,
+    operator: Operator,
+) -> anyhow::Result<()> {
+    log::debug!("Attempt to record room {room_slug}, id = {room_id}");
+
     let stream = client.live_streaming_url(room_id).await?;
-    let stream = stream.best(false);
+    let Some(stream) = stream.best(false) else {
+        log::debug!("Room {room_slug} is not live, skipping...");
+        return Ok(());
+    };
 
     let room_info = client.live_info(room_id).await?;
-    let prefix = format!("{room_slug}/{}", room_info.live_id);
+    let live_id = room_info.live_id;
+    let prefix = format!("{room_slug}/{live_id}");
 
     let client = HttpClient::default();
     let source = CommonM3u8LiveSource::new(client, stream.url.clone(), None, None);
 
     let cache = IoriCache::opendal(operator.clone(), prefix);
     let merger = IoriMerger::skip();
+
+    log::info!("Start recording room {room_slug}, id = {room_id}, live_id = {live_id}");
     ParallelDownloaderBuilder::new()
         .cache(cache)
         .merger(merger)
@@ -91,36 +130,52 @@ async fn main() -> anyhow::Result<()> {
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
                 .try_from_env()
-                .unwrap_or_else(|_| "info".into()),
+                .unwrap_or_else(|_| "info,tokio_cron_scheduler=warn".into()),
         )
         .with_writer(std::io::stderr)
         .init();
 
-    let operator = Operator::new(
-        services::S3::default()
-            .bucket("showroom")
-            .endpoint("https://<account_id>.r2.cloudflarestorage.com")
-            .access_key_id("")
-            .secret_access_key("")
-            .root("/")
-            .region("auto")
-            .delete_max_size(700)
-            .disable_stat_with_override(),
-    )?
-    .finish();
+    let config = Config::load()?;
 
+    let operator = Operator::new(config.s3.into_builder())?.finish();
     let mut watchers = HashMap::<String, Uuid>::new();
-
     let mut sched = JobScheduler::new().await?;
     update_config(
         &mut sched,
-        vec!["48_TAKAO_SAYAKA".to_string()],
+        config.showroom.rooms,
         &mut watchers,
         operator.clone(),
     )
     .await?;
 
+    let mut sigusr1_stream = signal(SignalKind::user_defined1())?;
+    let mut sigint_stream = signal(SignalKind::interrupt())?;
+
     sched.start().await?;
+
+    loop {
+        tokio::select! {
+            _ = sigusr1_stream.recv() => {
+                log::warn!("SIGUSR1 received. Reloading config...");
+                // SIGUSR1 received, reload config
+                let config = Config::load()?;
+                update_config(
+                    &mut sched,
+                    config.showroom.rooms,
+                    &mut watchers,
+                    operator.clone(),
+                )
+                .await?;
+                log::warn!("Config reloaded.");
+            }
+            _ = sigint_stream.recv() => {
+                // SIGINT received, break the loop for graceful shutdown
+                log::warn!("SIGINT received. Shutting down...");
+                sched.shutdown().await?;
+                break;
+            }
+        }
+    }
 
     Ok(())
 }
