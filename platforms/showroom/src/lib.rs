@@ -11,7 +11,16 @@ use reqwest::{
 };
 
 #[derive(Clone)]
-pub struct ShowRoomClient(Client);
+pub struct ShowRoomClient {
+    client: Client,
+    sr_id: String,
+}
+
+impl PartialEq for ShowRoomClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.sr_id.eq(&other.sr_id)
+    }
+}
 
 async fn get_sr_id() -> anyhow::Result<String> {
     let response = reqwest::get("https://www.showroom-live.com/api/live/onlive_num").await?;
@@ -57,12 +66,15 @@ impl ShowRoomClient {
         );
         builder = builder.default_headers(headers);
 
-        Ok(Self(builder.build().unwrap()))
+        Ok(Self {
+            client: builder.build().unwrap(),
+            sr_id,
+        })
     }
 
     pub async fn get_id_by_room_slug(&self, room_slug: &str) -> anyhow::Result<u64> {
         let data: serde_json::Value = self
-            .0
+            .client
             .get(&format!(
                 "https://public-api.showroom-cdn.com/room/{room_slug}"
             ))
@@ -80,7 +92,7 @@ impl ShowRoomClient {
 
     pub async fn room_profile(&self, room_id: u64) -> anyhow::Result<RoomProfile> {
         let data = self
-            .0
+            .client
             .get("https://www.showroom-live.com/api/room/profile")
             .query(&[("room_id", room_id)])
             .send()
@@ -94,7 +106,7 @@ impl ShowRoomClient {
 
     pub async fn live_info(&self, room_id: u64) -> anyhow::Result<LiveInfo> {
         let data = self
-            .0
+            .client
             .get("https://www.showroom-live.com/api/live/live_info")
             .query(&[("room_id", room_id)])
             .send()
@@ -108,7 +120,7 @@ impl ShowRoomClient {
 
     pub async fn live_streaming_url(&self, room_id: u64) -> anyhow::Result<LiveStreamlingList> {
         let data = self
-            .0
+            .client
             .get("https://www.showroom-live.com/api/live/streaming_url")
             .query(&[
                 ("room_id", room_id.to_string()),
@@ -129,7 +141,7 @@ impl ShowRoomClient {
     ) -> anyhow::Result<TimeshiftInfo> {
         // https://www.showroom-live.com/api/timeshift/find?room_url_key=stu48_8th_Empathy_&view_url_key=K86763
         let data = self
-            .0
+            .client
             .get("https://www.showroom-live.com/api/timeshift/find")
             .query(&[
                 ("room_url_key", room_url_key),
@@ -149,7 +161,7 @@ impl ShowRoomClient {
         live_id: u64,
     ) -> anyhow::Result<TimeshiftStreamingList> {
         let data = self
-            .0
+            .client
             .get("https://www.showroom-live.com/api/timeshift/streaming_url")
             .query(&[("room_id", room_id), ("live_id", live_id)])
             .send()

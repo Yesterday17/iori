@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -46,23 +46,31 @@ async fn update_config(
         if !map.contains_key(&slug) {
             let operator = operator.clone();
             let client = ShowRoomClient::new(None).await?;
+            let client_backup = ShowRoomClient::new(None).await?;
             let room_id = client.get_id_by_room_slug(&slug).await?;
             let room_slug = slug.clone();
             let lock = lock.clone();
             let uuid = sched
-                .add(Job::new_async("1/10 * * * * *", move |_, _| {
+                .add(Job::new_async("1/30 * * * * *", move |_, _| {
                     let operator = operator.clone();
-                    let client = client.clone();
+
+                    let clients = vec![client.clone(), client_backup.clone()];
+                    let index = AtomicUsize::new(0);
+
                     let room_slug = room_slug.clone();
                     let lock = lock.clone();
                     Box::pin(async move {
                         let lock = lock.get(&room_slug).unwrap();
+                        let client = clients[index.load(Ordering::Relaxed) % clients.len()].clone();
                         let was_locked = lock.fetch_or(true, Ordering::Relaxed);
 
                         if !was_locked {
-                            if let Err(e) = record_room(client, &room_slug, room_id, operator).await
+                            if let Err(e) =
+                                record_room(client.clone(), &room_slug, room_id, operator).await
                             {
                                 log::error!("Failed to record room {room_slug}: {e}");
+
+                                index.fetch_add(1, Ordering::Relaxed);
                                 tokio::time::sleep(Duration::from_secs(20)).await;
                             }
                             lock.fetch_and(false, Ordering::Relaxed);
@@ -139,7 +147,9 @@ async fn main() -> anyhow::Result<()> {
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
                 .try_from_env()
-                .unwrap_or_else(|_| "info,tokio_cron_scheduler=warn,iori::hls=warn".into()),
+                .unwrap_or_else(|_| {
+                    "info,tokio_cron_scheduler=warn,iori::hls=warn,iori::download=warn".into()
+                }),
         )
         .with_writer(std::io::stderr)
         .init();
