@@ -37,11 +37,11 @@ impl ShowRoomClient {
         Self(builder.build().unwrap())
     }
 
-    pub async fn get_id_by_room_name(&self, room_name: &str) -> anyhow::Result<u64> {
+    pub async fn get_id_by_room_slug(&self, room_slug: &str) -> anyhow::Result<u64> {
         let data: serde_json::Value = self
             .0
             .get(&format!(
-                "https://public-api.showroom-cdn.com/room/{room_name}"
+                "https://public-api.showroom-cdn.com/room/{room_slug}"
             ))
             .send()
             .await?
@@ -53,6 +53,20 @@ impl ShowRoomClient {
             .ok_or_else(|| anyhow!("id not found"))?
             .as_u64()
             .ok_or_else(|| anyhow!("id is not a number"))?)
+    }
+
+    pub async fn room_profile(&self, room_id: u64) -> anyhow::Result<RoomProfile> {
+        let data = self
+            .0
+            .get("https://www.showroom-live.com/api/room/profile")
+            .query(&[("room_id", room_id)])
+            .send()
+            .await?
+            .json()
+            .await
+            .with_context(|| "room profile deserialize")?;
+
+        Ok(data)
     }
 
     pub async fn live_info(&self, room_id: u64) -> anyhow::Result<LiveInfo> {
@@ -131,7 +145,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_id_by_room_name() {
         let client = ShowRoomClient::new(None);
-        let room_id = client.get_id_by_room_name(S46_NAGISA_KOJIMA).await.unwrap();
+        let room_id = client.get_id_by_room_slug(S46_NAGISA_KOJIMA).await.unwrap();
         assert_eq!(room_id, 479510);
     }
 }

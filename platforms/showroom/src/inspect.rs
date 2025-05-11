@@ -89,7 +89,7 @@ impl Inspect for ShowroomInspectorImpl {
 
             let room_id = match room_name.parse::<u64>() {
                 Ok(room_id) => room_id,
-                Err(_) => client.get_id_by_room_name(room_name).await?,
+                Err(_) => client.get_id_by_room_slug(room_name).await?,
             };
 
             let info = client.live_info(room_id).await?;

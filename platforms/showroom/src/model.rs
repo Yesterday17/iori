@@ -111,3 +111,10 @@ impl TimeshiftStream {
         }
     }
 }
+
+#[derive(Deserialize)]
+pub struct RoomProfile {
+    pub room_name: String,
+    pub live_id: u64,                 // 0 for not live
+    pub current_live_started_at: i64, // 0 for not live
+}

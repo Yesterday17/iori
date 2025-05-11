@@ -18,3 +18,5 @@ tokio-cron-scheduler = "0.14.0"
 uuid = "1.16.0"
 serde = { workspace = true, features = ["derive"] }
 toml = "0.8.22"
+chrono = "0.4.41"
+chrono-tz = "0.10.3"

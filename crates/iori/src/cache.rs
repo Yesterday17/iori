@@ -93,8 +93,16 @@ impl IoriCache {
     }
 
     #[cfg(feature = "opendal")]
-    pub fn opendal(operator: ::opendal::Operator, prefix: impl Into<String>) -> Self {
-        Self::Opendal(opendal::OpendalCacheSource::new(operator, prefix))
+    pub fn opendal(
+        operator: ::opendal::Operator,
+        prefix: impl Into<String>,
+        with_internal_prefix: bool,
+    ) -> Self {
+        Self::Opendal(opendal::OpendalCacheSource::new(
+            operator,
+            prefix,
+            with_internal_prefix,
+        ))
     }
 }
 

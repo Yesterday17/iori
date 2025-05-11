@@ -8,22 +8,29 @@ pub use opendal::*;
 pub struct OpendalCacheSource {
     operator: Operator,
     prefix: String,
+
+    with_internal_prefix: bool,
 }
 
 impl OpendalCacheSource {
-    pub fn new(operator: Operator, prefix: impl Into<String>) -> Self {
+    pub fn new(operator: Operator, prefix: impl Into<String>, with_internal_prefix: bool) -> Self {
         Self {
             operator,
             prefix: prefix.into(),
+            with_internal_prefix,
         }
     }
 
     fn segment_key(&self, segment: &crate::SegmentInfo) -> String {
         let prefix = &self.prefix;
         let filename = segment.file_name.replace('/', "__");
-        let stream_id = segment.stream_id;
-        let sequence = segment.sequence;
-        format!("{prefix}/{stream_id:02}_{sequence:06}_{filename}")
+        if self.with_internal_prefix {
+            let stream_id = segment.stream_id;
+            let sequence = segment.sequence;
+            format!("{prefix}/{stream_id:02}_{sequence:06}_{filename}")
+        } else {
+            format!("{prefix}/{filename}")
+        }
     }
 }
 
@@ -41,7 +48,8 @@ impl CacheSource for OpendalCacheSource {
 
         let writer = self
             .operator
-            .writer(&key)
+            .writer_with(&key)
+            .chunk(5 * 1024 * 1024)
             .await?
             .into_futures_async_write()
             .compat_write();

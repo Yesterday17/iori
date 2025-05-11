@@ -47,11 +47,11 @@ async fn update_config(
         if !map.contains_key(&slug) {
             let operator = operator.clone();
             let client = client.clone();
-            let room_id = client.get_id_by_room_name(&slug).await?;
+            let room_id = client.get_id_by_room_slug(&slug).await?;
             let room_slug = slug.clone();
             let lock = lock.clone();
             let uuid = sched
-                .add(Job::new_async("1/10 * * * * *", move |_, _| {
+                .add(Job::new_async("1/20 * * * * *", move |_, _| {
                     let operator = operator.clone();
                     let client = client.clone();
                     let room_slug = room_slug.clone();
@@ -103,14 +103,18 @@ async fn record_room(
         return Ok(());
     };
 
-    let room_info = client.live_info(room_id).await?;
+    let room_info = client.room_profile(room_id).await?;
     let live_id = room_info.live_id;
-    let prefix = format!("{room_slug}/{live_id}");
+    let live_started_at = chrono::DateTime::from_timestamp(room_info.current_live_started_at, 0)
+        .unwrap()
+        .with_timezone(&chrono_tz::Asia::Tokyo)
+        .to_rfc3339();
+    let prefix = format!("{room_slug}/{live_id}_{live_started_at}");
 
     let client = HttpClient::default();
     let source = CommonM3u8LiveSource::new(client, stream.url.clone(), None, None);
 
-    let cache = IoriCache::opendal(operator.clone(), prefix);
+    let cache = IoriCache::opendal(operator.clone(), prefix, false);
     let merger = IoriMerger::skip();
 
     log::info!("Start recording room {room_slug}, id = {room_id}, live_id = {live_id}");
@@ -130,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
                 .try_from_env()
-                .unwrap_or_else(|_| "info,tokio_cron_scheduler=warn".into()),
+                .unwrap_or_else(|_| "info,tokio_cron_scheduler=warn,iori::hls=warn".into()),
         )
         .with_writer(std::io::stderr)
         .init();
