@@ -10,6 +10,7 @@ download-http-cookies =
   当 headers 中有 Cookie 时，该选项不会生效。
   如果你不知道这个字段要如何使用，请不要设置它。
 download-http-timeout = 下载超时时间，单位为秒
+download-http-http1-only = 强制使用 HTTP/1.1 进行 http 请求
 
 download-concurrency = 并发数
 download-segment-retries = 分块下载重试次数

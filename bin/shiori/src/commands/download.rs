@@ -156,7 +156,8 @@ pub struct HttpOptions {
     #[clap(about_ll = "download-http-timeout")]
     pub timeout: u64,
 
-    #[clap(long, alias = "http1")]
+    #[clap(long, visible_alias = "http1")]
+    #[clap(about_ll = "download-http-http1-only")]
     pub http1_only: bool,
 }
 
