@@ -9,14 +9,14 @@ use url::Url;
 use crate::{
     error::{IoriError, IoriResult},
     fetch::fetch_segment,
-    hls::{segment::M3u8Segment, source::AdvancedM3u8Source},
+    hls::{segment::M3u8Segment, source::HlsPlaylistSource},
     util::{http::HttpClient, mix::mix_vec},
     StreamingSource,
 };
 
 pub struct HlsLiveSource {
     client: HttpClient,
-    playlist: Arc<Mutex<AdvancedM3u8Source>>,
+    playlist: Arc<Mutex<HlsPlaylistSource>>,
     retry: u32,
     shaka_packager_command: Option<PathBuf>,
 }
@@ -30,7 +30,7 @@ impl HlsLiveSource {
     ) -> Self {
         Self {
             client: client.clone(),
-            playlist: Arc::new(Mutex::new(AdvancedM3u8Source::new(
+            playlist: Arc::new(Mutex::new(HlsPlaylistSource::new(
                 client,
                 Url::parse(&m3u8_url).unwrap(),
                 key,

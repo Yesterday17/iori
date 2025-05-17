@@ -39,6 +39,16 @@ pub struct HlsMediaPlaylistSource {
     initial_playlist: Option<MediaPlaylist>,
 }
 
+/// A source to fetch segments from a Media Playlist
+///
+/// > A Playlist is a Media Playlist if all URI lines in the Playlist
+/// > identify Media Segments.
+/// >
+/// > [RFC8216 Section 4.1](https://datatracker.ietf.org/doc/html/rfc8216#section-4.1)
+///
+/// The behavior of trying use [HlsPlaylistSource] to load a master playlist is undefined.
+/// In current implementation, it will try to load the media playlist of the best quality.
+/// But this may change in the future.
 impl HlsMediaPlaylistSource {
     pub fn new(
         client: HttpClient,
@@ -170,8 +180,15 @@ impl HlsMediaPlaylistSource {
     }
 }
 
-pub struct AdvancedM3u8Source {
-    m3u8_url: Url,
+/// A source to fetch segments from a Master Playlist OR a Media Playlist
+///
+/// > A Playlist is a Master Playlist if all URI lines in the Playlist identify Media Playlists.
+/// >
+/// > [RFC8216 Section 4.1](https://datatracker.ietf.org/doc/html/rfc8216#section-4.1)
+///
+/// It is recommended to always use [HlsPlaylistSource].
+pub struct HlsPlaylistSource {
+    url: Url,
 
     streams: Vec<HlsMediaPlaylistSource>,
 
@@ -179,10 +196,10 @@ pub struct AdvancedM3u8Source {
     client: HttpClient,
 }
 
-impl AdvancedM3u8Source {
-    pub fn new(client: HttpClient, m3u8_url: Url, key: Option<&str>) -> Self {
+impl HlsPlaylistSource {
+    pub fn new(client: HttpClient, url: Url, key: Option<&str>) -> Self {
         Self {
-            m3u8_url,
+            url,
             key: key.map(str::to_string),
             client,
             streams: Vec::new(),
@@ -190,7 +207,7 @@ impl AdvancedM3u8Source {
     }
 
     pub async fn load_streams(&mut self, retry: u32) -> IoriResult<Vec<Option<u64>>> {
-        let playlist = load_playlist_with_retry(&self.client, &self.m3u8_url, retry).await?;
+        let playlist = load_playlist_with_retry(&self.client, &self.url, retry).await?;
 
         match playlist {
             Playlist::MasterPlaylist(mut pl) => {
@@ -217,10 +234,7 @@ impl AdvancedM3u8Source {
                     b.bandwidth.cmp(&a.bandwidth)
                 });
                 let variant = variants.get(0).expect("No variant found");
-                let variant_url = self
-                    .m3u8_url
-                    .join(&variant.uri)
-                    .expect("Invalid variant uri");
+                let variant_url = self.url.join(&variant.uri).expect("Invalid variant uri");
                 self.streams.push(HlsMediaPlaylistSource::new(
                     self.client.clone(),
                     variant_url.to_string(),
@@ -257,7 +271,7 @@ impl AdvancedM3u8Source {
                     {
                         self.streams.push(HlsMediaPlaylistSource::new(
                             self.client.clone(),
-                            self.m3u8_url
+                            self.url
                                 .join(audio_url)
                                 .expect("Invalid audio uri")
                                 .to_string(),
@@ -286,7 +300,7 @@ impl AdvancedM3u8Source {
             Playlist::MediaPlaylist(pl) => {
                 self.streams.push(HlsMediaPlaylistSource::new(
                     self.client.clone(),
-                    self.m3u8_url.to_string(),
+                    self.url.to_string(),
                     Some(pl),
                     self.key.as_deref(),
                     Some(SegmentType::Video),
