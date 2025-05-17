@@ -21,22 +21,25 @@ use crate::{
 use super::utils::load_playlist_with_retry;
 
 /// Core part to perform network operations
-pub struct M3u8Source {
-    m3u8_url: String,
+pub struct HlsMediaPlaylistSource {
+    /// URL of the media playlist
+    url: String,
 
-    key: Option<String>,
-
-    initial_playlist: Option<MediaPlaylist>,
-
+    /// Stream ID
     stream_id: u64,
+    /// Sequence number for segments retrived from the playlist
     sequence: AtomicU64,
-    client: HttpClient,
+
+    /// Override key
+    key: Option<String>,
+    /// Override segment type
     segment_type: Option<SegmentType>,
 
-    retry: u32,
+    client: HttpClient,
+    initial_playlist: Option<MediaPlaylist>,
 }
 
-impl M3u8Source {
+impl HlsMediaPlaylistSource {
     pub fn new(
         client: HttpClient,
         m3u8_url: String,
@@ -44,10 +47,9 @@ impl M3u8Source {
         key: Option<&str>,
         segment_type: Option<SegmentType>,
         stream_id: u64,
-        retry: u32,
     ) -> Self {
         Self {
-            m3u8_url,
+            url: m3u8_url,
             initial_playlist,
             key: key.map(str::to_string),
 
@@ -55,8 +57,6 @@ impl M3u8Source {
             client,
             segment_type,
             stream_id,
-
-            retry,
         }
     }
 
@@ -67,9 +67,9 @@ impl M3u8Source {
     ) -> IoriResult<(Vec<M3u8Segment>, Url, MediaPlaylist)> {
         let (playlist_url, playlist) = if let Some(initial_playlist) = self.initial_playlist.take()
         {
-            (Url::from_str(&self.m3u8_url)?, initial_playlist)
+            (Url::from_str(&self.url)?, initial_playlist)
         } else {
-            load_m3u8(&self.client, Url::from_str(&self.m3u8_url)?, retry).await?
+            load_m3u8(&self.client, Url::from_str(&self.url)?, retry).await?
         };
 
         let mut key = None;
@@ -91,7 +91,7 @@ impl M3u8Source {
             if let Some(m) = &segment.map {
                 let url = playlist_url.join(&m.uri)?;
 
-                let mut retries = self.retry;
+                let mut retries = retry;
                 loop {
                     retries -= 1;
 
@@ -173,23 +173,19 @@ impl M3u8Source {
 pub struct AdvancedM3u8Source {
     m3u8_url: Url,
 
-    streams: Vec<M3u8Source>,
+    streams: Vec<HlsMediaPlaylistSource>,
 
     key: Option<String>,
     client: HttpClient,
-
-    retry: u32,
 }
 
 impl AdvancedM3u8Source {
-    pub fn new(client: HttpClient, m3u8_url: Url, key: Option<&str>, retry: u32) -> Self {
+    pub fn new(client: HttpClient, m3u8_url: Url, key: Option<&str>) -> Self {
         Self {
             m3u8_url,
             key: key.map(str::to_string),
             client,
             streams: Vec::new(),
-
-            retry,
         }
     }
 
@@ -225,14 +221,13 @@ impl AdvancedM3u8Source {
                     .m3u8_url
                     .join(&variant.uri)
                     .expect("Invalid variant uri");
-                self.streams.push(M3u8Source::new(
+                self.streams.push(HlsMediaPlaylistSource::new(
                     self.client.clone(),
                     variant_url.to_string(),
                     None,
                     self.key.as_deref(),
                     Some(SegmentType::Video),
                     0,
-                    self.retry,
                 ));
 
                 fn load_variant<'a, 'b>(
@@ -260,7 +255,7 @@ impl AdvancedM3u8Source {
                     if let Some(audio_url) =
                         load_variant(&group_id, AlternativeMediaType::Audio, &pl.alternatives)
                     {
-                        self.streams.push(M3u8Source::new(
+                        self.streams.push(HlsMediaPlaylistSource::new(
                             self.client.clone(),
                             self.m3u8_url
                                 .join(audio_url)
@@ -270,7 +265,6 @@ impl AdvancedM3u8Source {
                             self.key.as_deref(),
                             Some(SegmentType::Audio),
                             1,
-                            self.retry,
                         ));
                     }
                 }
@@ -278,27 +272,25 @@ impl AdvancedM3u8Source {
                     if let Some(video_url) =
                         load_variant(&group_id, AlternativeMediaType::Video, &pl.alternatives)
                     {
-                        self.streams.push(M3u8Source::new(
+                        self.streams.push(HlsMediaPlaylistSource::new(
                             self.client.clone(),
                             video_url.to_string(),
                             None,
                             self.key.as_deref(),
                             Some(SegmentType::Video),
                             2,
-                            self.retry,
                         ));
                     }
                 }
             }
             Playlist::MediaPlaylist(pl) => {
-                self.streams.push(M3u8Source::new(
+                self.streams.push(HlsMediaPlaylistSource::new(
                     self.client.clone(),
                     self.m3u8_url.to_string(),
                     Some(pl),
                     self.key.as_deref(),
                     Some(SegmentType::Video),
                     0,
-                    self.retry,
                 ));
             }
         }

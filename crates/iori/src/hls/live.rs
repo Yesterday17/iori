@@ -14,14 +14,14 @@ use crate::{
     StreamingSource,
 };
 
-pub struct CommonM3u8LiveSource {
+pub struct HlsLiveSource {
     client: HttpClient,
     playlist: Arc<Mutex<AdvancedM3u8Source>>,
     retry: u32,
     shaka_packager_command: Option<PathBuf>,
 }
 
-impl CommonM3u8LiveSource {
+impl HlsLiveSource {
     pub fn new(
         client: HttpClient,
         m3u8_url: String,
@@ -34,7 +34,6 @@ impl CommonM3u8LiveSource {
                 client,
                 Url::parse(&m3u8_url).unwrap(),
                 key,
-                3,
             ))),
             shaka_packager_command,
             retry: 3,
@@ -47,7 +46,7 @@ impl CommonM3u8LiveSource {
     }
 }
 
-impl StreamingSource for CommonM3u8LiveSource {
+impl StreamingSource for HlsLiveSource {
     type Segment = M3u8Segment;
 
     async fn fetch_info(

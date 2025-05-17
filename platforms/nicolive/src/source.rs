@@ -1,5 +1,5 @@
 use iori::{
-    hls::{segment::M3u8Segment, CommonM3u8LiveSource},
+    hls::{segment::M3u8Segment, HlsLiveSource},
     HttpClient, IoriResult, StreamingSource,
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ pub struct NicoTimeshiftSegmentInfo {
 }
 
 pub struct NicoTimeshiftSource {
-    inner: CommonM3u8LiveSource,
+    inner: HlsLiveSource,
     retry: u32,
 }
 
@@ -57,7 +57,7 @@ impl NicoTimeshiftSource {
         });
 
         Ok(Self {
-            inner: CommonM3u8LiveSource::new(client, stream.uri, None, None),
+            inner: HlsLiveSource::new(client, stream.uri, None, None),
             retry: 3,
         })
     }

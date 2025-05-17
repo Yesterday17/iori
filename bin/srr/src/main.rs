@@ -15,7 +15,7 @@ use iori::{
         IoriCache,
     },
     download::ParallelDownloaderBuilder,
-    hls::CommonM3u8LiveSource,
+    hls::HlsLiveSource,
     merge::IoriMerger,
     HttpClient,
 };
@@ -125,7 +125,7 @@ async fn record_room(
     let prefix = format!("{room_slug}/{live_id}_{live_started_at}");
 
     let client = HttpClient::default();
-    let source = CommonM3u8LiveSource::new(client, stream.url.clone(), None, None);
+    let source = HlsLiveSource::new(client, stream.url.clone(), None, None);
 
     let cache = IoriCache::opendal(operator.clone(), prefix, false);
     let merger = IoriMerger::skip();

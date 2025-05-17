@@ -14,7 +14,7 @@ use iori::{
     },
     dash::archive::CommonDashArchiveSource,
     download::ParallelDownloaderBuilder,
-    hls::CommonM3u8LiveSource,
+    hls::HlsLiveSource,
     merge::IoriMerger,
     raw::{HttpFileSource, RawDataSource},
     utils::{detect_manifest_type, DuplicateOutputFileNamer},
@@ -94,7 +94,7 @@ where
 
         match playlist_type {
             PlaylistType::HLS => {
-                let source = CommonM3u8LiveSource::new(
+                let source = HlsLiveSource::new(
                     client,
                     self.url,
                     self.decrypt.key.as_deref(),

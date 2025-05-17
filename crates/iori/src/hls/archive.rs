@@ -79,7 +79,6 @@ impl CommonM3u8ArchiveSource {
                 client,
                 Url::parse(&playlist_url).unwrap(),
                 key,
-                3,
             ))),
             shaka_packager_command,
             range,
