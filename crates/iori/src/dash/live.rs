@@ -288,9 +288,7 @@ impl LiveDashSource {
                             continue;
                         }
 
-                        if segment_abs_start_time
-                            >= live_edge_presentation_time + TimeDelta::seconds(10)
-                        {
+                        if segment_abs_start_time >= live_edge_presentation_time {
                             current_presentation_time_pts += duration_pts;
                             current_segment_number += 1;
                             continue;
@@ -410,9 +408,7 @@ impl LiveDashSource {
                             segment_rel_start_pts as f64 / timescale as f64,
                         ))?;
 
-                    if segment_presentation_time
-                        > live_edge_presentation_time + TimeDelta::seconds(10)
-                    {
+                    if segment_presentation_time > live_edge_presentation_time {
                         break;
                     }
                     if segment_presentation_time < earliest_available_segment_start_time
@@ -552,7 +548,7 @@ impl LiveDashSource {
                         current_presentation_time_pts += seg_dur_pts_u64;
                         continue;
                     }
-                    if seg_start_abs >= live_edge_presentation_time + TimeDelta::seconds(10)
+                    if seg_start_abs >= live_edge_presentation_time
                         && mpd.mpdtype.as_deref() == Some("dynamic")
                     {
                         current_presentation_time_pts += seg_dur_pts_u64;
