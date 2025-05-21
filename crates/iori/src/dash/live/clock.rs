@@ -77,10 +77,7 @@ async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResu
                                 }
                             } else {
                                 tracing::warn!(url, status = %response.status(), "HTTP request for xsdate/iso8601 failed");
-                                last_error = Some(IoriError::General(format!(
-                                    "Network Error: HTTP status {}",
-                                    response.status()
-                                )));
+                                last_error = Some(IoriError::HttpError(response.status()));
                             }
                         }
                         Err(e) => {
@@ -153,10 +150,7 @@ async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResu
                                 }
                             } else {
                                 tracing::warn!(url, status = %response.status(), "HTTP HEAD request failed");
-                                last_error = Some(IoriError::General(format!(
-                                    "Network Error: HTTP status {}",
-                                    response.status()
-                                )));
+                                last_error = Some(IoriError::HttpError(response.status()));
                             }
                         }
                         Err(e) => {
