@@ -68,14 +68,14 @@ pub enum IoriError {
     #[error(transparent)]
     OpendalError(#[from] opendal::Error),
 
-    #[error("No representation found")]
-    NoRepresentationFound,
-
     #[error("No period found")]
     NoPeriodFound,
 
-    #[error("No adaption found")]
+    #[error("No adaption set found")]
     NoAdaptationSetFound,
+
+    #[error("No representation found")]
+    NoRepresentationFound,
 
     #[error("Failed to parse date time: {0}")]
     DateTimeParsing(String),

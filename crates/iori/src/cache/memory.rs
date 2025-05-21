@@ -29,7 +29,7 @@ impl CacheSource for MemoryCacheSource {
         let key = segment.sequence;
         let cache = self.cache.lock().unwrap();
         if cache.contains_key(&key) {
-            log::warn!("File {} already exists, ignoring.", key);
+            tracing::warn!("File {} already exists, ignoring.", key);
             return Ok(None);
         }
 

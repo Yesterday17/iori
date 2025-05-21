@@ -115,7 +115,7 @@ impl HlsMediaPlaylistSource {
                             break;
                         }
                         Err(e) => {
-                            log::warn!("Failed to load bytes for initial segment {url}: {e}");
+                            tracing::warn!("Failed to load bytes for initial segment {url}: {e}");
                             if retries == 0 {
                                 return Err(e);
                             }

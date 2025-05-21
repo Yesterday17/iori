@@ -101,7 +101,7 @@ impl IoriKey {
             }
             KeyMethod::Other(name) => match name.as_str() {
                 "SAMPLE-AES-CENC" | "SAMPLE-AES-CTR" => {
-                    log::debug!("{name} encryption detected. Using manual key.");
+                    tracing::debug!("{name} encryption detected. Using manual key.");
 
                     // <kid>:<key>;<kid>:<key>;...
                     let Some(manual_key) = manual_key else {
@@ -113,7 +113,7 @@ impl IoriKey {
                             Some((kid, key)) if is_valid_kid_key_pair(kid, key) => {
                                 keys.insert(kid.to_string(), key.to_string());
                             }
-                            _ => log::warn!("Ignored invalid key format: {}", pair),
+                            _ => tracing::warn!("Ignored invalid key format: {}", pair),
                         }
                     }
                     if keys.is_empty() {

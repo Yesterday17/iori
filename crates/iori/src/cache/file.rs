@@ -46,7 +46,7 @@ impl CacheSource for FileCacheSource {
             .map(|p| p.is_file() && p.len() > 0)
             .unwrap_or_default()
         {
-            log::warn!("File {} already exists, ignoring.", path.display());
+            tracing::warn!("File {} already exists, ignoring.", path.display());
             return Ok(None);
         }
 
@@ -76,7 +76,7 @@ impl CacheSource for FileCacheSource {
         let mut entries = tokio::fs::read_dir(&self.cache_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             if entry.file_type().await?.is_dir() {
-                log::warn!(
+                tracing::warn!(
                     "Subdirectory {} detected in cache directory. Skipping cleanup. You can remove it manually at {}",
                     entry.path().display(),
                     self.cache_dir.display()
