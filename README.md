@@ -1,6 +1,6 @@
 # iori
 
-A brand new HLS / MPEG-Dash stream downloader.
+A brand new HLS / MPEG-Dash stream downloader, with support for both VoD and Live streaming.
 
 ## Download
 

@@ -7,6 +7,34 @@ pub mod hls;
 pub mod merge;
 pub mod raw;
 
+// The diagram below illustrates the general data flow for streaming sources.
+// For MPEG-DASH live streams, `LiveDashSource` in the `dash::live` module
+// handles dynamic MPD updates and time synchronization to provide segments.
+// For HLS live streams, `HlsLiveSource` in the `hls::live` module manages
+// playlist refreshes.
+//
+// ┌───────────────────────┐                ┌────────────────────┐
+// │                       │    Segment 1   │                    │
+// │     StreamingSource   ├────────────────►     Downloader     ├───┐
+// │ (e.g. LiveDashSource, │                │    (e.g.           │   │fetch_segment
+// │      HlsLiveSource)   │    Segment 2   │     Sequencial-    ◄───┘
+// │                       ├────────────────►     Downloader)    │
+// │                       │                │                    ├───┐
+// │                       │    Segment 3   │       [MPSC]       │   │fetch_segment
+// │                       ├────────────────►                    ◄───┘
+// │                       │                │                    │
+// └───────────────────────┘                │                    ├───┐
+//                                          │                    │   │fetch_segment
+// ┌───────────────────────┐                │                    ◄───┘
+// │   MPD/Playlist        │       ...      │                    │
+// │   Refresh Logic       ├────────────────►                    │
+// │   (Internal to Source)│                │                    │
+// │                       │                │                    │
+// │                       │                │                    │
+// │                       │  Segment Last  │                    │
+// │                       ├────────────────►                    │
+// └───────────────────────┘                └────────────────────┘
+
 mod error;
 pub use error::*;
 
