@@ -55,29 +55,24 @@ pub struct LiveDashSource {
 }
 
 impl LiveDashSource {
-    pub fn new(
+    pub fn new<I>(
         client: HttpClient,
-        mpd_url: Url,
+        mpd_url: I,
         key: Option<Arc<IoriKey>>,
         shaka_packager_command: Option<PathBuf>,
         representation_selector: Option<RepresentationSelector>,
-    ) -> Self {
+    ) -> IoriResult<Self>
+    where
+        I: AsRef<str>,
+    {
         let clock = Arc::new(Mutex::new(Clock::new()));
 
-        let selector = representation_selector.unwrap_or_else(|| {
-            Arc::new(|representations: &[Representation]| {
-                representations
-                    .iter()
-                    .filter(|r| r.id.is_some())
-                    .max_by_key(|r| r.bandwidth.unwrap_or(0))
-                    .cloned()
-                    .ok_or_else(|| IoriError::NoRepresentationFound)
-            })
-        });
+        let selector =
+            representation_selector.unwrap_or_else(|| bandwidth_representation_selector());
 
-        Self {
+        Ok(Self {
             client,
-            mpd_url,
+            mpd_url: Url::parse(mpd_url.as_ref())?,
             key,
             clock,
             mpd_data: Arc::new(Mutex::new(None)),
@@ -87,7 +82,7 @@ impl LiveDashSource {
             sequence_counter: Arc::new(AtomicU64::new(0)),
             shaka_packager_command,
             representation_selector: selector,
-        }
+        })
     }
 
     // Helper to get a snapshot of the MPD for URL resolution.
@@ -824,4 +819,14 @@ impl StreamingSource for LiveDashSource {
         )
         .await
     }
+}
+
+pub fn bandwidth_representation_selector() -> RepresentationSelector {
+    return Arc::new(|representations| {
+        representations
+            .iter()
+            .max_by_key(|r| r.bandwidth.unwrap_or(0))
+            .cloned()
+            .ok_or_else(|| IoriError::NoRepresentationFound)
+    });
 }
