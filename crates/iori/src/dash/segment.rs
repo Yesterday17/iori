@@ -4,6 +4,7 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct DashSegment {
     pub url: reqwest::Url,
     pub filename: String,
@@ -11,12 +12,17 @@ pub struct DashSegment {
     pub key: Option<Arc<IoriKey>>,
     pub initial_segment: InitialSegment,
 
-    pub byte_range: Option<m3u8_rs::ByteRange>,
+    pub byte_range: Option<String>,
 
     /// Sequence id allocated by the downloader, starts from 0
     pub sequence: u64,
 
     pub r#type: SegmentType,
+
+    /// $Number$
+    pub number: Option<u64>,
+    /// $Time$
+    pub time: Option<u64>,
 }
 
 impl StreamingSegment for DashSegment {
@@ -25,7 +31,7 @@ impl StreamingSegment for DashSegment {
     }
 
     fn sequence(&self) -> u64 {
-        self.sequence
+        self.number.unwrap_or(self.sequence)
     }
 
     fn file_name(&self) -> &str {
@@ -55,6 +61,7 @@ impl RemoteStreamingSegment for DashSegment {
     }
 
     fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
-        self.byte_range.clone()
+        // FIXME: correct byte range
+        None
     }
 }
