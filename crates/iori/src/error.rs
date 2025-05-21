@@ -46,6 +46,12 @@ pub enum IoriError {
     #[error(transparent)]
     MpdParseError(#[from] dash_mpd::DashMpdError),
 
+    #[error("invalid mpd: {0}")]
+    MpdParsing(String),
+
+    #[error(transparent)]
+    TimeDeltaOutOfRange(#[from] chrono::OutOfRangeError),
+
     #[error("Invalid timing schema: {0:?}")]
     InvalidTimingSchema(String),
 
@@ -61,6 +67,21 @@ pub enum IoriError {
     #[cfg(feature = "opendal")]
     #[error(transparent)]
     OpendalError(#[from] opendal::Error),
+
+    #[error("No representation found")]
+    NoRepresentationFound,
+
+    #[error("No period found")]
+    NoPeriodFound,
+
+    #[error("No adaption found")]
+    NoAdaptationSetFound,
+
+    #[error("Failed to parse date time: {0}")]
+    DateTimeParsing(String),
+
+    #[error("{0}")]
+    General(String),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;
