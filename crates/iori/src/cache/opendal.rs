@@ -42,7 +42,7 @@ impl CacheSource for OpendalCacheSource {
         let key = self.segment_key(segment);
 
         if self.operator.exists(&key).await? {
-            log::warn!("File {} already exists, ignoring.", key);
+            tracing::warn!("File {} already exists, ignoring.", key);
             return Ok(None);
         }
 

@@ -241,7 +241,7 @@ impl LiveDashSource {
                 let period_start_std_duration = period.start.unwrap_or(StdDuration::ZERO);
                 let period_start_offset_from_availability =
                     TimeDelta::from_std(period_start_std_duration)
-                        .inspect_err(|e| log::error!("Invalid period start duration: {e}"))?;
+                        .inspect_err(|e| tracing::error!("Invalid period start duration: {e}"))?;
                 let absolute_period_start_time =
                     availability_start_time_mpd + period_start_offset_from_availability;
 

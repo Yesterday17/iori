@@ -221,11 +221,11 @@ impl PipeMerger {
                 }
             }
 
-            log::debug!("Waiting for video handler...");
+            tracing::debug!("Waiting for video handler...");
             drop(video_sender);
             video_handle.await.unwrap();
 
-            log::debug!("Waiting for audio handler...");
+            tracing::debug!("Waiting for audio handler...");
             drop(audio_sender);
             audio_handle.await.unwrap();
         });

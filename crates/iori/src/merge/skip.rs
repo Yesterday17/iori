@@ -21,8 +21,8 @@ impl Merger for SkipMerger {
     }
 
     async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
-        log::info!("Skip merging. Please merge video chunks manually.");
-        log::info!("Temporary files are located at {:?}", cache.location_hint());
+        tracing::info!("Skip merging. Please merge video chunks manually.");
+        tracing::info!("Temporary files are located at {:?}", cache.location_hint());
         Ok(())
     }
 }

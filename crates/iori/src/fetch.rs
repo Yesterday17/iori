@@ -80,7 +80,7 @@ where
             if !response.status().is_success() {
                 let status = response.status();
                 if let Ok(body) = response.text().await {
-                    log::warn!("Error body: {body}");
+                    tracing::warn!("Error body: {body}");
                 }
                 return Err(IoriError::HttpError(status));
             }

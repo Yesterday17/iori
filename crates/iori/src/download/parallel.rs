@@ -65,7 +65,7 @@ where
     }
 
     pub async fn download(self) -> IoriResult<M::Result> {
-        log::info!(
+        tracing::info!(
             "Start downloading with {} thread(s).",
             self.concurrency.get()
         );
@@ -78,25 +78,25 @@ where
         let ctrlc_handler = tokio::spawn(async move {
             // wait for the first ctrl-c to stop downloader
             tokio::signal::ctrl_c().await.unwrap();
-            log::info!("Ctrl-C received, stopping downloader.");
+            tracing::info!("Ctrl-C received, stopping downloader.");
             is_closed_inner.store(true, Ordering::Relaxed);
 
             // wait for the second ctrl-c to force exit
             tokio::signal::ctrl_c().await.unwrap();
-            log::info!("Ctrl-C received again, force exit.");
+            tracing::info!("Ctrl-C received again, force exit.");
             std::process::exit(1);
         });
 
         while let Some(segments) = receiver.recv().await {
             // If the playlist is not available, the downloader will be stopped.
             if let Err(e) = segments {
-                log::error!("Failed to fetch segment list: {e}");
+                tracing::error!("Failed to fetch segment list: {e}");
                 return Err(e);
             }
             let segments = segments?;
 
             self.total.fetch_add(segments.len(), Ordering::Relaxed);
-            log::info!("{} new segments were added to queue.", segments.len());
+            tracing::info!("{} new segments were added to queue.", segments.len());
 
             for segment in segments {
                 let segment_info = SegmentInfo::from(&segment);
@@ -133,7 +133,7 @@ where
                             Ok(_) => break,
                             Err(e) => {
                                 if retries == 0 {
-                                    log::error!(
+                                    tracing::error!(
                                         "Processing {filename} failed, max retries exceed, drop. {e}"
                                     );
                                     failed_segments_name
@@ -146,7 +146,7 @@ where
                                 }
 
                                 retries -= 1;
-                                log::warn!("Processing {filename} failed, retry later. {e}");
+                                tracing::warn!("Processing {filename} failed, retry later. {e}");
                             }
                         }
                     }
@@ -166,7 +166,7 @@ where
                         downloaded as f32 / total as f32 * 100.
                     };
                     // Avg Speed: 1.00 chunks/s or 5.02x | ETA: 6m 37s
-                    log::info!(
+                    tracing::info!(
                         "Processing {filename} finished. ({downloaded} / {total} or {percentage:.2}%)"
                     );
 
@@ -194,9 +194,9 @@ where
 
         let failed = self.failed_segments_name.lock().await;
         if !failed.is_empty() {
-            log::error!("Failed to download {} segments:", failed.len());
+            tracing::error!("Failed to download {} segments:", failed.len());
             for segment in failed.iter() {
-                log::error!("  - {}", segment);
+                tracing::error!("  - {}", segment);
             }
         }
 

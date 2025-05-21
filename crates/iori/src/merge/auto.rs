@@ -72,12 +72,12 @@ impl Merger for AutoMerger {
     }
 
     async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
-        log::info!("Merging chunks...");
+        tracing::info!("Merging chunks...");
 
         if self.has_failed {
-            log::warn!("Some segments failed to download. Skipping merging.");
+            tracing::warn!("Some segments failed to download. Skipping merging.");
             if let Some(location) = cache.location_hint() {
-                log::warn!("You can find the downloaded segments at {location}");
+                tracing::warn!("You can find the downloaded segments at {location}");
             }
             return Ok(());
         }
@@ -115,12 +115,12 @@ impl Merger for AutoMerger {
         }
 
         if !self.keep_segments {
-            log::info!("End of merging.");
-            log::info!("Starting cleaning temporary files.");
+            tracing::info!("End of merging.");
+            tracing::info!("Starting cleaning temporary files.");
             cache.clear().await?;
         }
 
-        log::info!(
+        tracing::info!(
             "All finished. Please checkout your files at {}",
             self.output_file.display()
         );
@@ -154,7 +154,7 @@ async fn mkvmerge_concat<O>(
 where
     O: AsRef<Path>,
 {
-    log::debug!("Concatenating with mkvmerge...");
+    tracing::debug!("Concatenating with mkvmerge...");
 
     let mkvmerge = which::which("mkvmerge")?;
     segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));

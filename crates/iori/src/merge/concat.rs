@@ -46,16 +46,16 @@ impl Merger for ConcatAfterMerger {
     }
 
     async fn finish(&mut self, cache: impl CacheSource) -> IoriResult<Self::Result> {
-        log::info!("Merging chunks...");
+        tracing::info!("Merging chunks...");
         concat_merge(&mut self.segments, &cache, self.output_file.clone()).await?;
 
         if !self.keep_segments {
-            log::info!("End of merging.");
-            log::info!("Starting cleaning temporary files.");
+            tracing::info!("End of merging.");
+            tracing::info!("Starting cleaning temporary files.");
             cache.clear().await?;
         }
 
-        log::info!(
+        tracing::info!(
             "All finished. Please checkout your files at {}",
             self.output_file.display()
         );
