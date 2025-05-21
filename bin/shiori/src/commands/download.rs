@@ -12,7 +12,8 @@ use iori::{
         opendal::{services, Operator},
         IoriCache,
     },
-    dash::archive::CommonDashArchiveSource,
+    dash::live::LiveDashSource,
+    decrypt::IoriKey,
     download::ParallelDownloaderBuilder,
     hls::HlsLiveSource,
     merge::IoriMerger,
@@ -28,6 +29,7 @@ use std::{
     num::NonZeroU32,
     path::PathBuf,
     str::FromStr,
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -104,11 +106,19 @@ where
                 downloader.download(source).await?;
             }
             PlaylistType::DASH => {
-                let source = CommonDashArchiveSource::new(
+                let source = LiveDashSource::new(
                     client,
                     self.url,
-                    self.decrypt.key.as_deref(),
+                    self.decrypt
+                        .key
+                        .and_then(|k| {
+                            IoriKey::clear_key(&k)
+                                .inspect_err(|e| log::error!("Invalid clear key: {e}"))
+                                .ok()
+                        })
+                        .map(Arc::new),
                     self.decrypt.shaka_packager_command.clone(),
+                    None,
                 )?;
                 downloader.download(source).await?;
             }

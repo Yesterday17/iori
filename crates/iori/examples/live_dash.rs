@@ -1,15 +1,10 @@
 use std::sync::Arc;
 
 use iori::{
-    cache::file::FileCacheSource,
-    dash::live::{LiveDashSource, RepresentationSelector},
-    decrypt::IoriKey,
-    download::ParallelDownloaderBuilder,
-    merge::SkipMerger,
-    HttpClient, IoriError,
+    cache::file::FileCacheSource, dash::live::LiveDashSource, decrypt::IoriKey,
+    download::ParallelDownloaderBuilder, merge::SkipMerger, HttpClient,
 };
 use tracing::level_filters::LevelFilter;
-use url::Url;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,8 +18,7 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let mpd_url_str = "https://livesim.dashif.org/livesim2/testpic_2s/Manifest.mpd";
-    let mpd_url = Url::parse(mpd_url_str)?;
+    let mpd_url = "https://livesim.dashif.org/livesim2/testpic_2s/Manifest.mpd";
 
     let key_str = None;
     let iori_key = if let Some(k) = key_str {
@@ -37,22 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     let client = HttpClient::default();
 
-    // Default representation selector: selects the representation with the maximum bandwidth.
-    let representation_selector: RepresentationSelector = Arc::new(|representations| {
-        representations
-            .iter()
-            .max_by_key(|r| r.bandwidth.unwrap_or(0))
-            .cloned()
-            .ok_or_else(|| IoriError::NoRepresentationFound)
-    });
-
-    let live_source = LiveDashSource::new(
-        client.clone(),
-        mpd_url.clone(),
-        iori_key,
-        None, // shaka_packager_command (optional)
-        Some(representation_selector),
-    );
+    let live_source = LiveDashSource::new(client.clone(), mpd_url, iori_key, None, None)?;
 
     let cache_dir = std::env::temp_dir().join("iori_live_dash_example");
     tracing::info!("Using cache directory: {}", cache_dir.display());
