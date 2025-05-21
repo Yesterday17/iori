@@ -79,9 +79,6 @@ pub enum IoriError {
 
     #[error("Failed to parse date time: {0}")]
     DateTimeParsing(String),
-
-    #[error("{0}")]
-    General(String),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

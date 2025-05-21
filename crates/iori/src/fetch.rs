@@ -78,7 +78,11 @@ where
             }
             let response = request.send().await?;
             if !response.status().is_success() {
-                return Err(IoriError::HttpError(response.status()));
+                let status = response.status();
+                if let Ok(body) = response.text().await {
+                    log::warn!("Error body: {body}");
+                }
+                return Err(IoriError::HttpError(status));
             }
 
             let bytes = response.bytes().await?;
