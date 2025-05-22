@@ -16,6 +16,7 @@ pub struct DashSegment {
 
     /// Sequence id allocated by the downloader, starts from 0
     pub sequence: u64,
+    pub stream_id: u64,
 
     pub r#type: SegmentType,
 
@@ -27,7 +28,7 @@ pub struct DashSegment {
 
 impl StreamingSegment for DashSegment {
     fn stream_id(&self) -> u64 {
-        0
+        self.stream_id
     }
 
     fn sequence(&self) -> u64 {
