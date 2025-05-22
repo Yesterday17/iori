@@ -77,7 +77,10 @@ pub enum IoriError {
     #[error("No representation found")]
     NoRepresentationFound,
 
-    #[error("Failed to parse date time: {0}")]
+    #[error(transparent)]
+    ChronoParseError(#[from] chrono::ParseError),
+
+    #[error("Invalid date time: {0}")]
     DateTimeParsing(String),
 }
 

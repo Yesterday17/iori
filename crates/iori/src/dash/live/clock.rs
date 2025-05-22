@@ -1,5 +1,5 @@
 use chrono::{DateTime, TimeDelta, Utc};
-use dash_mpd::MPD;
+use dash_mpd::UTCTiming;
 
 use crate::{HttpClient, IoriError, IoriResult};
 
@@ -15,35 +15,32 @@ impl Clock {
         }
     }
 
-    // now() can take &self as it only reads offset
     pub fn now(&self) -> DateTime<Utc> {
         Utc::now() + self.offset
     }
 
-    // set_time and sync need &mut self, will be called on a locked MutexGuard<Clock>
     fn set_time(&mut self, now: DateTime<Utc>) {
         self.offset = now - Utc::now();
         tracing::debug!(offset_seconds = %self.offset.num_seconds(), "Clock time set to {}, offset calculated", now);
     }
 
-    pub async fn sync(&mut self, mpd: &MPD, client: HttpClient) -> IoriResult<()> {
+    pub async fn sync(&mut self, mpd: &[UTCTiming], client: HttpClient) -> IoriResult<()> {
         sync_time(mpd, self, client).await
     }
 }
 
 async fn parse_iso8601_response(response_text: &str) -> IoriResult<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(response_text)
+    Ok(DateTime::parse_from_rfc3339(response_text)
         .map(|dt| dt.with_timezone(&Utc))
         .or_else(|_| {
             // Allow Z suffix for UTC, which is not strictly RFC3339 but used by xsdate
             DateTime::parse_from_str(response_text, "%Y-%m-%dT%H:%M:%SZ")
                 .map(|dt| dt.with_timezone(&Utc))
-        })
-        .map_err(|e| IoriError::DateTimeParsing(e.to_string()))
+        })?)
 }
 
-async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResult<()> {
-    if mpd.UTCTiming.is_empty() {
+async fn sync_time(timing: &[UTCTiming], clock: &mut Clock, client: HttpClient) -> IoriResult<()> {
+    if timing.is_empty() {
         tracing::warn!("No UTCTiming elements found in MPD, using local time.");
         clock.set_time(Utc::now()); // Default to local time if no timing info
         return Ok(());
@@ -51,7 +48,7 @@ async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResu
 
     let mut last_error: Option<IoriError> = None;
 
-    for timing in &mpd.UTCTiming {
+    for timing in timing {
         tracing::debug!(scheme = %timing.schemeIdUri, value = %timing.value.as_deref().unwrap_or(""), "Attempting to sync time with scheme");
         match timing.schemeIdUri.as_str() {
             "urn:mpeg:dash:utc:http-xsdate:2014" | "urn:mpeg:dash:utc:http-iso:2014" => {
@@ -99,7 +96,7 @@ async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResu
                         }
                         Err(e) => {
                             tracing::warn!(value, error = %e, "Failed to parse direct timing value");
-                            last_error = Some(IoriError::DateTimeParsing(e.to_string()));
+                            last_error = Some(e.into());
                         }
                     }
                 } else {
@@ -126,9 +123,7 @@ async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResu
                                                 }
                                                 Err(e) => {
                                                     tracing::warn!(header = %date_str, error = %e, "Failed to parse Date header");
-                                                    last_error = Some(IoriError::DateTimeParsing(
-                                                        e.to_string(),
-                                                    ));
+                                                    last_error = Some(e.into());
                                                 }
                                             }
                                         }
@@ -180,17 +175,17 @@ async fn sync_time(mpd: &MPD, clock: &mut Clock, client: HttpClient) -> IoriResu
     }
 
     if let Some(err) = last_error {
-        Err(err)
-    } else {
-        // If all schemes failed but there was no UTCTiming element that could have been processed
-        // (e.g. only unknown or NTP schemes), this is an error.
-        // If UTCTiming was empty, we already defaulted to local time.
-        if !mpd.UTCTiming.is_empty() {
-            Err(IoriError::InvalidTimingSchema(
-                "All supported time sync methods failed".to_string(),
-            ))
-        } else {
-            Ok(())
-        }
+        return Err(err);
     }
+
+    // If all schemes failed but there was no UTCTiming element that could have been processed
+    // (e.g. only unknown or NTP schemes), this is an error.
+    // If UTCTiming was empty, we already defaulted to local time.
+    if !timing.is_empty() {
+        return Err(IoriError::InvalidTimingSchema(
+            "All supported time sync methods failed".to_string(),
+        ));
+    }
+
+    Ok(())
 }

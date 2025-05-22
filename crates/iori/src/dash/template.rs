@@ -63,6 +63,14 @@ impl Replacer for TemplateReplacer<'_> {
     }
 }
 
+pub struct TemplateUrl(pub String);
+
+impl TemplateUrl {
+    pub fn resolve(&self, template: &Template) -> String {
+        template.resolve(&self.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::dash::template::Template;
