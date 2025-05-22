@@ -1,5 +1,5 @@
 mod clock;
-mod timeline;
+pub mod timeline;
 
 use std::{
     path::PathBuf,
@@ -22,7 +22,6 @@ use crate::{
 use chrono::{DateTime, TimeDelta, Utc};
 use clock::Clock;
 use dash_mpd::{AdaptationSet, Period, Representation, MPD};
-use timeline::MPDTimeline;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use url::Url;
@@ -630,7 +629,7 @@ async fn live_updater_task(
                     );
                     break;
                 }
-                tracing::warn!("minimumUpdatePeriod not specified or invalid for dynamic MPD, using 60s default.");
+                tracing::warn!("minimumUpdatePeriod not specified or invalid for dynamic MPD, using 2s default.");
                 StdDuration::from_secs(2)
             }
         };
@@ -767,7 +766,6 @@ impl StreamingSource for LiveDashSource {
             .await?;
 
         let initial_mpd = dash_mpd::parse(&initial_mpd_text)?;
-        let timeline = MPDTimeline::from_mpd(initial_mpd.clone(), Some(&self.mpd_url))?;
 
         let initial_mpd_type = initial_mpd.mpdtype.clone();
         let initial_min_update_period = initial_mpd.minimumUpdatePeriod;
