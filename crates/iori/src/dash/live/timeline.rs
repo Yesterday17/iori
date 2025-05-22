@@ -87,15 +87,14 @@ impl MPDTimeline {
         matches!(self.presentation, DashPresentation::Static)
     }
 
-    /// Return all segments available in the dash timeline
-    ///
-    /// Usually used for static MPD, or first request of dynamic mpd
-    pub fn all_segments(&self) -> Vec<DashSegment> {
-        vec![]
+    pub fn is_dynamic(&self) -> bool {
+        !self.is_static()
     }
 
-    pub fn segments_since(&self, time: TimeDelta) -> Vec<DashSegment> {
-        vec![]
+    /// Return all segments available in the dash timeline since the given time
+    pub fn segments_since(&self, time: Option<DateTime<Utc>>) -> (Vec<DashSegment>, DateTime<Utc>) {
+        let now = self.presentation.now();
+        todo!()
     }
 
     /// Sync clock for internal clock
@@ -107,7 +106,7 @@ impl MPDTimeline {
         self.presentation.sync_time(client, timing).await
     }
 
-    pub async fn update_mpd(&mut self, mpd: MPD, mpd_url: &Url) -> IoriResult<()> {
+    pub fn update_mpd(&mut self, mpd: MPD, mpd_url: &Url) -> IoriResult<()> {
         // TODO: update clock and clock timing if necessary
 
         let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
@@ -178,12 +177,12 @@ impl DashPresentation {
         Ok(())
     }
 
-    pub async fn now(&self) -> IoriResult<DateTime<Utc>> {
-        Ok(if let DashPresentation::Dynamic { clock, .. } = self {
+    pub fn now(&self) -> DateTime<Utc> {
+        if let DashPresentation::Dynamic { clock, .. } = self {
             clock.now()
         } else {
             Utc::now()
-        })
+        }
     }
 }
 
@@ -196,7 +195,7 @@ pub struct DashPeriod {
     /// next period ([DASH] 5.3.2).
     /// See also § 8.1 First and last period timing in static presentations and § 8.2 First and last period
     /// timing in dynamic presentations.
-    start_time: TimeDelta,
+    start_time: DateTime<Utc>,
     /// In a dynamic presentation, the last period MAY have a Period@duration, in which case it has a fixed
     /// duration. If without Period@duration, the last period in a dynamic presentation has an unlimited
     /// duration (that may later be shortened by an MPD update).
@@ -213,7 +212,7 @@ impl DashPeriod {
     ) -> IoriResult<Self> {
         // If start time is specified, then read it directly
         let (start_time, duration) = if let Some(start) = period.start {
-            let start = TimeDelta::from_std(start)?;
+            let start = DateTime::UNIX_EPOCH + TimeDelta::from_std(start)?;
 
             // if duration of last period is not specified, calculate by current period start and last period start
             if let Some(previous) = previous {
