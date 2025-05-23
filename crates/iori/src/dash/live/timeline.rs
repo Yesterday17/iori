@@ -157,12 +157,6 @@ impl MPDTimeline {
             // override effective_time_shift_buffer_start to be >= since
             let effective_time_shift_buffer_start = effective_time_shift_buffer_start.max(since);
 
-            log::info!(
-                "effective_time_shift_buffer_start: {}, effective_time_shift_buffer_end: {}",
-                effective_time_shift_buffer_start,
-                effective_time_shift_buffer_end
-            );
-
             // skip periods ends before <since>
             if let Some(duration) = period.duration {
                 if period.start_time + duration < since {
@@ -179,7 +173,7 @@ impl MPDTimeline {
                         initialization,
                         media,
                         start_number,
-                        timescale,
+                        sample_timeline,
                         id,
                         bandwidth,
                         mime_type,
@@ -190,7 +184,7 @@ impl MPDTimeline {
                             .get(0)
                             .and_then(|r| r.time)
                             .unwrap_or_default();
-                        let mut segment_number = *start_number;
+                        let mut number = *start_number;
 
                         for timeline_segment in timeline_segments {
                             if let Some(time) = timeline_segment.time {
@@ -199,46 +193,46 @@ impl MPDTimeline {
                             let duration_pts = timeline_segment.duration;
                             let repeat_count = timeline_segment.repeat_count.unwrap_or(0);
 
+                            // TODO: support negative repeat count
+                            // The value of S@r is nonnegative, except for the last S element which MAY have a negative
+                            // value in S@r ([DASH] 5.3.9.6), indicating that the repeated segment references continue
+                            // indefinitely up to a media segment that either ends at or overlaps the period end point.
+
                             let mut template = Template::new();
                             template
                                 .insert_optional(Template::REPRESENTATION_ID, id.clone())
                                 .insert(Template::BANDWIDTH, bandwidth.unwrap_or(0).to_string());
 
-                            for _ in 0..repeat_count {
-                                let current_start_pts = start_time_pts;
+                            // > Only additional segment references are counted by @r, so S@r=5 indicates a total of
+                            // > 6 consecutive media segments with the same duration.
+                            for _ in 0..=repeat_count {
+                                let segment_start_point = start_time_pts;
                                 start_time_pts += duration_pts;
-                                let current_number = segment_number;
-                                segment_number += 1;
+                                let segment_number = number;
+                                number += 1;
 
-                                let current_start_time = period.start_time
-                                    + TimeDelta::from_std(std::time::Duration::from_secs_f64(
-                                        current_start_pts as f64 / *timescale as f64,
-                                    ))?;
+                                let segment_start_time = sample_timeline
+                                    .map_time(period.start_time, segment_start_point)?;
 
-                                if current_start_time > effective_time_shift_buffer_end {
+                                if segment_start_time > effective_time_shift_buffer_end {
                                     break;
                                 }
-                                if current_start_time <= effective_time_shift_buffer_start {
+                                if segment_start_time <= effective_time_shift_buffer_start {
                                     continue;
                                 }
-                                last_time = Some(current_start_time);
-
-                                log::info!(
-                                    "segment_presentation_time: {current_start_time}, now: {now}"
-                                );
+                                last_time = Some(segment_start_time);
 
                                 template
-                                    .insert(Template::NUMBER, current_number.to_string())
-                                    .insert(Template::TIME, current_start_pts.to_string());
+                                    .insert(Template::NUMBER, segment_number.to_string())
+                                    .insert(Template::TIME, segment_start_point.to_string());
 
                                 let segment_url = media.resolve(&template);
                                 let segment_filename = segment_url
                                     .rsplit_once('/')
                                     .map(|(_, filename)| filename)
                                     .unwrap_or(&format!(
-                                        "{}_{}.m4s",
+                                        "{}_{segment_number}.m4s",
                                         id.as_deref().unwrap_or("s"),
-                                        current_number
                                     ))
                                     .to_string();
 
@@ -255,11 +249,11 @@ impl MPDTimeline {
                                     byte_range: None,
                                     sequence: 0,
                                     stream_id: stream_id as u64,
-                                    time: Some(current_start_pts),
+                                    time: Some(segment_start_point),
                                 });
 
                                 if let Some(period_duration) = period.duration {
-                                    if current_start_time > period.start_time + period_duration {
+                                    if segment_start_time > period.start_time + period_duration {
                                         break;
                                     }
                                 }
@@ -270,21 +264,19 @@ impl MPDTimeline {
                         initialization,
                         media,
                         start_number,
-                        timescale,
+                        sample_timeline,
                         duration,
                         id,
                         bandwidth,
                         mime_type,
                         ..
                     } => {
-                        let mut segment_number = if period.start_time
-                            < effective_time_shift_buffer_start
-                        {
+                        let mut number = if period.start_time < effective_time_shift_buffer_start {
                             let time_since_period_start = (effective_time_shift_buffer_start
                                 - period.start_time)
                                 .as_seconds_f64();
                             let segment_number_since_period_start =
-                                (time_since_period_start * (*timescale as f64) / duration) as u64;
+                                (time_since_period_start / duration) as u64;
 
                             start_number + segment_number_since_period_start
                         } else {
@@ -297,40 +289,33 @@ impl MPDTimeline {
                             .insert(Template::BANDWIDTH, bandwidth.unwrap_or(0).to_string());
 
                         loop {
-                            let current_number = segment_number;
-                            segment_number += 1;
+                            let segment_number = number;
+                            number += 1;
 
-                            let current_start_pts =
-                                ((segment_number - start_number) as f64 * duration) as u64;
-                            let current_start_time = period.start_time
-                                + TimeDelta::from_std(std::time::Duration::from_secs_f64(
-                                    current_start_pts as f64 / *timescale as f64,
-                                ))?;
+                            let segment_start_point =
+                                ((number - start_number) as f64 * duration) as u64;
+                            let segment_start_time =
+                                sample_timeline.map_time(period.start_time, segment_start_point)?;
 
-                            if current_start_time > effective_time_shift_buffer_end {
+                            if segment_start_time > effective_time_shift_buffer_end {
                                 break;
                             }
-                            if current_start_time <= effective_time_shift_buffer_start {
+                            if segment_start_time <= effective_time_shift_buffer_start {
                                 continue;
                             }
-                            last_time = Some(current_start_time);
-
-                            log::info!(
-                                "segment_presentation_time: {current_start_time}, now: {now}"
-                            );
+                            last_time = Some(segment_start_time);
 
                             template
-                                .insert(Template::NUMBER, current_number.to_string())
-                                .insert(Template::TIME, current_start_pts.to_string());
+                                .insert(Template::NUMBER, segment_number.to_string())
+                                .insert(Template::TIME, segment_start_point.to_string());
 
                             let segment_url = media.resolve(&template);
                             let segment_filename = segment_url
                                 .rsplit_once('/')
                                 .map(|(_, filename)| filename)
                                 .unwrap_or(&format!(
-                                    "{}_{}.m4s",
+                                    "{}_{segment_number}.m4s",
                                     id.as_deref().unwrap_or("s"),
-                                    current_number
                                 ))
                                 .to_string();
 
@@ -347,11 +332,11 @@ impl MPDTimeline {
                                 byte_range: None,
                                 sequence: 0,
                                 stream_id: stream_id as u64,
-                                time: Some(current_start_pts),
+                                time: Some(segment_start_point),
                             });
 
                             if let Some(period_duration) = period.duration {
-                                if (current_start_time - period.start_time) > period_duration {
+                                if (segment_start_time - period.start_time) > period_duration {
                                     break;
                                 }
                             }
@@ -613,7 +598,7 @@ pub enum DashRepresentation {
         initialization: Option<TemplateUrl>,
         media: TemplateUrl,
         start_number: u64,
-        timescale: u64,
+        sample_timeline: SampleTimeline,
         availability_time_offset: TimeDelta,
 
         id: Option<String>,
@@ -631,7 +616,7 @@ pub enum DashRepresentation {
         initialization: Option<TemplateUrl>,
         media: TemplateUrl,
         start_number: u64,
-        timescale: u64,
+        sample_timeline: SampleTimeline,
         duration: f64,
         availability_time_offset: TimeDelta,
 
@@ -705,10 +690,10 @@ impl DashRepresentation {
                     })?;
                 let start_number = template.startNumber.unwrap_or(1);
                 let timescale = template.timescale.unwrap_or(1);
+                let presentation_time_offset =
+                    TimeDelta::from_secs(template.presentationTimeOffset.unwrap_or(0))?;
                 let availability_time_offset =
-                    TimeDelta::from_std(std::time::Duration::from_secs_f64(
-                        template.availabilityTimeOffset.unwrap_or_default(),
-                    ))?;
+                    TimeDelta::from_secs_f64(template.availabilityTimeOffset.unwrap_or_default())?;
 
                 // ExplicitAddressing, aka SegmentTemplate with SegmentTimeline
                 if let Some(ref timeline) = template.SegmentTimeline {
@@ -716,7 +701,10 @@ impl DashRepresentation {
                         initialization,
                         media,
                         start_number,
-                        timescale,
+                        sample_timeline: SampleTimeline {
+                            timescale,
+                            presentation_time_offset,
+                        },
                         availability_time_offset,
 
                         id,
@@ -741,7 +729,10 @@ impl DashRepresentation {
                         initialization,
                         media,
                         start_number,
-                        timescale,
+                        sample_timeline: SampleTimeline {
+                            timescale,
+                            presentation_time_offset,
+                        },
                         duration: template.duration.ok_or_else(|| {
                             IoriError::MpdParsing("Missing duration in SegmentTempalte".to_string())
                         })?,
@@ -782,8 +773,52 @@ pub struct TimelineSegment {
     pub duration: u64,
     pub repeat_count: Option<i64>,
 
+    /// The S@n attribute SHALL NOT be used - segment numbers form a continuous sequence starting with SegmentTemplate@startNumber.
     pub n: Option<u64>,
     pub k: Option<u64>,
+}
+
+/// The samples within a representation exist on a linear sample timeline defined
+/// by the encoder that creates the samples. Sample timelines are mapped onto the
+/// MPD timeline by metadata stored in or referenced by the MPD ([DASH] 7.3.2).
+///
+/// The sample timeline does not determine what samples are presented. It merely
+/// connects the timing of the representation to the MPD timeline and allows the
+/// correct media segments to be identified when a DASH client makes scheduling
+/// decisions driven by the MPD timeline. The exact connection between media segments
+/// and the sample timeline is defined by the addressing mode.
+///
+/// The same sample timeline is shared by all representations in the same adaptation
+/// set [DASH-CMAF]. Representations in different adaptation sets MAY use different
+/// sample timelines.
+///
+/// A sample timeline is linear - encoders are expected to use an appropriate timescale
+/// and sufficiently large timestamp fields to avoid any wrap-around. If wrap-around does
+/// occur, a new period must be started in order to establish a new sample timeline.
+pub struct SampleTimeline {
+    /// A sample timeline is measured in timescale units defined as a number of units per second
+    /// ([DASH] 5.3.9.2 and 5.3.9.6). This value (the timescale) SHALL be present in the MPD as
+    /// SegmentTemplate@timescale or SegmentBase@timescale (depending on the addressing mode).
+    timescale: u64,
+
+    /// The zero point of a sample timeline may be at the start of the period or at any earlier
+    /// point. The point on the sample timeline indicated by @presentationTimeOffset is equivalent
+    /// to the period start point on the MPD timeline ([DASH] 5.3.9.2). The value is provided by
+    /// SegmentTemplate@presentationTimeOffset or SegmentBase@presentationTimeOffset, depending on
+    /// the addressing mode, and has a default value of 0 timescale units.
+    presentation_time_offset: TimeDelta,
+}
+
+impl SampleTimeline {
+    /// Map a time in timescale units to a time in presentation time.
+    pub fn map_time(
+        &self,
+        period_start_time: DateTime<Utc>,
+        segment_start_point: u64,
+    ) -> IoriResult<DateTime<Utc>> {
+        Ok(period_start_time - self.presentation_time_offset
+            + TimeDelta::from_secs_f64(segment_start_point as f64 / self.timescale as f64)?)
+    }
 }
 
 pub struct InheritedAddressingValues<'a> {
@@ -799,5 +834,20 @@ impl<'a> InheritedAddressingValues<'a> {
             segment_list: self.segment_list.or_else(|| alternate.segment_list),
             segment_template: self.segment_template.or_else(|| alternate.segment_template),
         }
+    }
+}
+
+trait TimeDeltaExt {
+    fn from_secs(u: u64) -> IoriResult<TimeDelta>;
+    fn from_secs_f64(f: f64) -> IoriResult<TimeDelta>;
+}
+
+impl TimeDeltaExt for TimeDelta {
+    fn from_secs(u: u64) -> IoriResult<TimeDelta> {
+        Ok(TimeDelta::from_std(std::time::Duration::from_secs(u))?)
+    }
+
+    fn from_secs_f64(f: f64) -> IoriResult<TimeDelta> {
+        Ok(TimeDelta::from_std(std::time::Duration::from_secs_f64(f))?)
     }
 }
