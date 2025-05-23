@@ -340,7 +340,6 @@ impl LiveDashSource {
                                 byte_range: None,
                                 sequence: self.sequence_counter.fetch_add(1, Ordering::Relaxed),
                                 stream_id: adaptation_set_index as u64,
-                                number: Some(current_segment_number),
                                 time: Some(current_presentation_time_pts),
                             });
 
@@ -462,7 +461,6 @@ impl LiveDashSource {
                             byte_range: None,
                             sequence: self.sequence_counter.fetch_add(1, Ordering::Relaxed),
                             stream_id: adaptation_set_index as u64,
-                            number: Some(current_segment_number),
                             time: Some(segment_rel_start_pts),
                         });
                         current_segment_number += 1;
@@ -576,7 +574,6 @@ impl LiveDashSource {
                         byte_range: segment_url_el.mediaRange.clone(),
                         sequence: self.sequence_counter.fetch_add(1, Ordering::Relaxed),
                         stream_id: adaptation_set_index as u64,
-                        number: None,
                         time: None,
                     });
 
@@ -672,7 +669,7 @@ async fn live_updater_task(
             let mut last_mpd_update_guard = source.last_mpd_update.lock().await;
             let mut min_update_period_guard = source.minimum_update_period.lock().await;
 
-            if let Err(e) = clock_guard.sync(&new_mpd.UTCTiming, client.clone()).await {
+            if let Err(e) = clock_guard.sync(&new_mpd, client.clone()).await {
                 // Sync clock with new MPD
                 tracing::warn!("Failed to re-sync clock with new MPD: {}", e);
                 // Continue with old clock sync, or use new MPD time if available? For now, just log.
@@ -693,10 +690,10 @@ async fn live_updater_task(
                             segments = segments
                                 .into_iter()
                                 .filter(|seg| {
-                                    if let (Some(last_number), Some(number)) =
-                                        (last_sent.number, seg.number)
+                                    if let (Some(last_time), Some(time)) =
+                                        (last_sent.time, seg.time)
                                     {
-                                        number > last_number
+                                        time > last_time
                                     } else {
                                         seg.sequence > last_sent.sequence
                                     }
@@ -777,9 +774,7 @@ impl StreamingSource for LiveDashSource {
             let mut last_mpd_update_guard = self.last_mpd_update.lock().await;
             let mut min_update_period_guard = self.minimum_update_period.lock().await;
 
-            clock_guard
-                .sync(&initial_mpd.UTCTiming, self.client.clone())
-                .await?; // Initial clock sync
+            clock_guard.sync(&initial_mpd, self.client.clone()).await?; // Initial clock sync
             *mpd_data_guard = Some(initial_mpd); // Store initial MPD
             *last_mpd_update_guard = Some(clock_guard.now());
             *min_update_period_guard = initial_min_update_period;

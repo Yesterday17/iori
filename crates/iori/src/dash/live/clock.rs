@@ -1,10 +1,11 @@
 use chrono::{DateTime, TimeDelta, Utc};
-use dash_mpd::UTCTiming;
+use dash_mpd::{UTCTiming, MPD};
 
 use crate::{HttpClient, IoriError, IoriResult};
 
 #[derive(Debug)]
 pub struct Clock {
+    /// How much time the local clock is behind the remote clock
     offset: TimeDelta,
 }
 
@@ -19,17 +20,30 @@ impl Clock {
         Utc::now() + self.offset
     }
 
-    fn set_time(&mut self, now: DateTime<Utc>) {
-        self.offset = now - Utc::now();
-        tracing::debug!(offset_seconds = %self.offset.num_seconds(), "Clock time set to {}, offset calculated", now);
+    fn set_time(
+        &mut self,
+        remote_now: DateTime<Utc>,
+        before_request: DateTime<Utc>,
+        after_request: DateTime<Utc>,
+    ) {
+        // <before_request> (inaccurate now time)
+        // <remote_now> (accurate remote time)
+        // <after_request>
+        //
+        // accurate now time = accurate remote time - rtt
+        // offset = inaccurate now time - accurate now time
+        let rtt = (after_request - before_request) / 2;
+        let server_now = remote_now + rtt / 2;
+        self.offset = server_now - after_request;
+        tracing::info!(offset_milliseconds = %self.offset.num_milliseconds(), "Clock time set to {}, offset calculated", remote_now);
     }
 
-    pub async fn sync(&mut self, mpd: &[UTCTiming], client: HttpClient) -> IoriResult<()> {
-        sync_time(mpd, self, client).await
+    pub async fn sync(&mut self, mpd: &MPD, client: HttpClient) -> IoriResult<()> {
+        sync_time(&mpd.UTCTiming, self, client).await
     }
 }
 
-async fn parse_iso8601_response(response_text: &str) -> IoriResult<DateTime<Utc>> {
+fn parse_iso8601_response(response_text: &str) -> IoriResult<DateTime<Utc>> {
     Ok(DateTime::parse_from_rfc3339(response_text)
         .map(|dt| dt.with_timezone(&Utc))
         .or_else(|_| {
@@ -42,12 +56,13 @@ async fn parse_iso8601_response(response_text: &str) -> IoriResult<DateTime<Utc>
 async fn sync_time(timing: &[UTCTiming], clock: &mut Clock, client: HttpClient) -> IoriResult<()> {
     if timing.is_empty() {
         tracing::warn!("No UTCTiming elements found in MPD, using local time.");
-        clock.set_time(Utc::now()); // Default to local time if no timing info
+        clock.set_time(Utc::now(), Utc::now(), Utc::now()); // Default to local time if no timing info
         return Ok(());
     }
 
     let mut last_error: Option<IoriError> = None;
 
+    let before_request = Utc::now();
     for timing in timing {
         tracing::debug!(scheme = %timing.schemeIdUri, value = %timing.value.as_deref().unwrap_or(""), "Attempting to sync time with scheme");
         match timing.schemeIdUri.as_str() {
@@ -55,11 +70,12 @@ async fn sync_time(timing: &[UTCTiming], clock: &mut Clock, client: HttpClient) 
                 if let Some(url) = &timing.value {
                     match client.get(url).send().await {
                         Ok(response) => {
+                            let after_request = Utc::now();
                             if response.status().is_success() {
                                 match response.text().await {
-                                    Ok(text) => match parse_iso8601_response(text.trim()).await {
+                                    Ok(text) => match parse_iso8601_response(text.trim()) {
                                         Ok(datetime) => {
-                                            clock.set_time(datetime);
+                                            clock.set_time(datetime, before_request, after_request);
                                             return Ok(());
                                         }
                                         Err(e) => {
@@ -91,7 +107,11 @@ async fn sync_time(timing: &[UTCTiming], clock: &mut Clock, client: HttpClient) 
                 if let Some(value) = &timing.value {
                     match DateTime::parse_from_rfc3339(value) {
                         Ok(datetime) => {
-                            clock.set_time(datetime.with_timezone(&Utc));
+                            clock.set_time(
+                                datetime.with_timezone(&Utc),
+                                before_request,
+                                before_request,
+                            );
                             return Ok(());
                         }
                         Err(e) => {
@@ -110,6 +130,7 @@ async fn sync_time(timing: &[UTCTiming], clock: &mut Clock, client: HttpClient) 
                 if let Some(url) = &timing.value {
                     match client.head(url).send().await {
                         Ok(response) => {
+                            let after_request = Utc::now();
                             if response.status().is_success() {
                                 if let Some(date_header) =
                                     response.headers().get(reqwest::header::DATE)
@@ -118,7 +139,11 @@ async fn sync_time(timing: &[UTCTiming], clock: &mut Clock, client: HttpClient) 
                                         Ok(date_str) => {
                                             match DateTime::parse_from_rfc2822(date_str) {
                                                 Ok(datetime) => {
-                                                    clock.set_time(datetime.with_timezone(&Utc));
+                                                    clock.set_time(
+                                                        datetime.with_timezone(&Utc),
+                                                        before_request,
+                                                        after_request,
+                                                    );
                                                     return Ok(());
                                                 }
                                                 Err(e) => {
