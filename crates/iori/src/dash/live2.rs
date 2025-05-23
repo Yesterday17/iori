@@ -16,11 +16,10 @@ pub struct CommonDashLiveSource {
 
 impl CommonDashLiveSource {
     pub fn new(client: HttpClient, mpd_url: Url, key: Option<&str>) -> IoriResult<Self> {
-        let key = if let Some(k) = key {
-            Some(Arc::new(IoriKey::clear_key(k)?))
-        } else {
-            None
-        };
+        let key = key
+            .map(|k| IoriKey::clear_key(k))
+            .transpose()?
+            .map(Arc::new);
 
         Ok(Self {
             client,
@@ -87,6 +86,10 @@ impl StreamingSource for CommonDashLiveSource {
 
                     if let Some(_last_update) = _last_update {
                         last_update = Some(_last_update);
+                    }
+
+                    if timeline.is_static() {
+                        break;
                     }
                 }
             });
