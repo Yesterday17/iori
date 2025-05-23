@@ -11,12 +11,15 @@ use dash_mpd::{
 };
 use url::Url;
 
+use std::sync::Arc;
+
 use crate::{
     dash::{
         segment::DashSegment,
         template::{Template, TemplateUrl},
         url::{is_absolute_url, merge_baseurls},
     },
+    decrypt::IoriKey,
     HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
 };
 
@@ -47,6 +50,8 @@ use super::clock::Clock;
 /// > 3. Representations within a period are grouped into adaptation sets, which associate related
 /// > representations and decorate them with metadata.
 pub struct MPDTimeline {
+    client: HttpClient,
+
     presentation: DashPresentation,
 
     /// An MPD defines an ordered list of one or more consecutive non-overlapping periods ([DASH] 5.3.2).
@@ -62,7 +67,7 @@ pub struct MPDTimeline {
 impl MPDTimeline {
     pub async fn from_mpd(mpd: MPD, mpd_url: Option<&Url>, client: HttpClient) -> IoriResult<Self> {
         let mut presentation = DashPresentation::from_mpd(&mpd);
-        presentation.sync_time(&mpd, client).await?;
+        presentation.sync_time(&mpd, client.clone()).await?;
 
         let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
         let base_url = match (mpd_base_url, mpd_url) {
@@ -82,6 +87,7 @@ impl MPDTimeline {
         }
 
         Ok(Self {
+            client,
             presentation,
             periods,
             time_shift_buffer_depth: mpd
@@ -107,9 +113,10 @@ impl MPDTimeline {
     /// Return all segments available in the dash timeline > the given time
     ///
     /// Note that this function can not handle segment time at UNIX_EPOCH
-    pub fn segments_since(
+    pub async fn segments_since(
         &self,
         since: Option<DateTime<Utc>>,
+        key: Option<Arc<IoriKey>>,
     ) -> IoriResult<(Vec<DashSegment>, Option<DateTime<Utc>>)> {
         let since = since.unwrap_or_default();
 
@@ -186,6 +193,8 @@ impl MPDTimeline {
                             .unwrap_or_default();
                         let mut number = *start_number;
 
+                        let mut initial_segment = None;
+
                         for timeline_segment in timeline_segments {
                             if let Some(time) = timeline_segment.time {
                                 start_time_pts = time;
@@ -236,16 +245,24 @@ impl MPDTimeline {
                                     ))
                                     .to_string();
 
+                                if initial_segment.is_none() {
+                                    if let Some(initialization) = initialization {
+                                        let url = initialization.resolve(&template);
+                                        let data =
+                                            self.client.get(url).send().await?.bytes().await?;
+                                        initial_segment =
+                                            Some(InitialSegment::Clear(Arc::new(data.to_vec())));
+                                    } else {
+                                        initial_segment = Some(InitialSegment::None);
+                                    }
+                                }
+
                                 segments.push(DashSegment {
                                     url: Url::parse(&segment_url)?,
                                     filename: segment_filename,
                                     r#type: SegmentType::from_mime_type(mime_type.as_deref()),
-                                    // TODO: initialization segment support
-                                    initial_segment: initialization
-                                        .as_ref()
-                                        .map_or(InitialSegment::None, |_| InitialSegment::None),
-                                    // TODO: key support
-                                    key: None,
+                                    initial_segment: initial_segment.clone().unwrap(),
+                                    key: key.clone(),
                                     byte_range: None,
                                     sequence: 0,
                                     stream_id: stream_id as u64,
@@ -288,6 +305,8 @@ impl MPDTimeline {
                             .insert_optional(Template::REPRESENTATION_ID, id.clone())
                             .insert(Template::BANDWIDTH, bandwidth.unwrap_or(0).to_string());
 
+                        let mut initial_segment = None;
+
                         loop {
                             let segment_number = number;
                             number += 1;
@@ -319,16 +338,23 @@ impl MPDTimeline {
                                 ))
                                 .to_string();
 
+                            if initial_segment.is_none() {
+                                if let Some(initialization) = initialization {
+                                    let url = initialization.resolve(&template);
+                                    let data = self.client.get(url).send().await?.bytes().await?;
+                                    initial_segment =
+                                        Some(InitialSegment::Clear(Arc::new(data.to_vec())));
+                                } else {
+                                    initial_segment = Some(InitialSegment::None);
+                                }
+                            }
+
                             segments.push(DashSegment {
                                 url: Url::parse(&segment_url)?,
                                 filename: segment_filename,
                                 r#type: SegmentType::from_mime_type(mime_type.as_deref()),
-                                // TODO: initialization segment support
-                                initial_segment: initialization
-                                    .as_ref()
-                                    .map_or(InitialSegment::None, |_| InitialSegment::None),
-                                // TODO: key support
-                                key: None,
+                                initial_segment: initial_segment.clone().unwrap(),
+                                key: key.clone(),
                                 byte_range: None,
                                 sequence: 0,
                                 stream_id: stream_id as u64,
@@ -351,23 +377,18 @@ impl MPDTimeline {
     }
 
     /// Sync clock for internal clock
-    pub async fn sync_time(&mut self, mpd: &MPD, client: HttpClient) -> IoriResult<()> {
-        self.presentation.sync_time(mpd, client).await
+    pub async fn sync_time(&mut self, mpd: &MPD) -> IoriResult<()> {
+        self.presentation.sync_time(mpd, self.client.clone()).await
     }
 
-    pub async fn update_mpd(
-        &mut self,
-        mpd: MPD,
-        mpd_url: &Url,
-        client: HttpClient,
-    ) -> IoriResult<()> {
+    pub async fn update_mpd(&mut self, mpd: MPD, mpd_url: &Url) -> IoriResult<()> {
         let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
         let base_url = match mpd_base_url {
             Some(mpd_base_url) => merge_baseurls(&mpd_url, mpd_base_url)?,
             None => mpd_url.clone(),
         };
 
-        self.sync_time(&mpd, client.clone()).await.unwrap();
+        self.sync_time(&mpd).await.unwrap();
 
         let mut periods: Vec<DashPeriod> = Vec::with_capacity(mpd.periods.len());
         for period in mpd.periods {
