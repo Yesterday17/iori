@@ -3,23 +3,31 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, Mutex};
 use url::Url;
 
-use crate::{fetch::fetch_segment, HttpClient, IoriResult, StreamingSource};
+use crate::{decrypt::IoriKey, fetch::fetch_segment, HttpClient, IoriResult, StreamingSource};
 
 use super::{live::timeline::MPDTimeline, segment::DashSegment};
 
 pub struct CommonDashLiveSource {
     client: HttpClient,
     mpd_url: Url,
+    key: Option<Arc<IoriKey>>,
     timeline: Arc<Mutex<Option<MPDTimeline>>>,
 }
 
 impl CommonDashLiveSource {
-    pub fn new(client: HttpClient, mpd_url: Url) -> Self {
-        Self {
+    pub fn new(client: HttpClient, mpd_url: Url, key: Option<&str>) -> IoriResult<Self> {
+        let key = if let Some(k) = key {
+            Some(Arc::new(IoriKey::clear_key(k)?))
+        } else {
+            None
+        };
+
+        Ok(Self {
             client,
             mpd_url,
+            key,
             timeline: Arc::new(Mutex::new(None)),
-        }
+        })
     }
 }
 
@@ -43,7 +51,7 @@ impl StreamingSource for CommonDashLiveSource {
         let minimum_update_period = mpd.minimumUpdatePeriod.unwrap_or(Duration::from_secs(2));
         let timeline = MPDTimeline::from_mpd(mpd, Some(&self.mpd_url), self.client.clone()).await?;
 
-        let (segments, mut last_update) = timeline.segments_since(None)?;
+        let (segments, mut last_update) = timeline.segments_since(None, self.key.clone()).await?;
         sender.send(Ok(segments)).unwrap();
 
         if timeline.is_dynamic() {
@@ -52,6 +60,7 @@ impl StreamingSource for CommonDashLiveSource {
             let mpd_url = self.mpd_url.clone();
             let client = self.client.clone();
             let timeline = self.timeline.clone();
+            let key = self.key.clone();
             tokio::spawn(async move {
                 loop {
                     tokio::time::sleep(minimum_update_period).await;
@@ -68,12 +77,12 @@ impl StreamingSource for CommonDashLiveSource {
 
                     let mut timeline = timeline.lock().await;
                     let timeline = timeline.as_mut().unwrap();
-                    timeline
-                        .update_mpd(mpd, &mpd_url, client.clone())
+                    timeline.update_mpd(mpd, &mpd_url).await.unwrap();
+
+                    let (segments, _last_update) = timeline
+                        .segments_since(last_update, key.clone())
                         .await
                         .unwrap();
-
-                    let (segments, _last_update) = timeline.segments_since(last_update).unwrap();
                     sender.send(Ok(segments)).unwrap();
 
                     if let Some(_last_update) = _last_update {

@@ -1,7 +1,5 @@
-use std::sync::Arc;
-
 use iori::{
-    cache::file::FileCacheSource, dash::live2::CommonDashLiveSource, decrypt::IoriKey,
+    cache::file::FileCacheSource, dash::live2::CommonDashLiveSource,
     download::ParallelDownloaderBuilder, merge::SkipMerger, HttpClient,
 };
 use tracing::level_filters::LevelFilter;
@@ -18,20 +16,13 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let mpd_url = "https://livesim.dashif.org/livesim2/testpic_2s/Manifest.mpd";
+    let mpd_url = "https://livesim.dashif.org/livesim2/segtimelinenr_1/WAVE/vectors/cfhd_sets/14.985_29.97_59.94/t1/2022-10-17/stream.mpd"; //"https://livesim.dashif.org/livesim2/testpic_2s/Manifest.mpd";
 
     let key_str = None;
-    let iori_key = if let Some(k) = key_str {
-        // Assuming IoriKey::clear_key can handle "KEY_ID:KEY" or just "KEY"
-        // This might need adjustment based on IoriKey's actual parsing logic
-        Some(Arc::new(IoriKey::clear_key(k)?))
-    } else {
-        None
-    };
 
     let client = HttpClient::default();
 
-    let source = CommonDashLiveSource::new(client.clone(), mpd_url.parse()?);
+    let source = CommonDashLiveSource::new(client.clone(), mpd_url.parse()?, key_str)?;
 
     let cache_dir = std::env::temp_dir().join("iori_live_dash_example");
     tracing::info!("Using cache directory: {}", cache_dir.display());
