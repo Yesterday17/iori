@@ -181,8 +181,9 @@ impl StreamingSource for CommonDashArchiveSource {
                                 let duration = segment.d;
                                 let repeat = segment.r.unwrap_or(0);
                                 for _ in 0..(repeat + 1) {
-                                    template.insert(Template::TIME, current_time.to_string());
-                                    template.insert(Template::NUMBER, segment_number.to_string());
+                                    template
+                                        .insert(Template::TIME, current_time.to_string())
+                                        .insert(Template::NUMBER, segment_number.to_string());
                                     let filename = template.resolve(&media_template);
                                     let url = merge_baseurls(&base_url, &filename)?;
 
@@ -195,7 +196,6 @@ impl StreamingSource for CommonDashArchiveSource {
                                         sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                                         stream_id: 0,
                                         byte_range: None,
-                                        number: None,
                                         time: None,
                                     };
                                     segments.push(segment);
@@ -234,7 +234,6 @@ impl StreamingSource for CommonDashArchiveSource {
                                     sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                                     stream_id: 0,
                                     byte_range: None,
-                                    number: None,
                                     time: None,
                                 };
                                 segments.push(segment);

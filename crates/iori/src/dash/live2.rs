@@ -41,9 +41,9 @@ impl StreamingSource for CommonDashLiveSource {
         let mpd = dash_mpd::parse(&mpd)?;
 
         let minimum_update_period = mpd.minimumUpdatePeriod.unwrap_or(Duration::from_secs(2));
-        let timeline = MPDTimeline::from_mpd(mpd, Some(&self.mpd_url))?;
+        let timeline = MPDTimeline::from_mpd(mpd, Some(&self.mpd_url), self.client.clone()).await?;
 
-        let (segments, mut last_update) = timeline.segments_since(None);
+        let (segments, mut last_update) = timeline.segments_since(None)?;
         sender.send(Ok(segments)).unwrap();
 
         if timeline.is_dynamic() {
@@ -68,12 +68,17 @@ impl StreamingSource for CommonDashLiveSource {
 
                     let mut timeline = timeline.lock().await;
                     let timeline = timeline.as_mut().unwrap();
-                    timeline.update_mpd(mpd, &mpd_url).unwrap();
+                    timeline
+                        .update_mpd(mpd, &mpd_url, client.clone())
+                        .await
+                        .unwrap();
 
-                    let (segments, _last_update) = timeline.segments_since(Some(last_update));
+                    let (segments, _last_update) = timeline.segments_since(last_update).unwrap();
                     sender.send(Ok(segments)).unwrap();
 
-                    last_update = _last_update;
+                    if let Some(_last_update) = _last_update {
+                        last_update = Some(_last_update);
+                    }
                 }
             });
         }

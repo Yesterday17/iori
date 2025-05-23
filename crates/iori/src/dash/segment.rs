@@ -14,14 +14,11 @@ pub struct DashSegment {
 
     pub byte_range: Option<String>,
 
-    /// Sequence id allocated by the downloader, starts from 0
     pub sequence: u64,
     pub stream_id: u64,
 
     pub r#type: SegmentType,
 
-    /// $Number$
-    pub number: Option<u64>,
     /// $Time$
     pub time: Option<u64>,
 }
@@ -32,7 +29,7 @@ impl StreamingSegment for DashSegment {
     }
 
     fn sequence(&self) -> u64 {
-        self.number.unwrap_or(self.sequence)
+        self.time.unwrap_or(self.sequence)
     }
 
     fn file_name(&self) -> &str {

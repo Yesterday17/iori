@@ -15,10 +15,10 @@ use url::Url;
 use crate::{
     dash::{
         segment::DashSegment,
-        template::TemplateUrl,
+        template::{Template, TemplateUrl},
         url::{is_absolute_url, merge_baseurls},
     },
-    HttpClient, IoriError, IoriResult,
+    HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
 };
 
 use super::clock::Clock;
@@ -49,16 +49,21 @@ use super::clock::Clock;
 /// > representations and decorate them with metadata.
 pub struct MPDTimeline {
     presentation: DashPresentation,
+
     /// An MPD defines an ordered list of one or more consecutive non-overlapping periods ([DASH] 5.3.2).
     /// A period is both a time span on the MPD timeline and a definition of the data to be presented
     /// during this time span. Period timing is relative to the zero point of the MPD timeline, though
     /// often indirectly (being relative to the previous period).
     periods: Vec<DashPeriod>,
+
+    presentation_delay: TimeDelta,
+    time_shift_buffer_depth: Option<TimeDelta>,
 }
 
 impl MPDTimeline {
-    pub fn from_mpd(mpd: MPD, mpd_url: Option<&Url>) -> IoriResult<Self> {
-        let presentation = DashPresentation::from_mpd(&mpd);
+    pub async fn from_mpd(mpd: MPD, mpd_url: Option<&Url>, client: HttpClient) -> IoriResult<Self> {
+        let mut presentation = DashPresentation::from_mpd(&mpd);
+        presentation.sync_time(&mpd, client).await?;
 
         let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
         let base_url = match (mpd_base_url, mpd_url) {
@@ -80,6 +85,15 @@ impl MPDTimeline {
         Ok(Self {
             presentation,
             periods,
+            time_shift_buffer_depth: mpd
+                .timeShiftBufferDepth
+                .map(|r| TimeDelta::from_std(r))
+                .transpose()?,
+            presentation_delay: mpd
+                .suggestedPresentationDelay
+                .map(|r| TimeDelta::from_std(r))
+                .transpose()?
+                .unwrap_or_else(|| TimeDelta::zero()),
         })
     }
 
@@ -91,29 +105,202 @@ impl MPDTimeline {
         !self.is_static()
     }
 
-    /// Return all segments available in the dash timeline since the given time
-    pub fn segments_since(&self, time: Option<DateTime<Utc>>) -> (Vec<DashSegment>, DateTime<Utc>) {
-        let now = self.presentation.now();
-        todo!()
+    /// Return all segments available in the dash timeline > the given time
+    ///
+    /// Note that this function can not handle segment time at UNIX_EPOCH
+    pub fn segments_since(
+        &self,
+        since: Option<DateTime<Utc>>,
+    ) -> IoriResult<(Vec<DashSegment>, Option<DateTime<Utc>>)> {
+        let since = since.unwrap_or_default();
+
+        // https://dashif.org/Guidelines-TimingModel/#availability-window
+        // 1. Let _now_ be the current wall clock time according to the wall clock.
+        let now: DateTime<Utc> = self.presentation.now();
+        // 2. Let _AvailabilityWindowStart_ be _now_ - `MPD@timeShiftBufferDepth`.
+        let availability_window_start = match self.time_shift_buffer_depth {
+            Some(buffer_depth) => now - buffer_depth,
+            // If `MPD@timeShiftBufferDepth` is not defined, let _AvailabilityWindowStart_ be the effective availability start time.
+            None => self.presentation.zero_point(),
+        };
+
+        let mut last_time = None;
+        let mut segments = Vec::new();
+
+        for period in self.periods.iter() {
+            let (effective_time_shift_buffer_start, effective_time_shift_buffer_end) = {
+                // 3. Let _TotalAvailabilityTimeOffset_ be the sum of all `@availabilityTimeOffset` values that apply to the adaptation set,
+                // either via _SegmentBase_, _SegmentTemplate_ or BaseURL elements ([DASH] 5.3.9.5.3).
+                let total_availability_time_offset = period
+                    .adaptation_sets
+                    .iter()
+                    .map(|a| {
+                        a.representations
+                            .iter()
+                            .map(|r| r.availability_time_offset())
+                            .sum::<TimeDelta>()
+                    })
+                    .sum::<TimeDelta>();
+                // 4. The availability window is the time span from _AvailabilityWindowStart_ to _now_ + _TotalAvailabilityTimeOffset_.
+                let availability_window_end = now + total_availability_time_offset;
+
+                // The effective time shift buffer is the time span from the start of the time shift buffer to now - PresentationDelay.
+                // Services SHALL NOT define a value for MPD@suggestedPresentationDelay that results in an effective time shift buffer of negative or zero duration.
+                let effective_time_shift_buffer_start = availability_window_start;
+                let effective_time_shift_buffer_end =
+                    availability_window_end - self.presentation_delay;
+
+                (
+                    effective_time_shift_buffer_start,
+                    effective_time_shift_buffer_end,
+                )
+            };
+            log::info!(
+                "effective_time_shift_buffer_start: {}, effective_time_shift_buffer_end: {}",
+                effective_time_shift_buffer_start,
+                effective_time_shift_buffer_end
+            );
+
+            // skip periods ends before <since>
+            if let Some(duration) = period.duration {
+                if period.start_time + duration < since {
+                    continue;
+                }
+            }
+
+            for (stream_id, adaptation_set) in period.adaptation_sets.iter().enumerate() {
+                // TODO: select representation
+                let representation = adaptation_set.representations.get(0).unwrap();
+                match representation {
+                    DashRepresentation::IndexedAddressing(_) => todo!(),
+                    DashRepresentation::ExplicitAddressing { .. } => todo!(),
+                    DashRepresentation::SimpleAddressing {
+                        initialization,
+                        media,
+                        start_number,
+                        timescale,
+                        duration,
+                        id,
+                        bandwidth,
+                        mime_type,
+                        ..
+                    } => {
+                        let duration_sec = duration / (*timescale as f64);
+
+                        let earliest_available_segment_start_time =
+                            effective_time_shift_buffer_start.max(since);
+
+                        let mut segment_number =
+                            if earliest_available_segment_start_time > period.start_time {
+                                let time_since_period_start =
+                                    earliest_available_segment_start_time - period.start_time;
+                                let segment_number_since_period_start =
+                                    (time_since_period_start.num_seconds() as f64 / duration_sec)
+                                        as u64;
+
+                                start_number + segment_number_since_period_start
+                            } else {
+                                *start_number
+                            };
+                        log::info!(
+                            "current_segment_number: {}, start_number: {}, since: {}",
+                            segment_number,
+                            start_number,
+                            since
+                        );
+
+                        let mut template = Template::new();
+                        template
+                            .insert_optional(Template::REPRESENTATION_ID, id.clone())
+                            .insert(Template::BANDWIDTH, bandwidth.unwrap_or(0).to_string());
+
+                        loop {
+                            let segment_relative_start_pts =
+                                ((segment_number - start_number) as f64 * duration) as u64;
+                            let segment_presentation_start = period.start_time
+                                + TimeDelta::from_std(std::time::Duration::from_secs_f64(
+                                    segment_relative_start_pts as f64 / *timescale as f64,
+                                ))?;
+
+                            if segment_presentation_start > effective_time_shift_buffer_end {
+                                break;
+                            }
+
+                            if segment_presentation_start <= earliest_available_segment_start_time {
+                                segment_number += 1;
+                                continue;
+                            }
+
+                            log::info!("segment_presentation_time: {segment_presentation_start}, now: {now}");
+
+                            template
+                                .insert(Template::NUMBER, segment_number.to_string())
+                                .insert(Template::TIME, segment_relative_start_pts.to_string());
+
+                            let segment_url = media.resolve(&template);
+                            let segment_filename = segment_url
+                                .rsplit_once('/')
+                                .map(|(_, filename)| filename)
+                                .unwrap_or(&format!(
+                                    "{}_{}.m4s",
+                                    id.as_deref().unwrap_or("s"),
+                                    segment_number
+                                ))
+                                .to_string();
+
+                            segments.push(DashSegment {
+                                url: Url::parse(&segment_url)?,
+                                filename: segment_filename,
+                                r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                // TODO: initialization segment support
+                                initial_segment: initialization
+                                    .as_ref()
+                                    .map_or(InitialSegment::None, |_| InitialSegment::None),
+                                // TODO: key support
+                                key: None,
+                                byte_range: None,
+                                sequence: 0,
+                                stream_id: stream_id as u64,
+                                time: Some(segment_relative_start_pts),
+                            });
+                            last_time = Some(segment_presentation_start);
+                            segment_number += 1;
+
+                            if let Some(period_duration) = period.duration {
+                                if (segment_presentation_start - period.start_time)
+                                    > period_duration
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    DashRepresentation::SegmentList(_) => todo!(),
+                }
+            }
+        }
+
+        Ok((segments, last_time))
     }
 
     /// Sync clock for internal clock
-    pub async fn sync_time(
-        &mut self,
-        client: HttpClient,
-        timing: Option<&[UTCTiming]>,
-    ) -> IoriResult<()> {
-        self.presentation.sync_time(client, timing).await
+    pub async fn sync_time(&mut self, mpd: &MPD, client: HttpClient) -> IoriResult<()> {
+        self.presentation.sync_time(mpd, client).await
     }
 
-    pub fn update_mpd(&mut self, mpd: MPD, mpd_url: &Url) -> IoriResult<()> {
-        // TODO: update clock and clock timing if necessary
-
+    pub async fn update_mpd(
+        &mut self,
+        mpd: MPD,
+        mpd_url: &Url,
+        client: HttpClient,
+    ) -> IoriResult<()> {
         let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
         let base_url = match mpd_base_url {
             Some(mpd_base_url) => merge_baseurls(&mpd_url, mpd_base_url)?,
             None => mpd_url.clone(),
         };
+
+        self.sync_time(&mpd, client.clone()).await.unwrap();
 
         let mut periods: Vec<DashPeriod> = Vec::with_capacity(mpd.periods.len());
         for period in mpd.periods {
@@ -142,7 +329,6 @@ pub enum DashPresentation {
     /// when a new title in the presentation is offered with a different set of languages).
     Dynamic {
         clock: Clock,
-        timing: Vec<UTCTiming>,
         /// In a dynamic presentation, the zero point of the MPD timeline is the mapped to the point in
         /// wall clock time indicated by the effective availability start time, which is formed by taking
         /// `MPD@availabilityStartTime` and applying any LeapSecondInformation offset ([DASH] 5.3.9.5 and 5.13).
@@ -155,23 +341,15 @@ impl DashPresentation {
         match mpd.mpdtype.as_deref() {
             Some("dynamic") => Self::Dynamic {
                 clock: Clock::new(),
-                timing: mpd.UTCTiming.clone(),
                 zero_point: mpd.availabilityStartTime.unwrap_or(DateTime::UNIX_EPOCH),
             },
             Some("static") | _ => Self::Static,
         }
     }
 
-    pub async fn sync_time(
-        &mut self,
-        client: HttpClient,
-        timing: Option<&[UTCTiming]>,
-    ) -> IoriResult<()> {
-        if let DashPresentation::Dynamic {
-            clock, timing: t, ..
-        } = self
-        {
-            clock.sync(timing.unwrap_or(t), client).await?;
+    pub async fn sync_time(&mut self, mpd: &MPD, client: HttpClient) -> IoriResult<()> {
+        if let DashPresentation::Dynamic { clock, .. } = self {
+            clock.sync(mpd, client).await?;
         }
 
         Ok(())
@@ -184,11 +362,17 @@ impl DashPresentation {
             Utc::now()
         }
     }
+
+    pub fn zero_point(&self) -> DateTime<Utc> {
+        if let DashPresentation::Dynamic { zero_point, .. } = self {
+            *zero_point
+        } else {
+            DateTime::UNIX_EPOCH
+        }
+    }
 }
 
 pub struct DashPeriod {
-    id: Option<String>,
-
     /// The start of a period is specified either explicitly as an offset from the MPD timeline zero point
     /// (Period@start) or implicitly by the end of the previous period ([DASH] 5.3.2). The duration of a
     /// period is specified either explicitly with Period@duration or implicitly by the start point of the
@@ -256,7 +440,6 @@ impl DashPeriod {
         }
 
         Ok(Self {
-            id: period.id,
             start_time,
             duration,
             adaptation_sets,
@@ -293,6 +476,7 @@ impl DashAdaptationSet {
                     segment_template: adaptation_set.SegmentTemplate.as_ref(),
                 }
                 .merge(inherited),
+                adaptation_set.contentType.as_deref(),
                 representation,
             )?;
             representations.push(representation);
@@ -344,11 +528,12 @@ pub enum DashRepresentation {
     ///
     /// > Note: This addressing mode is sometimes called "SegmentTemplate with SegmentTimeline" in other documents.
     ExplicitAddressing {
-        initialization: Option<Url>,
+        initialization: Option<TemplateUrl>,
         media: TemplateUrl,
-        start_number: Option<u64>,
-        timescale: Option<u64>,
+        start_number: u64,
+        timescale: u64,
         duration: Option<f64>,
+        availability_time_offset: TimeDelta,
 
         timeline_segments: Vec<TimelineSegment>,
     },
@@ -358,11 +543,21 @@ pub enum DashRepresentation {
     ///
     /// > Note: This addressing mode is sometimes called "SegmentTemplate without SegmentTimeline" in other documents.
     SimpleAddressing {
-        initialization: Option<Url>,
+        initialization: Option<TemplateUrl>,
         media: TemplateUrl,
-        start_number: Option<u64>,
-        timescale: Option<u64>,
-        duration: Option<f64>,
+        start_number: u64,
+        timescale: u64,
+        duration: f64,
+        availability_time_offset: TimeDelta,
+
+        /// @eptDelta is expressed as an offset from the period start point to the segment start point
+        /// of the first media segment ([DASH] 5.3.9.2). In other words, the value will be negative if
+        /// the first media segment starts before the period start point.
+        ept_delta: Option<i64>,
+
+        id: Option<String>,
+        bandwidth: Option<u64>,
+        mime_type: Option<String>,
     },
     SegmentList(SegmentList),
 }
@@ -371,6 +566,7 @@ impl DashRepresentation {
     fn from_mpd(
         base_url: &Url,
         inherited: InheritedAddressingValues,
+        content_type: Option<&str>,
         representation: Representation,
     ) -> IoriResult<Self> {
         let representation_base_url = representation.BaseURL.get(0).map(|u| u.base.as_str());
@@ -378,6 +574,10 @@ impl DashRepresentation {
             Some(adaptation_set_base_url) => merge_baseurls(&base_url, adaptation_set_base_url)?,
             None => base_url.clone(),
         };
+
+        let mime_type = representation
+            .contentType
+            .or_else(|| content_type.map(String::from));
 
         Ok(
             if let Some(segment_base) = representation
@@ -403,7 +603,8 @@ impl DashRepresentation {
                     .initialization
                     .as_ref()
                     .map(|new| merge_baseurls(&base_url, &new))
-                    .transpose()?;
+                    .transpose()?
+                    .map(|u| TemplateUrl(u.to_string()));
                 let media = template
                     .media
                     .as_ref()
@@ -415,9 +616,13 @@ impl DashRepresentation {
                             "Missing media url template in representation".to_string(),
                         )
                     })?;
-                let start_number = template.startNumber;
-                let timescale = template.timescale;
+                let start_number = template.startNumber.unwrap_or(1);
+                let timescale = template.timescale.unwrap_or(1);
                 let duration = template.duration;
+                let availability_time_offset =
+                    TimeDelta::from_std(std::time::Duration::from_secs_f64(
+                        template.availabilityTimeOffset.unwrap_or_default(),
+                    ))?;
 
                 // ExplicitAddressing, aka SegmentTemplate with SegmentTimeline
                 if let Some(ref timeline) = template.SegmentTimeline {
@@ -427,6 +632,7 @@ impl DashRepresentation {
                         start_number,
                         timescale,
                         duration,
+                        availability_time_offset,
 
                         timeline_segments: timeline
                             .segments
@@ -447,7 +653,15 @@ impl DashRepresentation {
                         media,
                         start_number,
                         timescale,
-                        duration,
+                        duration: duration.ok_or_else(|| {
+                            IoriError::MpdParsing("Missing duration in SegmentTempalte".to_string())
+                        })?,
+                        availability_time_offset,
+                        ept_delta: template.eptDelta,
+
+                        id: representation.id,
+                        bandwidth: representation.bandwidth,
+                        mime_type,
                     }
                 }
             } else {
@@ -456,6 +670,21 @@ impl DashRepresentation {
                 ));
             },
         )
+    }
+
+    fn availability_time_offset(&self) -> TimeDelta {
+        match self {
+            Self::IndexedAddressing(_) => TimeDelta::zero(),
+            Self::ExplicitAddressing {
+                availability_time_offset,
+                ..
+            } => *availability_time_offset,
+            Self::SimpleAddressing {
+                availability_time_offset,
+                ..
+            } => *availability_time_offset,
+            Self::SegmentList(_) => TimeDelta::zero(),
+        }
     }
 }
 

@@ -33,8 +33,16 @@ impl Template<'_> {
         }
     }
 
-    pub fn insert(&mut self, key: &'static str, value: String) {
+    pub fn insert(&mut self, key: &'static str, value: String) -> &mut Self {
         self.args.insert(key, value);
+        self
+    }
+
+    pub fn insert_optional(&mut self, key: &'static str, value: Option<String>) -> &mut Self {
+        if let Some(value) = value {
+            self.args.insert(key, value);
+        }
+        self
     }
 
     pub fn resolve(&self, template: &str) -> String {

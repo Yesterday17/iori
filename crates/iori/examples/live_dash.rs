@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
 use iori::{
-    cache::file::FileCacheSource, dash::live::LiveDashSource, decrypt::IoriKey,
-    download::ParallelDownloaderBuilder, merge::SkipMerger, HttpClient,
+    cache::file::FileCacheSource,
+    dash::{live::LiveDashSource, live2::CommonDashLiveSource},
+    decrypt::IoriKey,
+    download::ParallelDownloaderBuilder,
+    merge::SkipMerger,
+    HttpClient,
 };
 use tracing::level_filters::LevelFilter;
 
@@ -31,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
     let client = HttpClient::default();
 
-    let live_source = LiveDashSource::new(client.clone(), mpd_url, iori_key, None, None)?;
+    let source = CommonDashLiveSource::new(client.clone(), mpd_url.parse()?);
 
     let cache_dir = std::env::temp_dir().join("iori_live_dash_example");
     tracing::info!("Using cache directory: {}", cache_dir.display());
@@ -42,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     let downloader = ParallelDownloaderBuilder::new().cache(cache).merger(merger);
 
     tracing::info!("Starting download for live stream: {}", mpd_url);
-    match downloader.download(live_source).await {
+    match downloader.download(source).await {
         Ok(_) => {
             tracing::info!("Live stream download finished or stopped (e.g., MPD became static or updater task ended).");
         }
