@@ -11,6 +11,7 @@ pub mod http;
 pub mod mix;
 pub mod ordered_stream;
 pub mod path;
+pub mod range;
 
 /// Add suffix to file name without changing extension.
 ///

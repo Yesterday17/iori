@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use reqwest::header::RANGE;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
@@ -67,14 +68,7 @@ where
                 request = request.headers(headers);
             }
             if let Some(byte_range) = byte_range {
-                // offset = 0, length = 1024
-                // Range: bytes=0-1023
-                //
-                // start = offset
-                let start = byte_range.offset.unwrap_or(0);
-                // end = start + length - 1
-                let end = start + byte_range.length - 1;
-                request = request.header("Range", format!("bytes={}-{}", start, end));
+                request = request.header(RANGE, byte_range.to_http_range());
             }
             let response = request.send().await?;
             if !response.status().is_success() {

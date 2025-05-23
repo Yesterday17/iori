@@ -44,6 +44,7 @@ pub mod utils {
     pub use crate::util::detect_manifest_type;
     pub use crate::util::path::DuplicateOutputFileNamer;
 }
+pub use util::range::ByteRange;
 
 /// ┌───────────────────────┐                ┌────────────────────┐
 /// │                       │    Segment 1   │                    │
@@ -281,7 +282,7 @@ pub trait RemoteStreamingSegment {
         None
     }
 
-    fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
+    fn byte_range(&self) -> Option<ByteRange> {
         None
     }
 }

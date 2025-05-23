@@ -1,6 +1,6 @@
 use crate::{
-    decrypt::IoriKey, InitialSegment, RemoteStreamingSegment, SegmentFormat, SegmentType,
-    StreamingSegment,
+    decrypt::IoriKey, ByteRange, InitialSegment, RemoteStreamingSegment, SegmentFormat,
+    SegmentType, StreamingSegment,
 };
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ pub struct DashSegment {
     pub key: Option<Arc<IoriKey>>,
     pub initial_segment: InitialSegment,
 
-    pub byte_range: Option<String>,
+    pub byte_range: Option<ByteRange>,
 
     pub sequence: u64,
     pub stream_id: u64,
@@ -58,8 +58,7 @@ impl RemoteStreamingSegment for DashSegment {
         self.url.clone()
     }
 
-    fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
-        // FIXME: correct byte range
-        None
+    fn byte_range(&self) -> Option<ByteRange> {
+        self.byte_range.clone()
     }
 }

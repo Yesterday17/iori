@@ -84,6 +84,7 @@ impl HlsMediaPlaylistSource {
 
         let mut key = None;
         let mut initial_segment = InitialSegment::None;
+        let mut next_range_start = 0;
         let mut segments = Vec::with_capacity(playlist.segments.len());
         for (i, segment) in playlist.segments.iter().enumerate() {
             if let Some(k) = &segment.key {
@@ -156,7 +157,7 @@ impl HlsMediaPlaylistSource {
                 }
             }
 
-            let segment = M3u8Segment {
+            let m3u8_segment = M3u8Segment {
                 stream_id: self.stream_id,
                 url,
                 filename,
@@ -164,12 +165,25 @@ impl HlsMediaPlaylistSource {
                 initial_segment: initial_segment.clone(),
                 sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
                 media_sequence,
-                byte_range: segment.byte_range.clone(),
+                byte_range: segment.byte_range.as_ref().map(|r| crate::ByteRange {
+                    offset: r.offset.unwrap_or(next_range_start),
+                    length: Some(r.length),
+                }),
                 duration: segment.duration,
                 segment_type: self.segment_type.clone(),
                 format,
             };
-            segments.push(segment);
+            segments.push(m3u8_segment);
+
+            // [0-100)    -> 100@0  -> next_range_start  = 0 + 100 = 100
+            // [100-120)  -> 20     -> next_range_start += 100 + 20 = 200
+            if let Some(byte_range) = &segment.byte_range {
+                if let Some(offset) = byte_range.offset {
+                    next_range_start = offset + byte_range.length;
+                } else {
+                    next_range_start += byte_range.length;
+                }
+            }
         }
 
         Ok((segments, playlist_url, playlist))

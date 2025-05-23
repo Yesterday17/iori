@@ -1,6 +1,6 @@
 use crate::{
-    decrypt::IoriKey, InitialSegment, RemoteStreamingSegment, SegmentFormat, SegmentType,
-    StreamingSegment,
+    decrypt::IoriKey, ByteRange, InitialSegment, RemoteStreamingSegment, SegmentFormat,
+    SegmentType, StreamingSegment,
 };
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ pub struct M3u8Segment {
     pub key: Option<Arc<IoriKey>>,
     pub initial_segment: InitialSegment,
 
-    pub byte_range: Option<m3u8_rs::ByteRange>,
+    pub byte_range: Option<ByteRange>,
 
     /// Stream id
     pub stream_id: u64,
@@ -60,7 +60,7 @@ impl RemoteStreamingSegment for M3u8Segment {
         self.url.clone()
     }
 
-    fn byte_range(&self) -> Option<m3u8_rs::ByteRange> {
+    fn byte_range(&self) -> Option<ByteRange> {
         self.byte_range.clone()
     }
 }
