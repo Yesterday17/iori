@@ -14,7 +14,7 @@ use std::{collections::HashMap, sync::LazyLock};
 //
 // Example template: "$RepresentationID$/$Number%06d$.m4s"
 static TEMPLATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\$(RepresentationID|Number|Time|Bandwidth)(?:%0([\d])d)?\$").unwrap()
+    Regex::new(r"\$(RepresentationID|Number|Bandwidth|Time|SubNumber)(?:%0([\d])d)?\$").unwrap()
 });
 
 pub struct Template<'a> {
@@ -22,14 +22,36 @@ pub struct Template<'a> {
 }
 
 impl Template<'_> {
+    /// This identifier is substituted with the value of the attribute
+    /// **Representation**`@id` of the containing Representation
     pub const REPRESENTATION_ID: &'static str = "RepresentationID";
+
+    /// This identifier is substituted with the number of the corresponding Segment,
+    /// if _$SubNumber$_ is not present in the same string.
+    ///
+    /// If _$SubNumber$_ is present, this identifier is substituted with the number of
+    /// the corresponding Segment sequence. For details, refer to subclauses 5.3.9.6.4 and 5.3.9.6.5.
     pub const NUMBER: &'static str = "Number";
-    pub const TIME: &'static str = "Time";
+
+    /// This identifier is substituted with the value of **Representation**`@bandwidth` attribute value.
     pub const BANDWIDTH: &'static str = "Bandwidth";
+
+    /// This identifier is substituted with the value of the MPD start time of the Segment being accessed.
+    /// For the Segment Timeline, this means that this identifier is substituted with the value of the
+    /// **SegmentTimeline**`@t` attribute for the Segment being accessed. Either `$Number$` or `$Time$`
+    /// may be used but not both at the same time.
+    pub const TIME: &'static str = "Time";
+
+    /// This identifier is substituted with the number of the corresponding Segment in a Seqment Sequence.
+    /// This identifier shall only be present if either _$Number$_ or _$Time$_ are present as well.
+    /// For details, refer to subclauses 5.3.9.6.4 and 5.3.9.6.5.
+    ///
+    /// Not implemented in iori yet.
+    pub const SUB_NUMBER: &'static str = "SubNumber";
 
     pub fn new() -> Self {
         Self {
-            args: HashMap::with_capacity(4),
+            args: HashMap::with_capacity(5),
         }
     }
 

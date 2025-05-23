@@ -166,6 +166,7 @@ impl MPDTimeline {
                 }
             }
 
+            // FIXME: do not use adaption index as stream id
             for (stream_id, adaptation_set) in period.adaptation_sets.iter().enumerate() {
                 match &adaptation_set.representation {
                     DashRepresentation::IndexedAddressing(_) => todo!(),
@@ -279,6 +280,8 @@ impl MPDTimeline {
                         id,
                         bandwidth,
                         mime_type,
+                        // TODO: support ept_delta
+                        ept_delta: _ept_delta,
                         ..
                     } => {
                         let mut number = if period.start_time < effective_time_shift_buffer_start {
@@ -361,7 +364,75 @@ impl MPDTimeline {
                             }
                         }
                     }
-                    DashRepresentation::SegmentList(_) => todo!(),
+                    DashRepresentation::SegmentList {
+                        initialization,
+                        segment_items,
+                        duration,
+                        sample_timeline,
+                        mime_type,
+                    } => {
+                        tracing::warn!(
+                            "SegmentList support is experimental and may not work as expected."
+                        );
+
+                        let initial_segment = if let Some(initialization) = initialization {
+                            InitialSegment::Clear(Arc::new(
+                                self.client
+                                    .get(initialization.url.clone())
+                                    // TODO: support range
+                                    .send()
+                                    .await?
+                                    .bytes()
+                                    .await?
+                                    .to_vec(),
+                            ))
+                        } else {
+                            InitialSegment::None
+                        };
+
+                        let mut start_time_pts = 0_u64;
+
+                        for segment in segment_items.iter() {
+                            let segment_start_point = start_time_pts;
+                            start_time_pts += duration;
+
+                            let segment_start_time =
+                                sample_timeline.map_time(period.start_time, segment_start_point)?;
+
+                            if segment_start_time > effective_time_shift_buffer_end {
+                                break;
+                            }
+                            if segment_start_time <= effective_time_shift_buffer_start {
+                                continue;
+                            }
+
+                            let segment_filename = segment
+                                .url
+                                .path()
+                                .rsplit_once('/')
+                                .map(|(_, filename)| filename)
+                                .unwrap_or(&format!("data.m4s",))
+                                .to_string();
+
+                            segments.push(DashSegment {
+                                url: segment.url.clone(),
+                                filename: segment_filename,
+                                r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                initial_segment: initial_segment.clone(),
+                                key: key.clone(),
+                                byte_range: segment.range.clone(),
+                                sequence: 0,
+                                stream_id: stream_id as u64,
+                                time: Some(segment_start_point),
+                            });
+
+                            if let Some(period_duration) = period.duration {
+                                if segment_start_time > period.start_time + period_duration {
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -643,7 +714,14 @@ pub enum DashRepresentation {
         bandwidth: Option<u64>,
         mime_type: Option<String>,
     },
-    SegmentList(SegmentList),
+    SegmentList {
+        initialization: Option<SegmentListItem>,
+        segment_items: Vec<SegmentListItem>,
+        duration: u64,
+        sample_timeline: SampleTimeline,
+
+        mime_type: Option<String>,
+    },
 }
 
 impl DashRepresentation {
@@ -678,8 +756,47 @@ impl DashRepresentation {
                 .as_ref()
                 .or_else(|| inherited.segment_list)
             {
-                // TODO: extract the needed data from segment_list
-                Self::SegmentList(segment_list.clone())
+                let initialization = segment_list
+                    .Initialization
+                    .as_ref()
+                    .and_then(|r| r.sourceURL.as_ref().map(|s| (s, r.range.as_deref())))
+                    .map(|(url, range)| {
+                        Ok::<SegmentListItem, IoriError>(SegmentListItem {
+                            url: merge_baseurls(&base_url, &url)?,
+                            range: range.map(String::from),
+                        })
+                    })
+                    .transpose()?;
+
+                let mut segment_items = Vec::with_capacity(segment_list.segment_urls.len());
+                for segment_url in segment_list.segment_urls.iter() {
+                    if let Some(media_url) = &segment_url.media {
+                        let media_url = merge_baseurls(&base_url, &media_url)?;
+                        segment_items.push(SegmentListItem {
+                            url: media_url,
+                            range: segment_url.mediaRange.clone(),
+                        });
+                    } else {
+                        segment_items.push(SegmentListItem {
+                            url: base_url.clone(),
+                            // TODO: support base_url range
+                            range: None,
+                        });
+                    }
+                }
+
+                Self::SegmentList {
+                    initialization,
+                    segment_items,
+                    duration: segment_list.duration.ok_or_else(|| {
+                        IoriError::MpdParsing("Missing duration in SegmentList".to_string())
+                    })?,
+                    sample_timeline: SampleTimeline {
+                        timescale: segment_list.timescale.unwrap_or(1),
+                        presentation_time_offset: TimeDelta::zero(),
+                    },
+                    mime_type,
+                }
             } else if let Some(template) = representation
                 .SegmentTemplate
                 .as_ref()
@@ -777,7 +894,7 @@ impl DashRepresentation {
                 availability_time_offset,
                 ..
             } => *availability_time_offset,
-            Self::SegmentList(_) => TimeDelta::zero(),
+            Self::SegmentList { .. } => TimeDelta::zero(),
         }
     }
 }
@@ -790,6 +907,11 @@ pub struct TimelineSegment {
     /// The S@n attribute SHALL NOT be used - segment numbers form a continuous sequence starting with SegmentTemplate@startNumber.
     pub n: Option<u64>,
     pub k: Option<u64>,
+}
+
+pub struct SegmentListItem {
+    pub url: Url,
+    pub range: Option<String>,
 }
 
 /// The samples within a representation exist on a linear sample timeline defined
