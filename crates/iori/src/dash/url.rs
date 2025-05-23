@@ -1,6 +1,6 @@
 use url::Url;
 
-use crate::IoriResult;
+use crate::{ByteRange, IoriError, IoriResult};
 
 pub(crate) fn is_absolute_url(s: &str) -> bool {
     s.starts_with("http://")
@@ -31,4 +31,29 @@ pub(crate) fn merge_baseurls(current: &Url, new: &str) -> IoriResult<Url> {
         }
         Ok(merged)
     }
+}
+
+/// The byte range shall be expressed and formatted as a byte-range-spec as defined in
+/// IETF RFC 7233:2014, subclause 2.1. It is restricted to a single expression identifying
+/// a contiguous range of bytes.
+pub(crate) fn parse_media_range<S>(s: S) -> IoriResult<ByteRange>
+where
+    S: AsRef<str>,
+{
+    let (start, end) = s
+        .as_ref()
+        .split_once('-')
+        .ok_or_else(|| IoriError::MpdParsing("Invalid media range".to_string()))?;
+
+    let first_byte_pos = start
+        .parse::<u64>()
+        .map_err(|_| IoriError::MpdParsing("Invalid media range".to_string()))?;
+    let last_byte_pos = end.parse::<u64>().ok();
+
+    Ok(ByteRange {
+        offset: first_byte_pos,
+        // 0 - 500 means 501 bytes
+        // So length = end - start + 1
+        length: last_byte_pos.map(|last_byte_pos| last_byte_pos - first_byte_pos + 1),
+    })
 }

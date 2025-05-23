@@ -17,10 +17,10 @@ use crate::{
     dash::{
         segment::DashSegment,
         template::{Template, TemplateUrl},
-        url::{is_absolute_url, merge_baseurls},
+        url::{is_absolute_url, merge_baseurls, parse_media_range},
     },
     decrypt::IoriKey,
-    HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
+    ByteRange, HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
 };
 
 use super::{clock::Clock, selector::best_representation};
@@ -763,7 +763,7 @@ impl DashRepresentation {
                     .map(|(url, range)| {
                         Ok::<SegmentListItem, IoriError>(SegmentListItem {
                             url: merge_baseurls(&base_url, &url)?,
-                            range: range.map(String::from),
+                            range: range.map(parse_media_range).transpose()?,
                         })
                     })
                     .transpose()?;
@@ -774,7 +774,11 @@ impl DashRepresentation {
                         let media_url = merge_baseurls(&base_url, &media_url)?;
                         segment_items.push(SegmentListItem {
                             url: media_url,
-                            range: segment_url.mediaRange.clone(),
+                            range: segment_url
+                                .mediaRange
+                                .clone()
+                                .map(parse_media_range)
+                                .transpose()?,
                         });
                     } else {
                         segment_items.push(SegmentListItem {
@@ -905,7 +909,7 @@ pub struct TimelineSegment {
 
 pub struct SegmentListItem {
     pub url: Url,
-    pub range: Option<String>,
+    pub range: Option<ByteRange>,
 }
 
 /// The samples within a representation exist on a linear sample timeline defined
