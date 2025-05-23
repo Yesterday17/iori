@@ -7,8 +7,7 @@
 /// - https://github.com/emarsden/dash-mpd-rs/blob/main/src/fetch.rs
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 use dash_mpd::{
-    AdaptationSet, Period, Representation, SegmentBase, SegmentList, SegmentTemplate, UTCTiming,
-    MPD,
+    AdaptationSet, Period, Representation, SegmentBase, SegmentList, SegmentTemplate, MPD,
 };
 use url::Url;
 
@@ -155,6 +154,9 @@ impl MPDTimeline {
                     effective_time_shift_buffer_end,
                 )
             };
+            // override effective_time_shift_buffer_start to be >= since
+            let effective_time_shift_buffer_start = effective_time_shift_buffer_start.max(since);
+
             log::info!(
                 "effective_time_shift_buffer_start: {}, effective_time_shift_buffer_end: {}",
                 effective_time_shift_buffer_start,
@@ -173,7 +175,97 @@ impl MPDTimeline {
                 let representation = adaptation_set.representations.get(0).unwrap();
                 match representation {
                     DashRepresentation::IndexedAddressing(_) => todo!(),
-                    DashRepresentation::ExplicitAddressing { .. } => todo!(),
+                    DashRepresentation::ExplicitAddressing {
+                        initialization,
+                        media,
+                        start_number,
+                        timescale,
+                        id,
+                        bandwidth,
+                        mime_type,
+                        timeline_segments,
+                        ..
+                    } => {
+                        let mut start_time_pts = timeline_segments
+                            .get(0)
+                            .and_then(|r| r.time)
+                            .unwrap_or_default();
+                        let mut segment_number = *start_number;
+
+                        for timeline_segment in timeline_segments {
+                            if let Some(time) = timeline_segment.time {
+                                start_time_pts = time;
+                            }
+                            let duration_pts = timeline_segment.duration;
+                            let repeat_count = timeline_segment.repeat_count.unwrap_or(0);
+
+                            let mut template = Template::new();
+                            template
+                                .insert_optional(Template::REPRESENTATION_ID, id.clone())
+                                .insert(Template::BANDWIDTH, bandwidth.unwrap_or(0).to_string());
+
+                            for _ in 0..repeat_count {
+                                let current_start_pts = start_time_pts;
+                                start_time_pts += duration_pts;
+                                let current_number = segment_number;
+                                segment_number += 1;
+
+                                let current_start_time = period.start_time
+                                    + TimeDelta::from_std(std::time::Duration::from_secs_f64(
+                                        current_start_pts as f64 / *timescale as f64,
+                                    ))?;
+
+                                if current_start_time > effective_time_shift_buffer_end {
+                                    break;
+                                }
+                                if current_start_time <= effective_time_shift_buffer_start {
+                                    continue;
+                                }
+                                last_time = Some(current_start_time);
+
+                                log::info!(
+                                    "segment_presentation_time: {current_start_time}, now: {now}"
+                                );
+
+                                template
+                                    .insert(Template::NUMBER, current_number.to_string())
+                                    .insert(Template::TIME, current_start_pts.to_string());
+
+                                let segment_url = media.resolve(&template);
+                                let segment_filename = segment_url
+                                    .rsplit_once('/')
+                                    .map(|(_, filename)| filename)
+                                    .unwrap_or(&format!(
+                                        "{}_{}.m4s",
+                                        id.as_deref().unwrap_or("s"),
+                                        current_number
+                                    ))
+                                    .to_string();
+
+                                segments.push(DashSegment {
+                                    url: Url::parse(&segment_url)?,
+                                    filename: segment_filename,
+                                    r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                    // TODO: initialization segment support
+                                    initial_segment: initialization
+                                        .as_ref()
+                                        .map_or(InitialSegment::None, |_| InitialSegment::None),
+                                    // TODO: key support
+                                    key: None,
+                                    byte_range: None,
+                                    sequence: 0,
+                                    stream_id: stream_id as u64,
+                                    time: Some(current_start_pts),
+                                });
+
+                                if let Some(period_duration) = period.duration {
+                                    if current_start_time > period.start_time + period_duration {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     DashRepresentation::SimpleAddressing {
                         initialization,
                         media,
@@ -185,29 +277,19 @@ impl MPDTimeline {
                         mime_type,
                         ..
                     } => {
-                        let duration_sec = duration / (*timescale as f64);
+                        let mut segment_number = if period.start_time
+                            < effective_time_shift_buffer_start
+                        {
+                            let time_since_period_start = (effective_time_shift_buffer_start
+                                - period.start_time)
+                                .as_seconds_f64();
+                            let segment_number_since_period_start =
+                                (time_since_period_start * (*timescale as f64) / duration) as u64;
 
-                        let earliest_available_segment_start_time =
-                            effective_time_shift_buffer_start.max(since);
-
-                        let mut segment_number =
-                            if earliest_available_segment_start_time > period.start_time {
-                                let time_since_period_start =
-                                    earliest_available_segment_start_time - period.start_time;
-                                let segment_number_since_period_start =
-                                    (time_since_period_start.num_seconds() as f64 / duration_sec)
-                                        as u64;
-
-                                start_number + segment_number_since_period_start
-                            } else {
-                                *start_number
-                            };
-                        log::info!(
-                            "current_segment_number: {}, start_number: {}, since: {}",
-                            segment_number,
-                            start_number,
-                            since
-                        );
+                            start_number + segment_number_since_period_start
+                        } else {
+                            *start_number
+                        };
 
                         let mut template = Template::new();
                         template
@@ -215,27 +297,31 @@ impl MPDTimeline {
                             .insert(Template::BANDWIDTH, bandwidth.unwrap_or(0).to_string());
 
                         loop {
-                            let segment_relative_start_pts =
+                            let current_number = segment_number;
+                            segment_number += 1;
+
+                            let current_start_pts =
                                 ((segment_number - start_number) as f64 * duration) as u64;
-                            let segment_presentation_start = period.start_time
+                            let current_start_time = period.start_time
                                 + TimeDelta::from_std(std::time::Duration::from_secs_f64(
-                                    segment_relative_start_pts as f64 / *timescale as f64,
+                                    current_start_pts as f64 / *timescale as f64,
                                 ))?;
 
-                            if segment_presentation_start > effective_time_shift_buffer_end {
+                            if current_start_time > effective_time_shift_buffer_end {
                                 break;
                             }
-
-                            if segment_presentation_start <= earliest_available_segment_start_time {
-                                segment_number += 1;
+                            if current_start_time <= effective_time_shift_buffer_start {
                                 continue;
                             }
+                            last_time = Some(current_start_time);
 
-                            log::info!("segment_presentation_time: {segment_presentation_start}, now: {now}");
+                            log::info!(
+                                "segment_presentation_time: {current_start_time}, now: {now}"
+                            );
 
                             template
-                                .insert(Template::NUMBER, segment_number.to_string())
-                                .insert(Template::TIME, segment_relative_start_pts.to_string());
+                                .insert(Template::NUMBER, current_number.to_string())
+                                .insert(Template::TIME, current_start_pts.to_string());
 
                             let segment_url = media.resolve(&template);
                             let segment_filename = segment_url
@@ -244,7 +330,7 @@ impl MPDTimeline {
                                 .unwrap_or(&format!(
                                     "{}_{}.m4s",
                                     id.as_deref().unwrap_or("s"),
-                                    segment_number
+                                    current_number
                                 ))
                                 .to_string();
 
@@ -261,15 +347,11 @@ impl MPDTimeline {
                                 byte_range: None,
                                 sequence: 0,
                                 stream_id: stream_id as u64,
-                                time: Some(segment_relative_start_pts),
+                                time: Some(current_start_pts),
                             });
-                            last_time = Some(segment_presentation_start);
-                            segment_number += 1;
 
                             if let Some(period_duration) = period.duration {
-                                if (segment_presentation_start - period.start_time)
-                                    > period_duration
-                                {
+                                if (current_start_time - period.start_time) > period_duration {
                                     break;
                                 }
                             }
@@ -532,8 +614,11 @@ pub enum DashRepresentation {
         media: TemplateUrl,
         start_number: u64,
         timescale: u64,
-        duration: Option<f64>,
         availability_time_offset: TimeDelta,
+
+        id: Option<String>,
+        bandwidth: Option<u64>,
+        mime_type: Option<String>,
 
         timeline_segments: Vec<TimelineSegment>,
     },
@@ -575,6 +660,8 @@ impl DashRepresentation {
             None => base_url.clone(),
         };
 
+        let id = representation.id;
+        let bandwidth = representation.bandwidth;
         let mime_type = representation
             .contentType
             .or_else(|| content_type.map(String::from));
@@ -618,7 +705,6 @@ impl DashRepresentation {
                     })?;
                 let start_number = template.startNumber.unwrap_or(1);
                 let timescale = template.timescale.unwrap_or(1);
-                let duration = template.duration;
                 let availability_time_offset =
                     TimeDelta::from_std(std::time::Duration::from_secs_f64(
                         template.availabilityTimeOffset.unwrap_or_default(),
@@ -631,8 +717,11 @@ impl DashRepresentation {
                         media,
                         start_number,
                         timescale,
-                        duration,
                         availability_time_offset,
+
+                        id,
+                        bandwidth,
+                        mime_type,
 
                         timeline_segments: timeline
                             .segments
@@ -653,14 +742,14 @@ impl DashRepresentation {
                         media,
                         start_number,
                         timescale,
-                        duration: duration.ok_or_else(|| {
+                        duration: template.duration.ok_or_else(|| {
                             IoriError::MpdParsing("Missing duration in SegmentTempalte".to_string())
                         })?,
                         availability_time_offset,
                         ept_delta: template.eptDelta,
 
-                        id: representation.id,
-                        bandwidth: representation.bandwidth,
+                        id,
+                        bandwidth,
                         mime_type,
                     }
                 }

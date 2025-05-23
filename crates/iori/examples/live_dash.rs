@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
 use iori::{
-    cache::file::FileCacheSource,
-    dash::{live::LiveDashSource, live2::CommonDashLiveSource},
-    decrypt::IoriKey,
-    download::ParallelDownloaderBuilder,
-    merge::SkipMerger,
-    HttpClient,
+    cache::file::FileCacheSource, dash::live2::CommonDashLiveSource, decrypt::IoriKey,
+    download::ParallelDownloaderBuilder, merge::SkipMerger, HttpClient,
 };
 use tracing::level_filters::LevelFilter;
 
