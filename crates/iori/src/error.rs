@@ -6,8 +6,8 @@ pub enum IoriError {
     #[error("HTTP error: {0}")]
     HttpError(reqwest::StatusCode),
 
-    #[error("M3u8 fetch error")]
-    M3u8FetchError,
+    #[error("Manifest fetch error")]
+    ManifestFetchError,
 
     #[error("Decryption key required")]
     DecryptionKeyRequired,

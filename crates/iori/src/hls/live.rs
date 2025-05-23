@@ -73,7 +73,7 @@ impl StreamingSource for HlsLiveSource {
                     .await
                 {
                     Ok(v) => v,
-                    Err(IoriError::M3u8FetchError) => {
+                    Err(IoriError::ManifestFetchError) => {
                         tracing::error!("Exceeded retry limit for fetching segments, exiting...");
                         break;
                     }

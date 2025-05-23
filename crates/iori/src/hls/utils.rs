@@ -14,7 +14,7 @@ pub async fn load_playlist_with_retry(
     let mut retry = total_retry;
     let m3u8_parsed = loop {
         if retry == 0 {
-            return Err(IoriError::M3u8FetchError);
+            return Err(IoriError::ManifestFetchError);
         }
 
         match client.get(url.clone()).send().await {
@@ -52,7 +52,7 @@ pub async fn load_m3u8(
     let mut retry = total_retry;
     let m3u8_parsed = loop {
         if retry == 0 {
-            return Err(IoriError::M3u8FetchError);
+            return Err(IoriError::ManifestFetchError);
         }
 
         match client.get(url.clone()).send().await {

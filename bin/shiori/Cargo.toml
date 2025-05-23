@@ -1,6 +1,6 @@
 [package]
 name = "shiori"
-description = "A brand new m3u8 stream downloader"
+description = "A brand new video stream downloader"
 version = "0.2.0"
 edition.workspace = true
 authors.workspace = true
