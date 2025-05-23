@@ -849,8 +849,6 @@ impl DashRepresentation {
                                 time: r.t,
                                 duration: r.d,
                                 repeat_count: r.r,
-                                n: r.n,
-                                k: r.k,
                             })
                             .collect(),
                     }
@@ -903,10 +901,6 @@ pub struct TimelineSegment {
     pub time: Option<u64>,
     pub duration: u64,
     pub repeat_count: Option<i64>,
-
-    /// The S@n attribute SHALL NOT be used - segment numbers form a continuous sequence starting with SegmentTemplate@startNumber.
-    pub n: Option<u64>,
-    pub k: Option<u64>,
 }
 
 pub struct SegmentListItem {

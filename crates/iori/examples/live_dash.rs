@@ -1,5 +1,5 @@
 use iori::{
-    cache::file::FileCacheSource, dash::live2::CommonDashLiveSource,
+    cache::file::FileCacheSource, dash::live::CommonDashLiveSource,
     download::ParallelDownloaderBuilder, merge::SkipMerger, HttpClient,
 };
 use tracing::level_filters::LevelFilter;

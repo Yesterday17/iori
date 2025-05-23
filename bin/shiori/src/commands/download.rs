@@ -12,7 +12,7 @@ use iori::{
         opendal::{services, Operator},
         IoriCache,
     },
-    dash::live2::CommonDashLiveSource,
+    dash::live::CommonDashLiveSource,
     download::ParallelDownloaderBuilder,
     hls::HlsLiveSource,
     merge::IoriMerger,
