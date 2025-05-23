@@ -23,7 +23,7 @@ use crate::{
     HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
 };
 
-use super::clock::Clock;
+use super::{clock::Clock, selector::best_representation};
 
 /// https://dashif.org/Guidelines-TimingModel/#mpd-general-timeline
 ///
@@ -140,12 +140,7 @@ impl MPDTimeline {
                 let total_availability_time_offset = period
                     .adaptation_sets
                     .iter()
-                    .map(|a| {
-                        a.representations
-                            .iter()
-                            .map(|r| r.availability_time_offset())
-                            .sum::<TimeDelta>()
-                    })
+                    .map(|a| a.representation.availability_time_offset())
                     .sum::<TimeDelta>();
                 // 4. The availability window is the time span from _AvailabilityWindowStart_ to _now_ + _TotalAvailabilityTimeOffset_.
                 let availability_window_end = now + total_availability_time_offset;
@@ -172,9 +167,7 @@ impl MPDTimeline {
             }
 
             for (stream_id, adaptation_set) in period.adaptation_sets.iter().enumerate() {
-                // TODO: select representation
-                let representation = adaptation_set.representations.get(0).unwrap();
-                match representation {
+                match &adaptation_set.representation {
                     DashRepresentation::IndexedAddressing(_) => todo!(),
                     DashRepresentation::ExplicitAddressing {
                         initialization,
@@ -538,7 +531,7 @@ impl DashPeriod {
 pub struct DashAdaptationSet {
     content_type: Option<DashAdaptationSetType>,
 
-    representations: Vec<DashRepresentation>,
+    representation: DashRepresentation,
 }
 
 impl DashAdaptationSet {
@@ -547,34 +540,34 @@ impl DashAdaptationSet {
         inherited: &InheritedAddressingValues,
         adaptation_set: AdaptationSet,
     ) -> IoriResult<Self> {
-        let mut representations = Vec::with_capacity(adaptation_set.representations.len());
-        for representation in adaptation_set.representations {
-            let adaptation_set_base_url = adaptation_set.BaseURL.get(0).map(|u| u.base.as_str());
-            let base_url = match adaptation_set_base_url {
-                Some(adaptation_set_base_url) => {
-                    merge_baseurls(&base_url, adaptation_set_base_url)?
-                }
-                None => base_url.clone(),
-            };
-            let representation = DashRepresentation::from_mpd(
-                &base_url,
-                InheritedAddressingValues {
-                    segment_base: adaptation_set.SegmentBase.as_ref(),
-                    segment_list: adaptation_set.SegmentList.as_ref(),
-                    segment_template: adaptation_set.SegmentTemplate.as_ref(),
-                }
-                .merge(inherited),
-                adaptation_set.contentType.as_deref(),
-                representation,
-            )?;
-            representations.push(representation);
-        }
+        let representation = adaptation_set
+            .representations
+            .into_iter()
+            .max_by_key(best_representation)
+            .unwrap();
+
+        let adaptation_set_base_url = adaptation_set.BaseURL.get(0).map(|u| u.base.as_str());
+        let base_url = match adaptation_set_base_url {
+            Some(adaptation_set_base_url) => merge_baseurls(&base_url, adaptation_set_base_url)?,
+            None => base_url.clone(),
+        };
+        let representation = DashRepresentation::from_mpd(
+            &base_url,
+            InheritedAddressingValues {
+                segment_base: adaptation_set.SegmentBase.as_ref(),
+                segment_list: adaptation_set.SegmentList.as_ref(),
+                segment_template: adaptation_set.SegmentTemplate.as_ref(),
+            }
+            .merge(inherited),
+            adaptation_set.contentType.as_deref(),
+            representation,
+        )?;
 
         Ok(Self {
             content_type: adaptation_set
                 .contentType
                 .map(DashAdaptationSetType::from_string),
-            representations,
+            representation,
         })
     }
 }

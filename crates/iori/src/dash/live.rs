@@ -1,4 +1,5 @@
 mod clock;
+mod selector;
 pub mod timeline;
 
 use std::{
