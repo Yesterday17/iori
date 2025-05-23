@@ -16,7 +16,7 @@ use iori::{
     download::ParallelDownloaderBuilder,
     hls::HlsLiveSource,
     merge::IoriMerger,
-    raw::{HttpFileSource, RawDataSource},
+    raw::{Bytes, HttpFileSource, RawDataSource},
     utils::{detect_manifest_type, DuplicateOutputFileNamer},
     HttpClient,
 };
@@ -117,7 +117,8 @@ where
                     let source = HttpFileSource::new(client, self.url, ext);
                     downloader.download(source).await?;
                 } else {
-                    let source = RawDataSource::new(self.url, ext);
+                    let source =
+                        RawDataSource::new(Bytes::copy_from_slice(self.url.as_bytes()), ext);
                     downloader.download(source).await?;
                 }
             }

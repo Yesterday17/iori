@@ -1,3 +1,4 @@
+pub use bytes::Bytes;
 use tokio::{
     io::{AsyncWrite, AsyncWriteExt},
     sync::mpsc,
@@ -9,30 +10,34 @@ mod http;
 pub use http::*;
 
 pub struct RawDataSource {
-    data: String,
+    data: Bytes,
     ext: String,
 }
 
 impl RawDataSource {
-    pub fn new(data: String, ext: String) -> Self {
+    pub fn new(data: Bytes, ext: String) -> Self {
         Self { data, ext }
     }
 }
 
 pub struct RawSegment {
-    data: String,
+    data: Bytes,
 
     filename: String,
     ext: String,
 }
 
 impl RawSegment {
-    pub fn new(data: String, ext: String) -> Self {
+    pub fn new(data: Bytes, ext: String) -> Self {
         Self {
             data,
             filename: format!("01.{ext}"),
             ext,
         }
+    }
+
+    pub fn data(&self) -> &[u8] {
+        self.data.as_ref()
     }
 }
 
@@ -81,7 +86,7 @@ impl StreamingSource for RawDataSource {
     where
         W: AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        writer.write_all(segment.data.as_bytes()).await?;
+        writer.write_all(segment.data()).await?;
         Ok(())
     }
 }

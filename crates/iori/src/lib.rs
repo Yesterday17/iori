@@ -1,9 +1,7 @@
 pub mod cache;
-pub mod dash;
 pub mod decrypt;
 pub mod download;
 pub mod fetch;
-pub mod hls;
 pub mod merge;
 pub mod raw;
 
@@ -34,6 +32,9 @@ pub mod raw;
 // │                       │  Segment Last  │                    │
 // │                       ├────────────────►                    │
 // └───────────────────────┘                └────────────────────┘
+pub mod dash;
+pub mod hls;
+pub mod webrtc;
 
 mod error;
 pub use error::*;

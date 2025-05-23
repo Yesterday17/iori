@@ -19,5 +19,9 @@ target/
 *.m3u8
 shiori_*
 
+# danmaku files
+*.ass
+*.json
+
 # nix
 .direnv

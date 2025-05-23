@@ -82,6 +82,12 @@ pub enum IoriError {
 
     #[error("Invalid date time: {0}")]
     DateTimeParsing(String),
+
+    #[error(transparent)]
+    WebRTCError(#[from] webrtc::Error),
+
+    #[error(transparent)]
+    WebRTCMediaError(#[from] webrtc::media::Error),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;
