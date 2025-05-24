@@ -4,7 +4,13 @@ mod timeline;
 
 use super::segment::DashSegment;
 use crate::{decrypt::IoriKey, fetch::fetch_segment, HttpClient, IoriResult, StreamingSource};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 use timeline::MPDTimeline;
 use tokio::sync::{mpsc, Mutex};
 use url::Url;
@@ -49,10 +55,16 @@ impl StreamingSource for CommonDashLiveSource {
             .await?;
         let mpd = dash_mpd::parse(&mpd)?;
 
+        let sequence_number = Arc::new(AtomicU64::new(0));
+
         let minimum_update_period = mpd.minimumUpdatePeriod.unwrap_or(Duration::from_secs(2));
         let timeline = MPDTimeline::from_mpd(mpd, Some(&self.mpd_url), self.client.clone()).await?;
 
-        let (segments, mut last_update) = timeline.segments_since(None, self.key.clone()).await?;
+        let (mut segments, mut last_update) =
+            timeline.segments_since(None, self.key.clone()).await?;
+        for segment in segments.iter_mut() {
+            segment.sequence = sequence_number.fetch_add(1, Ordering::Relaxed);
+        }
         sender.send(Ok(segments)).unwrap();
 
         if timeline.is_dynamic() {
