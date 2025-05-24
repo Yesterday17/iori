@@ -248,7 +248,7 @@ impl HlsPlaylistSource {
                     b.bandwidth.cmp(&a.bandwidth)
                 });
                 let variant = variants.get(0).expect("No variant found");
-                let variant_url = self.url.join(&variant.uri).expect("Invalid variant uri");
+                let variant_url = self.url.join(&variant.uri)?;
                 self.streams.push(HlsMediaPlaylistSource::new(
                     self.client.clone(),
                     variant_url.to_string(),
@@ -283,31 +283,34 @@ impl HlsPlaylistSource {
                     if let Some(audio_url) =
                         load_variant(&group_id, AlternativeMediaType::Audio, &pl.alternatives)
                     {
-                        self.streams.push(HlsMediaPlaylistSource::new(
-                            self.client.clone(),
-                            self.url
-                                .join(audio_url)
-                                .expect("Invalid audio uri")
-                                .to_string(),
-                            None,
-                            self.key.as_deref(),
-                            Some(SegmentType::Audio),
-                            1,
-                        ));
+                        let m3u8_url = self.url.join(audio_url)?.to_string();
+                        if self.streams.iter().find(|s| s.url == m3u8_url).is_none() {
+                            self.streams.push(HlsMediaPlaylistSource::new(
+                                self.client.clone(),
+                                m3u8_url,
+                                None,
+                                self.key.as_deref(),
+                                Some(SegmentType::Audio),
+                                1,
+                            ));
+                        }
                     }
                 }
                 if let Some(group_id) = &variant.video {
                     if let Some(video_url) =
                         load_variant(&group_id, AlternativeMediaType::Video, &pl.alternatives)
                     {
-                        self.streams.push(HlsMediaPlaylistSource::new(
-                            self.client.clone(),
-                            video_url.to_string(),
-                            None,
-                            self.key.as_deref(),
-                            Some(SegmentType::Video),
-                            2,
-                        ));
+                        let m3u8_url = self.url.join(video_url)?.to_string();
+                        if self.streams.iter().find(|s| s.url == m3u8_url).is_none() {
+                            self.streams.push(HlsMediaPlaylistSource::new(
+                                self.client.clone(),
+                                self.url.join(video_url)?.to_string(),
+                                None,
+                                self.key.as_deref(),
+                                Some(SegmentType::Video),
+                                2,
+                            ));
+                        }
                     }
                 }
             }
