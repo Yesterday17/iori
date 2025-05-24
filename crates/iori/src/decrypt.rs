@@ -15,6 +15,7 @@ use crate::{
     util::http::HttpClient,
 };
 
+#[derive(Debug)]
 pub enum IoriKey {
     Aes128 { key: [u8; 16], iv: [u8; 16] },
     ClearKey { keys: HashMap<String, String> },

@@ -115,7 +115,7 @@ pub trait StreamingSegment {
     fn format(&self) -> SegmentFormat;
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub enum InitialSegment {
     Encrypted(std::sync::Arc<Vec<u8>>),
     Clear(std::sync::Arc<Vec<u8>>),
@@ -123,7 +123,7 @@ pub enum InitialSegment {
     None,
 }
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum SegmentFormat {
     #[default]
     Mpeg2TS,
