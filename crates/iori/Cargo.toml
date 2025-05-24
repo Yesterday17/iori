@@ -54,6 +54,7 @@ anyhow.workspace = true
 pretty_env_logger = "0.5.0"
 tokio = { workspace = true, features = ["full"] }
 tracing-subscriber.workspace = true
+wiremock = "0.6.3"
 
 [[example]]
 name = "pipe"

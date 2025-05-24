@@ -16,7 +16,6 @@ target/
 *.ts
 *.mkv
 *.mp4
-*.m3u8
 shiori_*
 
 # nix
