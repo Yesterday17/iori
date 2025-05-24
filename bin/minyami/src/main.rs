@@ -160,7 +160,7 @@ impl MinyamiArgs {
         if let Some(cookies) = &self.cookies {
             headers.insert(
                 reqwest::header::COOKIE,
-                HeaderValue::from_str(&cookies).expect("Invalid cookie"),
+                HeaderValue::from_str(cookies).expect("Invalid cookie"),
             );
         }
 
@@ -297,8 +297,7 @@ impl MinyamiArgs {
             log::info!("Enhanced mode for Nico-TS enabled");
 
             let key = self.key.as_deref().expect("Key is required for Nico-TS");
-            let (audience_token, quality) =
-                key.split_once(',').unwrap_or_else(|| (&key, "super_high"));
+            let (audience_token, quality) = key.split_once(',').unwrap_or((key, "super_high"));
             log::debug!("audience_token: {audience_token}, quality: {quality}");
 
             let (live_id, _) = audience_token

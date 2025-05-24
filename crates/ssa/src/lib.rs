@@ -102,7 +102,7 @@ impl NALUnit {
 
         let mut pos = &mut self.data.as_mut_slice()[32..];
 
-        while pos.len() > 0 {
+        while !pos.is_empty() {
             if pos.len() > 16 {
                 let block = &mut pos[..16];
                 decryptor.decrypt_block_mut(block.into());
@@ -140,7 +140,7 @@ impl AdtsHeader {
         }
     }
 
-    fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
+    fn data<'a>(&self, input: &'a mut [u8]) -> &'a mut [u8] {
         &mut input[if self.crc { 9 } else { 7 }..self.length]
     }
 
@@ -169,7 +169,7 @@ impl Ac3Header {
         }
     }
 
-    fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
+    fn data<'a>(&self, input: &'a mut [u8]) -> &'a mut [u8] {
         &mut input[..self.length]
     }
 
@@ -193,7 +193,7 @@ impl Eac3Header {
         }
     }
 
-    fn data<'a, 'b>(&'a self, input: &'b mut [u8]) -> &'b mut [u8] {
+    fn data<'a>(&self, input: &'a mut [u8]) -> &'a mut [u8] {
         &mut input[..self.length]
     }
 
@@ -301,7 +301,7 @@ impl PESSegment {
 
             nal_unit.write(&mut output)?;
 
-            if input.len() == 0 {
+            if input.is_empty() {
                 break;
             }
         }
@@ -313,7 +313,7 @@ impl PESSegment {
 
     fn decrypt_audio(&mut self, key: [u8; 16], iv: [u8; 16]) {
         let mut input = self.data.as_mut_slice();
-        while input.len() > 0 {
+        while !input.is_empty() {
             match self.stream_type {
                 // adts
                 StreamType::AdtsAac | StreamType::AdtsAacWithAes128Cbc => {
@@ -346,7 +346,7 @@ impl PESSegment {
     ///     unencrypted_trailer                // 0-15 bytes
     /// }
     fn decrypt_aac_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
-        let adts = AdtsHeader::new(&input);
+        let adts = AdtsHeader::new(input);
         let data = adts.data(input);
 
         Self::decrypt_raw_sample(data, key, iv);
@@ -422,13 +422,13 @@ impl<W: Write> IoriTsPacketWriter<W> {
     fn write_packet(&mut self, packet: &mut TsPacket) -> mpeg2ts::Result<()> {
         let counter =
             self.get_counter(packet.header.pid.as_u16(), packet.header.continuity_counter);
-        packet.header.continuity_counter = counter.clone();
+        packet.header.continuity_counter = *counter;
 
         if !matches!(packet.payload, None | Some(TsPayload::Null(_))) {
             counter.increment();
         }
 
-        self.inner.write_ts_packet(&packet)
+        self.inner.write_ts_packet(packet)
     }
 }
 
@@ -521,7 +521,7 @@ where
                         header.pid,
                         PESSegment {
                             // SAFETY: we know the stream type is valid
-                            stream_type: stream_type.unwrap().clone(),
+                            stream_type: *stream_type.unwrap(),
 
                             pes_ts_header: header,
                             pes_header: pes.header,

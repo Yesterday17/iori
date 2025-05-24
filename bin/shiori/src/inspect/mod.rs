@@ -6,6 +6,7 @@ use tokio::time::sleep;
 
 use crate::commands::STYLES;
 
+#[derive(Default)]
 pub struct Inspectors {
     /// Whether to wait on found
     wait: Option<u64>,
@@ -16,11 +17,7 @@ pub struct Inspectors {
 
 impl Inspectors {
     pub fn new() -> Self {
-        Self {
-            wait: None,
-            front: Vec::new(),
-            tail: Vec::new(),
-        }
+        Self::default()
     }
 
     /// Add inspector to front queue
@@ -52,7 +49,7 @@ impl Inspectors {
         let inspectors = self.front.iter().chain(self.tail.iter());
         for inspector in inspectors {
             if !is_first {
-                result.push_str("\n");
+                result.push('\n');
             }
             is_first = false;
 
@@ -64,7 +61,7 @@ impl Inspectors {
             for line in inspector.help() {
                 result.push_str(&" ".repeat(10));
                 result.push_str(&line);
-                result.push_str("\n");
+                result.push('\n');
             }
         }
         result
@@ -99,7 +96,8 @@ impl Inspectors {
                         .await
                         .inspect_err(|e| log::error!("Failed to inspect {url}: {:?}", e))
                         .ok();
-                    let result = handle_inspect_result(&inspector, result, choose_candidate).await;
+                    let result =
+                        handle_inspect_result(inspector.as_ref(), result, choose_candidate).await;
                     match result {
                         InspectBranch::Continue => break,
                         InspectBranch::Redirect(redirect_url) => {
@@ -132,7 +130,7 @@ enum InspectBranch {
 
 #[async_recursion::async_recursion]
 async fn handle_inspect_result(
-    inspector: &Box<dyn Inspect>,
+    inspector: &dyn Inspect,
     result: Option<InspectResult>,
     choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
 ) -> InspectBranch {

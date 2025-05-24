@@ -190,7 +190,7 @@ where
     }
 }
 
-impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
+impl StreamingSegment for Box<dyn StreamingSegment + Send + Sync + '_> {
     fn stream_id(&self) -> u64 {
         self.as_ref().stream_id()
     }
@@ -220,7 +220,7 @@ impl<'a> StreamingSegment for Box<dyn StreamingSegment + Send + Sync + 'a> {
     }
 }
 
-impl<'a, 'b> StreamingSegment for &'a Box<dyn StreamingSegment + Send + Sync + 'b> {
+impl StreamingSegment for &Box<dyn StreamingSegment + Send + Sync + '_> {
     fn stream_id(&self) -> u64 {
         self.as_ref().stream_id()
     }
@@ -264,11 +264,11 @@ impl SegmentType {
         let mime_type = mime_type.unwrap_or("video");
 
         if mime_type.starts_with("video") {
-            return Self::Video;
+            Self::Video
         } else if mime_type.starts_with("audio") {
-            return Self::Audio;
+            Self::Audio
         } else if mime_type.starts_with("text") {
-            return Self::Subtitle;
+            Self::Subtitle
         } else {
             panic!("Unknown mime type: {}", mime_type);
         }

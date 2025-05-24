@@ -24,10 +24,7 @@ pub struct CommonDashLiveSource {
 
 impl CommonDashLiveSource {
     pub fn new(client: HttpClient, mpd_url: Url, key: Option<&str>) -> IoriResult<Self> {
-        let key = key
-            .map(|k| IoriKey::clear_key(k))
-            .transpose()?
-            .map(Arc::new);
+        let key = key.map(IoriKey::clear_key).transpose()?.map(Arc::new);
 
         Ok(Self {
             client,

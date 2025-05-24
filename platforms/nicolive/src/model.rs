@@ -167,7 +167,7 @@ pub struct DanmakuMessageThread {
     pub ticket: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Ord)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct DanmakuMessageChat {
     // {
     //   "thread": "M.V67enstLPeSLVO0U1lcbDA",

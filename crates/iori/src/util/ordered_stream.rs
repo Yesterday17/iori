@@ -42,8 +42,7 @@ impl<T> OrderedStream<T> {
                         return Some((stream_id, item));
                     } else {
                         // Store out-of-order item in the buffer
-                        let stream_buffer =
-                            self.buffer.entry(stream_id).or_insert_with(BTreeMap::new);
+                        let stream_buffer = self.buffer.entry(stream_id).or_default();
                         stream_buffer.insert(seq, item);
                     }
                 }

@@ -69,9 +69,9 @@ impl MPDTimeline {
         let mut presentation = DashPresentation::from_mpd(&mpd);
         presentation.sync_time(&mpd, client.clone()).await?;
 
-        let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
+        let mpd_base_url = mpd.base_url.first().map(|u| u.base.as_str());
         let base_url = match (mpd_base_url, mpd_url) {
-            (Some(mpd_base_url), Some(mpd_url)) => merge_baseurls(&mpd_url, mpd_base_url)?,
+            (Some(mpd_base_url), Some(mpd_url)) => merge_baseurls(mpd_url, mpd_base_url)?,
             (None, Some(mpd_url)) => mpd_url.clone(),
             (Some(mpd_base_url), None) if is_absolute_url(mpd_base_url) => {
                 Url::parse(mpd_base_url)?
@@ -92,13 +92,13 @@ impl MPDTimeline {
             periods,
             time_shift_buffer_depth: mpd
                 .timeShiftBufferDepth
-                .map(|r| TimeDelta::from_std(r))
+                .map(TimeDelta::from_std)
                 .transpose()?,
             presentation_delay: mpd
                 .suggestedPresentationDelay
-                .map(|r| TimeDelta::from_std(r))
+                .map(TimeDelta::from_std)
                 .transpose()?
-                .unwrap_or_else(|| TimeDelta::zero()),
+                .unwrap_or_else(TimeDelta::zero),
         })
     }
 
@@ -182,7 +182,7 @@ impl MPDTimeline {
                         ..
                     } => {
                         let mut start_time_pts = timeline_segments
-                            .get(0)
+                            .first()
                             .and_then(|r| r.time)
                             .unwrap_or_default();
                         let mut number = *start_number;
@@ -411,7 +411,7 @@ impl MPDTimeline {
                                 .path()
                                 .rsplit_once('/')
                                 .map(|(_, filename)| filename)
-                                .unwrap_or(&format!("data.m4s",))
+                                .unwrap_or("data.m4s")
                                 .to_string();
 
                             segments.push(DashSegment {
@@ -446,9 +446,9 @@ impl MPDTimeline {
     }
 
     pub async fn update_mpd(&mut self, mpd: MPD, mpd_url: &Url) -> IoriResult<()> {
-        let mpd_base_url = mpd.base_url.get(0).map(|u| u.base.as_str());
+        let mpd_base_url = mpd.base_url.first().map(|u| u.base.as_str());
         let base_url = match mpd_base_url {
-            Some(mpd_base_url) => merge_baseurls(&mpd_url, mpd_base_url)?,
+            Some(mpd_base_url) => merge_baseurls(mpd_url, mpd_base_url)?,
             None => mpd_url.clone(),
         };
 
@@ -478,7 +478,7 @@ pub enum DashPresentation {
     ///
     /// - Furthermore, media segments may become available and cease to be available with the passage of time.
     /// - The MPD may change over time, enabling the structure of the presentation to change over time (e.g.
-    /// when a new title in the presentation is offered with a different set of languages).
+    ///   when a new title in the presentation is offered with a different set of languages).
     Dynamic {
         clock: Clock,
         /// In a dynamic presentation, the zero point of the MPD timeline is the mapped to the point in
@@ -495,7 +495,7 @@ impl DashPresentation {
                 clock: Clock::new(),
                 zero_point: mpd.availabilityStartTime.unwrap_or(DateTime::UNIX_EPOCH),
             },
-            Some("static") | _ => Self::Static,
+            _ => Self::Static,
         }
     }
 
@@ -582,7 +582,7 @@ impl DashPeriod {
 
         let mut adaptation_sets = Vec::with_capacity(period.adaptations.len());
         for adaptation_set in period.adaptations {
-            let period_base_url = period.BaseURL.get(0).map(|u| u.base.as_str());
+            let period_base_url = period.BaseURL.first().map(|u| u.base.as_str());
             let base_url = match period_base_url {
                 Some(period_base_url) => merge_baseurls(base_url, period_base_url)?,
                 None => base_url.clone(),
@@ -617,7 +617,7 @@ impl DashAdaptationSet {
             .max_by_key(best_representation)
             .unwrap();
 
-        let adaptation_set_base_url = adaptation_set.BaseURL.get(0).map(|u| u.base.as_str());
+        let adaptation_set_base_url = adaptation_set.BaseURL.first().map(|u| u.base.as_str());
         let base_url = match adaptation_set_base_url {
             Some(adaptation_set_base_url) => merge_baseurls(&base_url, adaptation_set_base_url)?,
             None => base_url.clone(),
@@ -731,9 +731,9 @@ impl DashRepresentation {
         content_type: Option<&str>,
         representation: Representation,
     ) -> IoriResult<Self> {
-        let representation_base_url = representation.BaseURL.get(0).map(|u| u.base.as_str());
+        let representation_base_url = representation.BaseURL.first().map(|u| u.base.as_str());
         let base_url = match representation_base_url {
-            Some(adaptation_set_base_url) => merge_baseurls(&base_url, adaptation_set_base_url)?,
+            Some(adaptation_set_base_url) => merge_baseurls(base_url, adaptation_set_base_url)?,
             None => base_url.clone(),
         };
 
@@ -747,14 +747,14 @@ impl DashRepresentation {
             if let Some(segment_base) = representation
                 .SegmentBase
                 .as_ref()
-                .or_else(|| inherited.segment_base)
+                .or(inherited.segment_base)
             {
                 // TODO: extract the needed data from segment_base
                 Self::IndexedAddressing(segment_base.clone())
             } else if let Some(segment_list) = representation
                 .SegmentList
                 .as_ref()
-                .or_else(|| inherited.segment_list)
+                .or(inherited.segment_list)
             {
                 let initialization = segment_list
                     .Initialization
@@ -762,7 +762,7 @@ impl DashRepresentation {
                     .and_then(|r| r.sourceURL.as_ref().map(|s| (s, r.range.as_deref())))
                     .map(|(url, range)| {
                         Ok::<SegmentListItem, IoriError>(SegmentListItem {
-                            url: merge_baseurls(&base_url, &url)?,
+                            url: merge_baseurls(&base_url, url)?,
                             range: range.map(parse_media_range).transpose()?,
                         })
                     })
@@ -771,7 +771,7 @@ impl DashRepresentation {
                 let mut segment_items = Vec::with_capacity(segment_list.segment_urls.len());
                 for segment_url in segment_list.segment_urls.iter() {
                     if let Some(media_url) = &segment_url.media {
-                        let media_url = merge_baseurls(&base_url, &media_url)?;
+                        let media_url = merge_baseurls(&base_url, media_url)?;
                         segment_items.push(SegmentListItem {
                             url: media_url,
                             range: segment_url
@@ -804,18 +804,18 @@ impl DashRepresentation {
             } else if let Some(template) = representation
                 .SegmentTemplate
                 .as_ref()
-                .or_else(|| inherited.segment_template)
+                .or(inherited.segment_template)
             {
                 let initialization = template
                     .initialization
                     .as_ref()
-                    .map(|new| merge_baseurls(&base_url, &new))
+                    .map(|new| merge_baseurls(&base_url, new))
                     .transpose()?
                     .map(|u| TemplateUrl(u.to_string()));
                 let media = template
                     .media
                     .as_ref()
-                    .map(|new| merge_baseurls(&base_url, &new))
+                    .map(|new| merge_baseurls(&base_url, new))
                     .transpose()?
                     .map(|u| TemplateUrl(u.to_string()))
                     .ok_or_else(|| {
@@ -961,12 +961,12 @@ pub struct InheritedAddressingValues<'a> {
     segment_template: Option<&'a SegmentTemplate>,
 }
 
-impl<'a> InheritedAddressingValues<'a> {
+impl InheritedAddressingValues<'_> {
     pub fn merge(self, alternate: &Self) -> Self {
         InheritedAddressingValues {
-            segment_base: self.segment_base.or_else(|| alternate.segment_base),
-            segment_list: self.segment_list.or_else(|| alternate.segment_list),
-            segment_template: self.segment_template.or_else(|| alternate.segment_template),
+            segment_base: self.segment_base.or(alternate.segment_base),
+            segment_list: self.segment_list.or(alternate.segment_list),
+            segment_template: self.segment_template.or(alternate.segment_template),
         }
     }
 }

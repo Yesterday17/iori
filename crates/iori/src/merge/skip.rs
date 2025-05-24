@@ -3,12 +3,6 @@ use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
 
 pub struct SkipMerger;
 
-impl SkipMerger {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 impl Merger for SkipMerger {
     type Result = ();
 

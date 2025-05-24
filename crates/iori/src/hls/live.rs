@@ -104,12 +104,13 @@ impl StreamingSource for HlsLiveSource {
                     *latest_media_sequence = segments
                         .last()
                         .map(|r| r.media_sequence)
-                        .or_else(|| latest_media_sequence.clone());
+                        .or(*latest_media_sequence);
                 }
 
                 let mixed_segments = mix_vec(segments);
                 if !mixed_segments.is_empty() {
-                    if let Err(_) = sender.send(Ok(mixed_segments)) {
+                    if let Err(e) = sender.send(Ok(mixed_segments)) {
+                        tracing::error!("Failed to send mixed segments: {e}");
                         break;
                     }
                 }

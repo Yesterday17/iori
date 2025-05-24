@@ -54,7 +54,7 @@ async fn update_config(
                 .add(Job::new_async("1/30 * * * * *", move |_, _| {
                     let operator = operator.clone();
 
-                    let clients = vec![client.clone(), client_backup.clone()];
+                    let clients = [client.clone(), client_backup.clone()];
                     let index = AtomicUsize::new(0);
 
                     let room_slug = room_slug.clone();

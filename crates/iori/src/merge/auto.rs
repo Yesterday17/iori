@@ -50,7 +50,7 @@ impl Merger for AutoMerger {
     async fn update(&mut self, segment: SegmentInfo, _cache: impl CacheSource) -> IoriResult<()> {
         self.segments
             .entry(segment.stream_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(ConcatSegment {
                 segment,
                 success: true,
@@ -62,7 +62,7 @@ impl Merger for AutoMerger {
         cache.invalidate(&segment).await?;
         self.segments
             .entry(segment.stream_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(ConcatSegment {
                 segment,
                 success: false,
@@ -92,7 +92,7 @@ impl Merger for AutoMerger {
 
             let first_segment = segments[0];
             let mut output_path = self.output_file.to_owned();
-            file_name_add_suffix(&mut output_path, &format!("{stream_id:02}"));
+            file_name_add_suffix(&mut output_path, format!("{stream_id:02}"));
             output_path.set_extension(first_segment.format.as_ext());
 
             if can_concat {

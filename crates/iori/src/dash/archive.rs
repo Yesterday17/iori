@@ -73,25 +73,25 @@ impl StreamingSource for CommonDashArchiveSource {
         };
 
         let mut base_url = self.mpd.clone();
-        if let Some(mpd_base_url) = mpd.base_url.get(0) {
+        if let Some(mpd_base_url) = mpd.base_url.first() {
             base_url = merge_baseurls(&base_url, &mpd_base_url.base)?;
         }
 
         for period in mpd.periods {
-            let base_url = if let Some(mpd_base_url) = period.BaseURL.get(0) {
+            let base_url = if let Some(mpd_base_url) = period.BaseURL.first() {
                 Cow::Owned(merge_baseurls(&base_url, &mpd_base_url.base)?)
             } else {
                 Cow::Borrowed(&base_url)
             };
 
             for adaptation in period.adaptations {
-                let base_url = if let Some(mpd_base_url) = adaptation.BaseURL.get(0) {
+                let base_url = if let Some(mpd_base_url) = adaptation.BaseURL.first() {
                     Cow::Owned(merge_baseurls(&base_url, &mpd_base_url.base)?)
                 } else {
                     base_url.clone()
                 };
 
-                let mime_type = adaptation.contentType.or_else(|| adaptation.mimeType);
+                let mime_type = adaptation.contentType.or(adaptation.mimeType);
                 let frame_rate = adaptation.frameRate; // TODO: GetFrameRate
 
                 let representation = adaptation
@@ -101,7 +101,7 @@ impl StreamingSource for CommonDashArchiveSource {
                     .max_by_key(|r| r.bandwidth.unwrap_or(0))
                     .unwrap();
 
-                let base_url = if let Some(mpd_base_url) = representation.BaseURL.get(0) {
+                let base_url = if let Some(mpd_base_url) = representation.BaseURL.first() {
                     Cow::Owned(merge_baseurls(&base_url, &mpd_base_url.base)?)
                 } else {
                     base_url.clone()
@@ -109,21 +109,21 @@ impl StreamingSource for CommonDashArchiveSource {
 
                 let mime_type = mime_type
                     .clone() // TODO: do not clone here
-                    .or_else(|| representation.contentType)
-                    .or_else(|| representation.mimeType);
+                    .or(representation.contentType)
+                    .or(representation.mimeType);
 
                 let bandwidth = representation.bandwidth.unwrap_or(0);
                 let codecs = representation
                     .codecs
                     .as_deref()
-                    .or_else(|| adaptation.codecs.as_deref());
+                    .or(adaptation.codecs.as_deref());
                 let language = representation
                     .lang
                     .as_deref()
-                    .or_else(|| adaptation.lang.as_deref());
+                    .or(adaptation.lang.as_deref());
                 let frame_rate = frame_rate
                     .as_deref()
-                    .or_else(|| representation.frameRate.as_deref());
+                    .or(representation.frameRate.as_deref());
                 let resolution = representation
                     .width
                     .and_then(|w| representation.height.map(|h| (w, h)))
@@ -184,7 +184,7 @@ impl StreamingSource for CommonDashArchiveSource {
                                     template
                                         .insert(Template::TIME, current_time.to_string())
                                         .insert(Template::NUMBER, segment_number.to_string());
-                                    let filename = template.resolve(&media_template);
+                                    let filename = template.resolve(media_template);
                                     let url = merge_baseurls(&base_url, &filename)?;
 
                                     let segment = DashSegment {
@@ -208,8 +208,7 @@ impl StreamingSource for CommonDashArchiveSource {
                             // SegmentTemplate + SegmentDuration
                             let total_segments = (period
                                 .duration
-                                .clone()
-                                .or_else(|| mpd.mediaPresentationDuration)
+                                .or(mpd.mediaPresentationDuration)
                                 .expect("missing duration")
                                 .as_secs() as f64
                                 * time_scale as f64
@@ -217,12 +216,12 @@ impl StreamingSource for CommonDashArchiveSource {
                                 .ceil() as u64;
                             for _ in 1..=total_segments {
                                 template.insert(Template::NUMBER, segment_number.to_string());
-                                let filename = template.resolve(&media_template);
+                                let filename = template.resolve(media_template);
                                 let url = merge_baseurls(&base_url, &filename)?;
 
                                 let filename = url
                                     .path_segments()
-                                    .and_then(|c| c.last())
+                                    .and_then(|mut c| c.next_back())
                                     .map_or_else(|| "output.m4s".to_string(), |s| s.to_string());
 
                                 let segment = DashSegment {

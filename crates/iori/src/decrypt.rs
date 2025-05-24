@@ -58,18 +58,12 @@ impl IoriKey {
                         .to_vec()
                 };
                 Some(Self::Aes128 {
-                    key: key_bytes
-                        .try_into()
-                        .map_err(|v| IoriError::InvalidBinaryKey(v))?,
+                    key: key_bytes.try_into().map_err(IoriError::InvalidBinaryKey)?,
                     iv: key
                         .iv
                         .clone()
                         .and_then(|iv| {
-                            let iv = if iv.starts_with("0x") {
-                                &iv[2..]
-                            } else {
-                                iv.as_str()
-                            };
+                            let iv = iv.strip_prefix("0x").unwrap_or(&iv);
                             u128::from_str_radix(iv, 16).ok()
                         })
                         .unwrap_or(media_sequence as u128)
@@ -82,18 +76,12 @@ impl IoriKey {
                 };
 
                 Some(Self::SampleAes {
-                    key: key_bytes
-                        .try_into()
-                        .map_err(|v| IoriError::InvalidBinaryKey(v))?,
+                    key: key_bytes.try_into().map_err(IoriError::InvalidBinaryKey)?,
                     iv: key
                         .iv
                         .clone()
                         .and_then(|iv| {
-                            let iv = if iv.starts_with("0x") {
-                                &iv[2..]
-                            } else {
-                                iv.as_str()
-                            };
+                            let iv = iv.strip_prefix("0x").unwrap_or(&iv);
                             u128::from_str_radix(iv, 16).ok()
                         })
                         .unwrap_or(media_sequence as u128)
@@ -130,9 +118,11 @@ impl IoriKey {
 
     pub fn to_decryptor(&self, shaka_packager_command: Option<PathBuf>) -> IoriDecryptor {
         match self {
-            IoriKey::Aes128 { key, iv } => {
-                IoriDecryptor::Aes128(cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into()))
-            }
+            IoriKey::Aes128 { key, iv } => IoriDecryptor::Aes128(Box::new(cbc::Decryptor::<
+                aes::Aes128,
+            >::new(
+                key.into(), iv.into()
+            ))),
             IoriKey::ClearKey { keys } => {
                 if let Some(shaka_packager) = shaka_packager_command {
                     IoriDecryptor::ShakaPackager {
@@ -143,16 +133,13 @@ impl IoriKey {
                     IoriDecryptor::Mp4Decrypt { keys: keys.clone() }
                 }
             }
-            IoriKey::SampleAes { key, iv } => IoriDecryptor::SampleAes {
-                key: key.clone(),
-                iv: iv.clone(),
-            },
+            IoriKey::SampleAes { key, iv } => IoriDecryptor::SampleAes { key: *key, iv: *iv },
         }
     }
 }
 
 pub enum IoriDecryptor {
-    Aes128(cbc::Decryptor<aes::Aes128>),
+    Aes128(Box<cbc::Decryptor<aes::Aes128>>),
     Mp4Decrypt {
         keys: HashMap<String, String>,
     },
@@ -169,7 +156,7 @@ pub enum IoriDecryptor {
 impl IoriDecryptor {
     pub async fn decrypt(self, data: &[u8]) -> IoriResult<Vec<u8>> {
         Ok(match self {
-            IoriDecryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(&data)?,
+            IoriDecryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(data)?,
             IoriDecryptor::Mp4Decrypt { keys } => {
                 mp4decrypt::mp4decrypt(data, keys, None).map_err(IoriError::Mp4DecryptError)?
             }

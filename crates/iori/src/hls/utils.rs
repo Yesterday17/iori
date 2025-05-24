@@ -101,7 +101,7 @@ pub async fn load_m3u8(
                 // compare bandwidth finally
                 b.bandwidth.cmp(&a.bandwidth)
             });
-            let variant = variants.get(0).expect("No variant found");
+            let variant = variants.first().expect("No variant found");
             let url = url.join(&variant.uri).expect("Invalid variant uri");
 
             tracing::info!(

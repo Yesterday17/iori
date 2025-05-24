@@ -75,9 +75,9 @@ impl Inspect for GigafileInspectorImpl {
         });
         drop(response);
 
-        let filename = filename.and_then(|f| {
+        let filename = filename.map(|f| {
             let (name, ext) = f.rsplit_once('.').unwrap_or((&f, "raw"));
-            Some((name.to_string(), ext.to_string()))
+            (name.to_string(), ext.to_string())
         });
         let (title, ext) = match filename {
             Some((filename, ext)) => (Some(filename), ext),

@@ -46,7 +46,7 @@ impl SegmentRange {
     }
 
     pub fn end(&self) -> u64 {
-        self.end.unwrap_or(std::u64::MAX)
+        self.end.unwrap_or(u64::MAX)
     }
 }
 

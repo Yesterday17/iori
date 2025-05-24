@@ -1,5 +1,5 @@
 use reqwest::header::{ACCEPT, ACCEPT_RANGES, CONTENT_LENGTH, RANGE};
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 use tokio::{io::AsyncWrite, sync::mpsc};
 
 use crate::{
@@ -28,12 +28,12 @@ pub struct HttpRange {
     end: Option<u64>,
 }
 
-impl ToString for HttpRange {
-    fn to_string(&self) -> String {
+impl Display for HttpRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(end) = self.end {
-            format!("bytes={}-{}", self.start, end)
+            f.write_fmt(format_args!("bytes={}-{}", self.start, end))
         } else {
-            format!("bytes={}", self.start)
+            f.write_fmt(format_args!("bytes={}-", self.start))
         }
     }
 }
@@ -101,7 +101,7 @@ impl StreamingSource for HttpFileSource {
         if !accept_ranges {
             segments.push(HttpSegment {
                 url: self.url.clone(),
-                filename: format!("01"),
+                filename: "01".to_string(),
                 ext: self.ext.clone(),
                 sequence: 0,
                 range: None,

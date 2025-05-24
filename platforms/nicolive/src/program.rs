@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use reqwest::Client;
 
-const NICO_METADATA_REGEXP: LazyLock<Regex> =
+static NICO_METADATA_REGEXP: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"<script id="embedded-data" data-props="([^"]+)""#).unwrap());
 
 #[derive(Debug)]

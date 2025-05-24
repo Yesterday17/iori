@@ -20,34 +20,34 @@ fn init_i18n() -> FluentLanguageLoader {
     loader
 }
 
-pub static LOCALIZATION_LOADER: LazyLock<FluentLanguageLoader> = LazyLock::new(|| init_i18n());
+pub static LOCALIZATION_LOADER: LazyLock<FluentLanguageLoader> = LazyLock::new(init_i18n);
 
 #[macro_export]
 macro_rules! fl {
     ($message_id: literal) => {
-        i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id)
+        i18n_embed_fl::fl!($crate::i18n::LOCALIZATION_LOADER, $message_id)
     };
 
     ($message_id: literal, $($args: expr),*) => {
-        i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id, $($args), *)
+        i18n_embed_fl::fl!($crate::i18n::LOCALIZATION_LOADER, $message_id, $($args), *)
     };
 }
 
 #[macro_export]
 macro_rules! ll {
     ($message_id: literal) => {
-        Box::leak(crate::fl!($message_id).into_boxed_str()) as &'static str
+        Box::leak($crate::fl!($message_id).into_boxed_str()) as &'static str
     };
 }
 
 #[macro_export]
 macro_rules! ball {
     ($message_id: literal) => {
-        bail!(crate::fl!($message_id))
+        bail!($crate::fl!($message_id))
     };
 
     ($message_id: literal, $($args: expr),*) => {
-        bail!(crate::fl!($message_id, $($args), *))
+        bail!($crate::fl!($message_id, $($args), *))
     };
 }
 

@@ -74,13 +74,19 @@ impl Template<'_> {
     }
 }
 
+impl Default for Template<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 struct TemplateReplacer<'a>(&'a HashMap<&'a str, String>);
 
 impl Replacer for TemplateReplacer<'_> {
     fn replace_append(&mut self, caps: &regex::Captures<'_>, dst: &mut String) {
         let key = caps.get(1).unwrap().as_str();
         let Some(value) = self.0.get(key) else {
-            dst.push_str(&caps.get(0).unwrap().as_str());
+            dst.push_str(caps.get(0).unwrap().as_str());
             return;
         };
 
@@ -88,7 +94,7 @@ impl Replacer for TemplateReplacer<'_> {
         if let Some(width) = width {
             dst.push_str(&format!("{value:0>width$}", width = width));
         } else {
-            return dst.push_str(value.as_str());
+            dst.push_str(value.as_str());
         }
     }
 }

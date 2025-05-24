@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_best_representation() {
-        let representations = vec![
+        let representations = [
             BestRepresentationSelector {
                 width: Some(1920),
                 height: Some(1080),
@@ -64,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_resolution_first() {
-        let representations = vec![
+        let representations = [
             BestRepresentationSelector {
                 width: Some(1920),
                 height: Some(1080),

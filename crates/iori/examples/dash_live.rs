@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Using cache directory: {}", cache_dir.display());
 
     let cache = FileCacheSource::new(cache_dir)?;
-    let merger = SkipMerger::new();
+    let merger = SkipMerger;
 
     let downloader = ParallelDownloaderBuilder::new().cache(cache).merger(merger);
 

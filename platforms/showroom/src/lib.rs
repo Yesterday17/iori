@@ -75,7 +75,7 @@ impl ShowRoomClient {
     pub async fn get_id_by_room_slug(&self, room_slug: &str) -> anyhow::Result<u64> {
         let data: serde_json::Value = self
             .client
-            .get(&format!(
+            .get(format!(
                 "https://public-api.showroom-cdn.com/room/{room_slug}"
             ))
             .send()
@@ -83,11 +83,11 @@ impl ShowRoomClient {
             .json()
             .await?;
 
-        Ok(data
+        data
             .get("id")
             .ok_or_else(|| anyhow!("id not found"))?
             .as_u64()
-            .ok_or_else(|| anyhow!("id is not a number"))?)
+            .ok_or_else(|| anyhow!("id is not a number"))
     }
 
     pub async fn room_profile(&self, room_id: u64) -> anyhow::Result<RoomProfile> {

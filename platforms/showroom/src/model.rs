@@ -38,7 +38,7 @@ impl LiveStreamlingList {
                 }
         });
 
-        streams.last().map(|r| *r)
+        streams.last().copied()
     }
 }
 

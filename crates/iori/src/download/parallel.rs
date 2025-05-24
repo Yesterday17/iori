@@ -126,7 +126,7 @@ where
                         let result = assert_send(source.fetch_segment(&segment, &mut writer)).await;
                         let result = match result {
                             // graceful shutdown
-                            Ok(_) => writer.shutdown().await.map_err(|e| IoriError::IOError(e)),
+                            Ok(_) => writer.shutdown().await.map_err(IoriError::IOError),
                             Err(e) => Err(e),
                         };
                         match result {
@@ -188,7 +188,7 @@ where
         // wait for all tasks to finish
         let _ = self
             .permits
-            .acquire_many(self.concurrency.get() as u32)
+            .acquire_many(self.concurrency.get())
             .await
             .unwrap();
 
@@ -276,5 +276,15 @@ where
     {
         let downloader = self.build(source);
         downloader.download().await
+    }
+}
+
+impl<M, C, MR> Default for ParallelDownloaderBuilder<M, C, MR>
+where
+    M: Merger<Result = MR> + Send + Sync + 'static,
+    C: CacheSource,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }

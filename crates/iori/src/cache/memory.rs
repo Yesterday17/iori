@@ -9,15 +9,14 @@ use std::{
     task::Poll,
 };
 
+#[derive(Default)]
 pub struct MemoryCacheSource {
     cache: Arc<Mutex<HashMap<u64, Vec<u8>>>>,
 }
 
 impl MemoryCacheSource {
     pub fn new() -> Self {
-        Self {
-            cache: Arc::new(Mutex::new(HashMap::new())),
-        }
+        Self::default()
     }
 }
 
@@ -134,7 +133,7 @@ mod tests {
         }
 
         fn file_name(&self) -> &str {
-            &self.file_name
+            self.file_name
         }
 
         fn key(&self) -> Option<std::sync::Arc<crate::decrypt::IoriKey>> {

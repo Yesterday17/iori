@@ -12,7 +12,7 @@ async fn rfc8216_8_1_simple_media_playlist() -> anyhow::Result<()> {
     let latest_media_sequences = playlist.load_streams(1).await?;
     let (streams, is_end) = playlist.load_segments(&latest_media_sequences, 1).await?;
 
-    assert_eq!(is_end, true);
+    assert!(is_end);
     assert_eq!(streams.len(), 1);
 
     let segments = &streams[0];
@@ -49,7 +49,7 @@ async fn rfc8216_8_2_live_media_playlist_using_https() -> anyhow::Result<()> {
     let latest_media_sequences = playlist.load_streams(1).await?;
     let (streams, is_end) = playlist.load_segments(&latest_media_sequences, 1).await?;
 
-    assert_eq!(is_end, false);
+    assert!(!is_end);
     assert_eq!(streams.len(), 1);
 
     let segments = &streams[0];
@@ -95,7 +95,7 @@ async fn rfc8216_8_3_playlist_with_encrypted_media_segments() -> anyhow::Result<
     let latest_media_sequences = playlist.load_streams(1).await?;
     let (streams, is_end) = playlist.load_segments(&latest_media_sequences, 1).await?;
 
-    assert_eq!(is_end, false);
+    assert!(!is_end);
     assert_eq!(streams.len(), 1);
 
     let segments = &streams[0];
@@ -189,7 +189,7 @@ http://media.example.com/audio-only.ts
     let latest_media_sequences = playlist.load_streams(1).await?;
     let (streams, is_end) = playlist.load_segments(&latest_media_sequences, 1).await?;
 
-    assert_eq!(is_end, true);
+    assert!(is_end);
     assert_eq!(streams.len(), 1);
 
     let segments = &streams[0];
@@ -274,7 +274,7 @@ http://media.example.com/video-hi.ts
     let latest_media_sequences = playlist.load_streams(1).await?;
     let (streams, is_end) = playlist.load_segments(&latest_media_sequences, 1).await?;
 
-    assert_eq!(is_end, true);
+    assert!(is_end);
     assert_eq!(streams.len(), 2);
 
     let segments = &streams[0];
@@ -318,7 +318,7 @@ http://media.example.com/video-hi.ts
     let latest_media_sequences = playlist.load_streams(1).await?;
     let (streams, is_end) = playlist.load_segments(&latest_media_sequences, 1).await?;
 
-    assert_eq!(is_end, true);
+    assert!(is_end);
     assert_eq!(streams.len(), 1);
 
     let segments = &streams[0];

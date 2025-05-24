@@ -110,9 +110,8 @@ impl clap::Args for InspectorOptions {
         let inspectors = get_default_external_inspector();
         let mut wrapper = InspectorCommandWrapper::new(command);
         inspectors.add_arguments(&mut wrapper);
-        let command = wrapper.into_inner();
 
-        command
+        wrapper.into_inner()
     }
 }
 

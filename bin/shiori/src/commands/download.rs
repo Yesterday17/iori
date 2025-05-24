@@ -252,7 +252,7 @@ impl CacheOptions {
             let mut cache_dir = self
                 .temp_dir
                 .or_else(|| std::env::current_dir().ok())
-                .unwrap_or_else(|| std::env::temp_dir());
+                .unwrap_or_else(std::env::temp_dir);
 
             let started_at = SystemTime::now();
             let started_at = started_at.duration_since(UNIX_EPOCH).unwrap().as_millis();

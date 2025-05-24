@@ -50,7 +50,7 @@ pub fn get_color<'a>(styles: impl IntoIterator<Item = &'a str>) -> String {
     // ass_color = format!("\\1c&H{}{}{}&", &color[4..6], &color[2..4], &color[0..2]);
     for style in styles {
         let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
-        if let Some(m) = re.captures(&style) {
+        if let Some(m) = re.captures(style) {
             color_important = m.get(1).map(|m| m.as_str());
         } else if let Some(color_got) = color_map.get(style) {
             color = color_got.to_string();
@@ -114,8 +114,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     let mut text_r = Vec::new();
 
     for chat in chats.iter() {
-        let ref text = chat.content;
-        let ref user_id = chat.user_id;
+        let text = &chat.content;
+        let user_id = &chat.user_id;
         let mail = chat.mail.as_deref().unwrap_or("");
         let premium = chat.premium;
         let Some(vpos) = chat.vpos else {
@@ -124,7 +124,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
         let vpos = vpos as f64;
         // FIXME: round
         let start_time = sec2hms(vpos / 100.0);
-        let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
+        let end_time = sec2hms(vpos / 100.0 + time_danmaku);
 
         let mut passageway_index = 0;
         let mut passageway_min = 0;
@@ -161,40 +161,38 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
         }
 
         // 释放之前捕捉的运营弹幕
-        if official_check {
-            if vpos - vpos_w > 1400.0 || user_id.is_operator() {
-                if user_id.is_operator() {
-                    end_time_w = start_time.clone();
-                }
-                let event_bg = format!(
-                    "Dialogue: 4,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\p1\\pos({},{})\\bord0\\1c&H000000&\\1a&H78&}}{office_bg}",
-                    video_width / 2,
-                    office_bg_height / 2,
-                );
-                text_w = text_w.replace("/perm", "");
-                let ass_color_w = if text_w.contains("href") || text_w.contains("http") {
-                    let link = Regex::new(r#"<a href=(.*?)><u>"#).unwrap();
-                    // TODO: maybe not correct
-                    text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
-                    let link = Regex::new(r#"http(.*?)"#).unwrap();
-                    text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
-                    "\\1c&HFF8000&\\u1".to_string()
-                } else {
-                    get_color([])
-                };
-
-                let mut event_dm = format!(
-                    "Dialogue: 5,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\pos({},{})\\bord0{ass_color_w}\\fsp0}}{text_w}",
-                    video_width / 2,
-                    office_bg_height / 2,
-                );
-                if text.chars().count() > 50 {
-                    event_dm = event_dm.replace("fsp0", "fsp0\\fs30");
-                }
-                office_events.push(event_bg);
-                office_events.push(event_dm.replace("　", "  "));
-                official_check = false;
+        if official_check && (vpos - vpos_w > 1400.0 || user_id.is_operator()) {
+            if user_id.is_operator() {
+                end_time_w = start_time.clone();
             }
+            let event_bg = format!(
+                "Dialogue: 4,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\p1\\pos({},{})\\bord0\\1c&H000000&\\1a&H78&}}{office_bg}",
+                video_width / 2,
+                office_bg_height / 2,
+            );
+            text_w = text_w.replace("/perm", "");
+            let ass_color_w = if text_w.contains("href") || text_w.contains("http") {
+                let link = Regex::new(r#"<a href=(.*?)><u>"#).unwrap();
+                // TODO: maybe not correct
+                text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
+                let link = Regex::new(r#"http(.*?)"#).unwrap();
+                text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
+                "\\1c&HFF8000&\\u1".to_string()
+            } else {
+                get_color([])
+            };
+
+            let mut event_dm = format!(
+                "Dialogue: 5,{start_time_w},{end_time_w},Office,,0,0,0,,{{\\an5\\pos({},{})\\bord0{ass_color_w}\\fsp0}}{text_w}",
+                video_width / 2,
+                office_bg_height / 2,
+            );
+            if text.chars().count() > 50 {
+                event_dm = event_dm.replace("fsp0", "fsp0\\fs30");
+            }
+            office_events.push(event_bg);
+            office_events.push(event_dm.replace("　", "  "));
+            official_check = false;
         }
 
         // 颜色调整
@@ -255,8 +253,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 if text_o.len() <= 3 {
                     let bg_width = video_width / 4;
                     let bg_height = video_height / 3;
-                    let x_array = vec![
-                        vec![bg_width / 2],
+                    let x_array = [vec![bg_width / 2],
                         vec![
                             video_width / 3 - 40,
                             (video_width / 2 - video_width / 3) + video_width / 2 + 40,
@@ -265,8 +262,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             video_width / 2 - bg_width - 40,
                             video_width / 2,
                             video_width / 2 + bg_width + 40,
-                        ],
-                    ];
+                        ]];
                     let num_bg = format!(
                         "m 0 0 l {} 0 l {} 0 l 0 {}",
                         font_size * 3 / 2,
@@ -279,7 +275,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                     );
                     let result_bg = "m 0 0 s 150 0 150 60 0 60 c";
                     let x = &x_array[text_o.len() - 1];
-                    let y = vec![360];
+                    let y = [360];
                     for j in 0..y.len() {
                         for i in 0..x.len() {
                             let vote_num_bg = format!(
@@ -348,8 +344,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 } else if text_o.len() >= 4 {
                     let mut bg_width = video_width / 5;
                     let mut bg_height = video_height / 4;
-                    let x_array = vec![
-                        vec![bg_width / 2],
+                    let x_array = [vec![bg_width / 2],
                         vec![
                             video_width / 3 - 40,
                             (video_width / 2 - video_width / 3) + video_width / 2 + 40,
@@ -358,10 +353,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             video_width / 2 - bg_width - 40,
                             video_width / 2,
                             video_width / 2 + bg_width + 40,
-                        ],
-                    ];
-                    let y_array = vec![
-                        vec![video_height / 2],
+                        ]];
+                    let y_array = [vec![video_height / 2],
                         vec![
                             video_height / 3,
                             (video_height / 2 - video_height / 3) + video_height / 2,
@@ -370,8 +363,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             video_height / 2 - bg_height - 20,
                             video_height / 2 + 20,
                             video_height / 2 + bg_height + 60,
-                        ],
-                    ];
+                        ]];
                     let mut x = x_array[2].clone();
                     let mut y = &y_array[2];
                     if text_o.len() == 4 {
@@ -562,7 +554,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 let text = &chat.content;
                 let vpos = chat.vpos.unwrap() as f64;
                 let start_time = sec2hms(vpos / 100.0);
-                let end_time = sec2hms(vpos / 100.0 + time_danmaku as f64);
+                let end_time = sec2hms(vpos / 100.0 + time_danmaku);
                 let ass_color = get_color(styles);
 
                 // 分成多行生成弹幕并整合成完整AA弹幕

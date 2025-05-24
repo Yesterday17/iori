@@ -129,7 +129,7 @@ impl HlsMediaPlaylistSource {
             // FIXME: filename may be too long
             let filename = url
                 .path_segments()
-                .and_then(|c| c.last())
+                .and_then(|mut c| c.next_back())
                 .map(|r| r.to_string())
                 .unwrap_or_else(|| {
                     // 1. hash of file url
@@ -152,7 +152,7 @@ impl HlsMediaPlaylistSource {
 
             let media_sequence = playlist.media_sequence + i as u64;
             if let Some(latest_media_sequence) = latest_media_sequence {
-                if media_sequence <= *latest_media_sequence as u64 {
+                if media_sequence <= *latest_media_sequence {
                     continue;
                 }
             }
@@ -170,7 +170,7 @@ impl HlsMediaPlaylistSource {
                     length: Some(r.length),
                 }),
                 duration: segment.duration,
-                segment_type: self.segment_type.clone(),
+                segment_type: self.segment_type,
                 format,
             };
             segments.push(m3u8_segment);
@@ -247,7 +247,7 @@ impl HlsPlaylistSource {
                     // compare bandwidth finally
                     b.bandwidth.cmp(&a.bandwidth)
                 });
-                let variant = variants.get(0).expect("No variant found");
+                let variant = variants.first().expect("No variant found");
                 let variant_url = self.url.join(&variant.uri)?;
                 self.streams.push(HlsMediaPlaylistSource::new(
                     self.client.clone(),
@@ -258,11 +258,11 @@ impl HlsPlaylistSource {
                     0,
                 ));
 
-                fn load_variant<'a, 'b>(
-                    group_id: &'a str,
+                fn load_variant<'a>(
+                    group_id: &str,
                     media_type: AlternativeMediaType,
-                    pl: &'b Vec<AlternativeMedia>,
-                ) -> Option<&'b str> {
+                    pl: &'a [AlternativeMedia],
+                ) -> Option<&'a str> {
                     let alternatives: Vec<_> = pl
                         .iter()
                         .filter(|alternative| {
@@ -281,10 +281,10 @@ impl HlsPlaylistSource {
                 // Load extra streams from the variant
                 if let Some(group_id) = &variant.audio {
                     if let Some(audio_url) =
-                        load_variant(&group_id, AlternativeMediaType::Audio, &pl.alternatives)
+                        load_variant(group_id, AlternativeMediaType::Audio, &pl.alternatives)
                     {
                         let m3u8_url = self.url.join(audio_url)?.to_string();
-                        if self.streams.iter().find(|s| s.url == m3u8_url).is_none() {
+                        if !self.streams.iter().any(|s| s.url == m3u8_url) {
                             self.streams.push(HlsMediaPlaylistSource::new(
                                 self.client.clone(),
                                 m3u8_url,
@@ -298,10 +298,10 @@ impl HlsPlaylistSource {
                 }
                 if let Some(group_id) = &variant.video {
                     if let Some(video_url) =
-                        load_variant(&group_id, AlternativeMediaType::Video, &pl.alternatives)
+                        load_variant(group_id, AlternativeMediaType::Video, &pl.alternatives)
                     {
                         let m3u8_url = self.url.join(video_url)?.to_string();
-                        if self.streams.iter().find(|s| s.url == m3u8_url).is_none() {
+                        if !self.streams.iter().any(|s| s.url == m3u8_url) {
                             self.streams.push(HlsMediaPlaylistSource::new(
                                 self.client.clone(),
                                 self.url.join(video_url)?.to_string(),

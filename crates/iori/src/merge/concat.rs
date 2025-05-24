@@ -77,12 +77,12 @@ pub(crate) struct ConcatSegment {
 }
 
 async fn concat_merge(
-    segments: &mut Vec<ConcatSegment>,
+    segments: &mut [ConcatSegment],
     cache: &impl CacheSource,
     output_path: PathBuf,
 ) -> IoriResult<()> {
     segments.sort_by(|a, b| a.segment.sequence.cmp(&b.segment.sequence));
-    let segments = trim_end(&segments, |s| !s.success);
+    let segments = trim_end(segments, |s| !s.success);
 
     let mut namer = DuplicateOutputFileNamer::new(output_path.clone());
     let mut output = File::create(output_path).await?;
