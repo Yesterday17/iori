@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ByteRange {
     pub offset: u64,
     pub length: Option<u64>,

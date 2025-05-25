@@ -142,45 +142,13 @@ async fn rfc8216_8_4_master_playlist() -> anyhow::Result<()> {
     let data = include_str!("../fixtures/hls/rfc8216/8-4-master-playlist.m3u8");
     let (uri, server) = setup_mock_server(data).await;
     server
-        .mock_get(
-            "/low.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/low.ts
-#EXT-X-ENDLIST"#,
-        )
+        .mock_playlist("/low.m3u8", "http://media.example.com/low.ts")
         .await
-        .mock_get(
-            "/mid.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/mid.ts
-#EXT-X-ENDLIST"#,
-        )
+        .mock_playlist("/mid.m3u8", "http://media.example.com/mid.ts")
         .await
-        .mock_get(
-            "/hi.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/hi.ts
-#EXT-X-ENDLIST"#,
-        )
+        .mock_playlist("/hi.m3u8", "http://media.example.com/hi.ts")
         .await
-        .mock_get(
-            "/audio-only.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/audio-only.ts
-#EXT-X-ENDLIST"#,
-        )
+        .mock_playlist("/audio-only.m3u8", "http://media.example.com/audio-only.ts")
         .await;
 
     let client = HttpClient::default();
@@ -207,64 +175,34 @@ async fn rfc8216_8_6_master_playlist_with_alternative_audio() -> anyhow::Result<
         include_str!("../fixtures/hls/rfc8216/8-6-master-playlist-with-alternative-audio.m3u8");
     let (uri, server) = setup_mock_server(data).await;
     server
-        .mock_get(
+        .mock_playlist(
             "/main/english-audio.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/english-audio.ts
-#EXT-X-ENDLIST"#,
+            "http://media.example.com/english-audio.ts",
         )
         .await
-        .mock_get(
+        .mock_playlist(
             "/main/german-audio.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/german-audio.ts
-#EXT-X-ENDLIST"#,
+            "http://media.example.com/german-audio.ts",
         )
         .await
-        .mock_get(
+        .mock_playlist(
             "/commentary/audio-only.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/commentary.ts
-#EXT-X-ENDLIST"#,
+            "http://media.example.com/commentary.ts",
         )
         .await
-        .mock_get(
+        .mock_playlist(
             "/low/video-only.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/video-low.ts
-#EXT-X-ENDLIST"#,
+            "http://media.example.com/video-low.ts",
         )
         .await
-        .mock_get(
+        .mock_playlist(
             "/mid/video-only.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/video-mid.ts
-#EXT-X-ENDLIST"#,
+            "http://media.example.com/video-mid.ts",
         )
         .await
-        .mock_get(
+        .mock_playlist(
             "/hi/video-only.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/video-hi.ts
-#EXT-X-ENDLIST"#,
+            "http://media.example.com/video-hi.ts",
         )
         .await;
 
@@ -301,14 +239,9 @@ async fn rfc8216_8_7_master_playlist_with_alternative_video() -> anyhow::Result<
         include_str!("../fixtures/hls/rfc8216/8-7-master-playlist-with-alternative-video.m3u8");
     let (uri, server) = setup_mock_server(data).await;
     server
-        .mock_get(
+        .mock_playlist(
             "/hi/main/audio-video.m3u8",
-            r#"#EXTM3U
-#EXT-X-TARGETDURATION:10
-#EXT-X-VERSION:3
-#EXTINF:9.009,
-http://media.example.com/video-hi.ts
-#EXT-X-ENDLIST"#,
+            r#"http://media.example.com/video-hi.ts"#,
         )
         .await;
 
