@@ -212,7 +212,7 @@ impl PipeMerger {
                         SegmentType::Audio => {
                             audio_sender.send((reader, r#type, invalidate)).unwrap();
                         }
-                        SegmentType::Subtitle => {
+                        SegmentType::Subtitle | SegmentType::Unknown => {
                             if recycle {
                                 _ = invalidate.await;
                             }

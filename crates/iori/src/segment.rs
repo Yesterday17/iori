@@ -142,6 +142,7 @@ pub enum SegmentType {
     Video,
     Audio,
     Subtitle,
+    Unknown,
 }
 
 impl SegmentType {

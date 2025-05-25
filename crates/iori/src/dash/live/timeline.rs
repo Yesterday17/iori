@@ -254,7 +254,10 @@ impl MPDTimeline {
                                 segments.push(DashSegment {
                                     url: Url::parse(&segment_url)?,
                                     filename: segment_filename,
-                                    r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                    r#type: adaptation_set.content_type.as_ref().map_or_else(
+                                        || SegmentType::from_mime_type(mime_type.as_deref()),
+                                        |r| r.to_segment_type(),
+                                    ),
                                     initial_segment: initial_segment.clone().unwrap(),
                                     key: key.clone(),
                                     byte_range: None,
@@ -348,7 +351,10 @@ impl MPDTimeline {
                             segments.push(DashSegment {
                                 url: Url::parse(&segment_url)?,
                                 filename: segment_filename,
-                                r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                r#type: adaptation_set.content_type.as_ref().map_or_else(
+                                    || SegmentType::from_mime_type(mime_type.as_deref()),
+                                    |r| r.to_segment_type(),
+                                ),
                                 initial_segment: initial_segment.clone().unwrap(),
                                 key: key.clone(),
                                 byte_range: None,
@@ -417,7 +423,10 @@ impl MPDTimeline {
                             segments.push(DashSegment {
                                 url: segment.url.clone(),
                                 filename: segment_filename,
-                                r#type: SegmentType::from_mime_type(mime_type.as_deref()),
+                                r#type: adaptation_set.content_type.as_ref().map_or_else(
+                                    || SegmentType::from_mime_type(mime_type.as_deref()),
+                                    |r| r.to_segment_type(),
+                                ),
                                 initial_segment: initial_segment.clone(),
                                 key: key.clone(),
                                 byte_range: segment.range.clone(),
@@ -650,7 +659,19 @@ pub enum DashAdaptationSetType {
     Audio,
     Video,
     Application,
+    #[allow(unused)]
     Custom(String),
+}
+
+impl DashAdaptationSetType {
+    fn to_segment_type(&self) -> SegmentType {
+        match self {
+            Self::Text => SegmentType::Subtitle,
+            Self::Audio => SegmentType::Audio,
+            Self::Video => SegmentType::Video,
+            _ => SegmentType::Unknown,
+        }
+    }
 }
 
 impl DashAdaptationSetType {
@@ -673,6 +694,7 @@ pub enum DashRepresentation {
     /// > Note: This addressing mode is sometimes called "SegmentBase" in other documents.
     ///
     /// Not supported yet.
+    #[allow(unused)]
     IndexedAddressing(SegmentBase),
     /// A representation that uses explicit addressing consists of a set of media segments accessed
     /// via URLs constructed using a template defined in the MPD, with the exact sample timeline time
