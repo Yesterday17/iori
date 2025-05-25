@@ -74,7 +74,7 @@ impl PipeMerger {
             while let Some((_, segment)) = stream.next().await {
                 if let Some((mut reader, _type, invalidate)) = segment {
                     if target.is_none() {
-                        let file = tokio::fs::File::create(namer.next())
+                        let file = tokio::fs::File::create(namer.next_path())
                             .await
                             .expect("Failed to create file");
                         target = Some(file);

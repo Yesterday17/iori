@@ -90,7 +90,7 @@ async fn concat_merge(
         let success = segment.success;
         let segment = &segment.segment;
         if !success {
-            output = File::create(namer.next()).await?;
+            output = File::create(namer.next_path()).await?;
         }
 
         let mut reader = cache.open_reader(segment).await?;

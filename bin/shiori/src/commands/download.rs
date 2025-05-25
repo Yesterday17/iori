@@ -371,7 +371,7 @@ pub async fn download(me: ShioriDownloadCommand, shiori_args: ShioriArgs) -> any
         let command: ShioriDownloadCommand = playlist;
         let mut cmd = me.clone().merge(command);
         if let Some(namer) = namer.as_mut() {
-            let output = namer.next();
+            let output = namer.next_path();
             cmd.output.output = Some(output);
         }
         cmd.download().await?;

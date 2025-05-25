@@ -23,7 +23,7 @@ impl DuplicateOutputFileNamer {
         }
     }
 
-    pub fn next(&mut self) -> PathBuf {
+    pub fn next_path(&mut self) -> PathBuf {
         self.file_count += 1;
         self.get_path(self.file_count)
     }
@@ -54,7 +54,7 @@ mod tests {
     fn test_file_names() {
         let mut namer = DuplicateOutputFileNamer::new(PathBuf::from("output.ts"));
         for i in 1..=100 {
-            assert_eq!(namer.next(), PathBuf::from(format!("output.{i}.ts")));
+            assert_eq!(namer.next_path(), PathBuf::from(format!("output.{i}.ts")));
         }
     }
 }

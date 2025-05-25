@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use crate::{cache::CacheSource, error::IoriResult, merge::Merger, SegmentInfo, StreamingSource};
+use tokio::io::AsyncWriteExt;
+
+use crate::{
+    cache::CacheSource, error::IoriResult, merge::Merger, IoriError, SegmentInfo, StreamingSource,
+};
 
 pub struct SequencialDownloader<S, M, C>
 where
@@ -39,6 +43,11 @@ where
                 };
 
                 let fetch_result = self.source.fetch_segment(&segment, &mut writer).await;
+                let fetch_result = match fetch_result {
+                    // graceful shutdown
+                    Ok(_) => writer.shutdown().await.map_err(IoriError::IOError),
+                    Err(e) => Err(e),
+                };
                 drop(writer);
 
                 match fetch_result {
