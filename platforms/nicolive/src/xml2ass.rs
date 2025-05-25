@@ -48,8 +48,8 @@ pub fn get_color<'a>(styles: impl IntoIterator<Item = &'a str>) -> String {
     let mut color_important = None;
 
     // ass_color = format!("\\1c&H{}{}{}&", &color[4..6], &color[2..4], &color[0..2]);
+    let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
     for style in styles {
-        let re = Regex::new(r"#([0-9A-Fa-f]{6})").unwrap();
         if let Some(m) = re.captures(style) {
             color_important = m.get(1).map(|m| m.as_str());
         } else if let Some(color_got) = color_map.get(style) {
@@ -113,6 +113,9 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
     let mut text_o = Vec::new();
     let mut text_r = Vec::new();
 
+    let link_href_regex = Regex::new(r#"<a href=(.*?)><u>"#).unwrap();
+    let link_regex = Regex::new(r#"http(.*?)"#).unwrap();
+
     for chat in chats.iter() {
         let text = &chat.content;
         let user_id = &chat.user_id;
@@ -172,11 +175,11 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
             );
             text_w = text_w.replace("/perm", "");
             let ass_color_w = if text_w.contains("href") || text_w.contains("http") {
-                let link = Regex::new(r#"<a href=(.*?)><u>"#).unwrap();
                 // TODO: maybe not correct
-                text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
-                let link = Regex::new(r#"http(.*?)"#).unwrap();
-                text_w = link.replace_all(&text_w, "").replace("</u></a>", "");
+                text_w = link_href_regex
+                    .replace_all(&text_w, "")
+                    .replace("</u></a>", "");
+                text_w = link_regex.replace_all(&text_w, "").replace("</u></a>", "");
                 "\\1c&HFF8000&\\u1".to_string()
             } else {
                 get_color([])
@@ -253,7 +256,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 if text_o.len() <= 3 {
                     let bg_width = video_width / 4;
                     let bg_height = video_height / 3;
-                    let x_array = [vec![bg_width / 2],
+                    let x_array = [
+                        vec![bg_width / 2],
                         vec![
                             video_width / 3 - 40,
                             (video_width / 2 - video_width / 3) + video_width / 2 + 40,
@@ -262,7 +266,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             video_width / 2 - bg_width - 40,
                             video_width / 2,
                             video_width / 2 + bg_width + 40,
-                        ]];
+                        ],
+                    ];
                     let num_bg = format!(
                         "m 0 0 l {} 0 l {} 0 l 0 {}",
                         font_size * 3 / 2,
@@ -276,24 +281,24 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                     let result_bg = "m 0 0 s 150 0 150 60 0 60 c";
                     let x = &x_array[text_o.len() - 1];
                     let y = [360];
-                    for j in 0..y.len() {
-                        for i in 0..x.len() {
+                    for y in y {
+                        for (i, x) in x.iter().enumerate() {
                             let vote_num_bg = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&HFFFFC8&\\pos({},{})}}{}",
-                                x[i] - bg_width / 2 + font_size  * 5 / 8,
-                                y[j] - bg_height / 2 + font_size  * 5 / 8,
+                                x - bg_width / 2 + font_size  * 5 / 8,
+                                y - bg_height / 2 + font_size  * 5 / 8,
                                 num_bg
                             );
                             let vote_num_text = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\bord0\\1c&HD5A07B&\\pos({},{})}}{}",
-                                x[i] - bg_width / 2 + font_size / 2,
-                                y[j] - bg_height / 2 + font_size / 2,
+                                x - bg_width / 2 + font_size / 2,
+                                y - bg_height / 2 + font_size / 2,
                                 i + 1
                             );
                             let vote_bg = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\3c&HFFFFC8&\\bord6\\1c&HD5A07B&\\1a&H78&\\pos({},{})}}{}",
-                                x[i],
-                                y[j],
+                                x,
+                                y,
                                 bg
                             );
                             let text_o_chars = text_o[i].chars().collect::<Vec<_>>();
@@ -315,7 +320,7 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             };
                             let vote_text = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\bord0\\1c&HFFFFFF\\pos({},{})}}{}",
-                                x[i], y[j], text_now
+                                x, y, text_now
                             );
                             office_events.push(vote_bg);
                             office_events.push(vote_text);
@@ -325,15 +330,15 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             if !text_r.is_empty() {
                                 let vote_result_bg = format!(
                                     "Dialogue: 5,{start_time_r},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&H3E2E2A&\\pos({},{})}}{}",
-                                    x[i],
-                                    y[j] + bg_height / 2,
+                                    x,
+                                    y + bg_height / 2,
                                     result_bg
                                 );
                                 let vote_result_text = format!(
                                     "Dialogue: 5,{start_time_r},{end_time_v},Anketo,,0,0,0,,{{\\fs{}\\an5\\bord0\\1c&H76FAF8&\\pos({},{})}}{}%",
                                     font_size_anketo,
-                                    x[i],
-                                    y[j] + bg_height / 2,
+                                    x,
+                                    y + bg_height / 2,
                                     text_r[i].parse::<f64>().unwrap() / 10f64
                                 );
                                 office_events.push(vote_result_bg);
@@ -344,7 +349,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                 } else if text_o.len() >= 4 {
                     let mut bg_width = video_width / 5;
                     let mut bg_height = video_height / 4;
-                    let x_array = [vec![bg_width / 2],
+                    let x_array = [
+                        vec![bg_width / 2],
                         vec![
                             video_width / 3 - 40,
                             (video_width / 2 - video_width / 3) + video_width / 2 + 40,
@@ -353,8 +359,10 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             video_width / 2 - bg_width - 40,
                             video_width / 2,
                             video_width / 2 + bg_width + 40,
-                        ]];
-                    let y_array = [vec![video_height / 2],
+                        ],
+                    ];
+                    let y_array = [
+                        vec![video_height / 2],
                         vec![
                             video_height / 3,
                             (video_height / 2 - video_height / 3) + video_height / 2,
@@ -363,7 +371,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             video_height / 2 - bg_height - 20,
                             video_height / 2 + 20,
                             video_height / 2 + bg_height + 60,
-                        ]];
+                        ],
+                    ];
                     let mut x = x_array[2].clone();
                     let mut y = &y_array[2];
                     if text_o.len() == 4 {
@@ -393,28 +402,28 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                     let result_bg = "m 0 0 s 150 0 150 60 0 60 c";
 
                     let mut num = 0;
-                    for j in 0..y.len() {
-                        for i in 0..x.len() {
+                    for y in y {
+                        for x in x.iter() {
                             if num == text_o.len() {
                                 continue;
                             }
                             let vote_num_bg = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&HFFFFC8&\\pos({},{})}}{}",
-                                x[i] - bg_width / 2 + font_size_anketo * 5 / 8,
-                                y[j] - bg_height / 2 + font_size_anketo * 5 / 8,
+                                x - bg_width / 2 + font_size_anketo * 5 / 8,
+                                y - bg_height / 2 + font_size_anketo * 5 / 8,
                                 num_bg
                             );
                             let vote_num_text = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\fs{}\\an5\\bord0\\1c&HD5A07B&\\pos({},{})}}{}",
                                 font_size_anketo,
-                                x[i] - bg_width / 2 + font_size_anketo / 3,
-                                y[j] - bg_height / 2 + font_size_anketo / 3,
+                                x - bg_width / 2 + font_size_anketo / 3,
+                                y - bg_height / 2 + font_size_anketo / 3,
                                 num + 1
                             );
                             let vote_bg = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\3c&HFFFFC8&\\bord6\\1c&HD5A07B&\\1a&H78&\\pos({},{})}}{}",
-                                x[i],
-                                y[j],
+                                x,
+                                y,
                                 bg
                             );
                             let text_o_chars = text_o[num].chars().collect::<Vec<_>>();
@@ -437,8 +446,8 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             let vote_text = format!(
                                 "Dialogue: 5,{start_time_q},{end_time_v},Anketo,,0,0,0,,{{\\fs{}\\an5\\bord0\\1c&HFFFFFF&\\pos({},{})}}{}",
                                 font_size_anketo,
-                                x[i],
-                                y[j],
+                                x,
+                                y,
                                 text_now
                             );
                             office_events.push(vote_bg);
@@ -449,15 +458,15 @@ pub fn xml2ass(chats: &DanmakuList) -> anyhow::Result<String> {
                             if !text_r.is_empty() {
                                 let vote_result_bg = format!(
                                     "Dialogue: 5,{start_time_r},{end_time_v},Anketo,,0,0,0,,{{\\an5\\p1\\bord0\\1c&H3E2E2A&\\pos({},{})}}{}",
-                                    x[i],
-                                    y[j] + bg_height / 2,
+                                    x,
+                                    y + bg_height / 2,
                                     result_bg
                                 );
                                 let vote_result_text = format!(
                                     "Dialogue: 5,{start_time_r},{end_time_v},Anketo,,0,0,0,,{{\\fs{}\\an5\\bord0\\1c&H76FAF8&\\pos({},{})}}{}%",
                                     font_size_anketo,
-                                    x[i],
-                                    y[j] + bg_height / 2,
+                                    x,
+                                    y + bg_height / 2,
                                     text_r[num].parse::<f64>().unwrap() / 10f64
                                 );
                                 office_events.push(vote_result_bg);

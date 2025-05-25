@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -43,7 +43,7 @@ async fn update_config(
         .filter(|r| !map.contains_key(r))
         .collect();
     for slug in missing_slugs {
-        if !map.contains_key(&slug) {
+        if let Entry::Vacant(entry) = map.entry(slug.clone()) {
             let operator = operator.clone();
             let client = ShowRoomClient::new(None).await?;
             let client_backup = ShowRoomClient::new(None).await?;
@@ -78,7 +78,7 @@ async fn update_config(
                     })
                 })?)
                 .await?;
-            map.insert(slug, uuid);
+            entry.insert(uuid);
         }
     }
 
