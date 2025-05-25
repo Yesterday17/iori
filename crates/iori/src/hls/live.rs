@@ -10,7 +10,7 @@ use crate::{
     error::{IoriError, IoriResult},
     fetch::fetch_segment,
     hls::{segment::M3u8Segment, source::HlsPlaylistSource},
-    util::{http::HttpClient, mix::mix_vec},
+    util::{http::HttpClient, mix::VecMix},
     StreamingSource,
 };
 
@@ -107,7 +107,7 @@ impl StreamingSource for HlsLiveSource {
                         .or(*latest_media_sequence);
                 }
 
-                let mixed_segments = mix_vec(segments);
+                let mixed_segments = segments.mix();
                 if !mixed_segments.is_empty() {
                     if let Err(e) = sender.send(Ok(mixed_segments)) {
                         tracing::error!("Failed to send mixed segments: {e}");

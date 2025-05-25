@@ -121,10 +121,8 @@ impl StreamingSource for CommonM3u8ArchiveSource {
             .collect();
 
         // make sequence start form 1 again
-        let mut seq = 0;
-        for segment in segments.iter_mut() {
-            segment.sequence = seq;
-            seq += 1;
+        for (seq, segment) in segments.iter_mut().enumerate() {
+            segment.sequence = seq as u64;
         }
 
         let _ = sender.send(Ok(segments));

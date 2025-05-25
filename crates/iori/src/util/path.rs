@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    ffi::{OsStr, OsString},
+    path::PathBuf,
+};
 
 pub struct DuplicateOutputFileNamer {
     output_path: PathBuf,
@@ -44,11 +47,38 @@ impl Drop for DuplicateOutputFileNamer {
     }
 }
 
+pub trait IoriPathExt {
+    /// Add suffix to file name without changing extension.
+    ///
+    /// Note this function does not handle multiple suffixes.
+    /// For example, `test.tar.gz` with `_suffix` will be `test.tar_suffix.gz`.
+    fn add_suffix<T: AsRef<OsStr>>(&mut self, suffix: T);
+}
+
+impl IoriPathExt for PathBuf {
+    fn add_suffix<T: AsRef<OsStr>>(&mut self, suffix: T) {
+        let mut filename = OsString::new();
+
+        // {file_stem}_{suffix}.{ext}
+        if let Some(file_stem) = self.file_stem() {
+            filename.push(file_stem);
+        }
+        filename.push("_");
+        filename.push(suffix);
+
+        if let Some(ext) = self.extension() {
+            filename.push(".");
+            filename.push(ext);
+        }
+
+        self.set_file_name(filename);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::path::PathBuf;
-
-    use super::DuplicateOutputFileNamer;
 
     #[test]
     fn test_file_names() {
@@ -56,5 +86,19 @@ mod tests {
         for i in 1..=100 {
             assert_eq!(namer.next_path(), PathBuf::from(format!("output.{i}.ts")));
         }
+    }
+
+    #[test]
+    fn test_filename_suffix() {
+        let mut path = PathBuf::from("test.mp4");
+        path.add_suffix("suffix");
+        assert_eq!(path.to_string_lossy(), "test_suffix.mp4");
+    }
+
+    #[test]
+    fn test_filename_multiple_suffix() {
+        let mut path = PathBuf::from("test.raw.mp4");
+        path.add_suffix("suffix");
+        assert_eq!(path.to_string_lossy(), "test.raw_suffix.mp4");
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    cache::CacheSource, error::IoriResult, util::file_name_add_suffix, SegmentFormat, SegmentInfo,
+    cache::CacheSource, error::IoriResult, util::path::IoriPathExt, SegmentFormat, SegmentInfo,
     SegmentType,
 };
 use std::{
@@ -92,7 +92,7 @@ impl Merger for AutoMerger {
 
             let first_segment = segments[0];
             let mut output_path = self.output_file.to_owned();
-            file_name_add_suffix(&mut output_path, format!("{stream_id:02}"));
+            output_path.add_suffix(format!("{stream_id:02}"));
             output_path.set_extension(first_segment.format.as_ext());
 
             if can_concat {
