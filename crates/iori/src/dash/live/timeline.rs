@@ -233,6 +233,11 @@ impl MPDTimeline {
                                 if segment_start_time > effective_time_shift_buffer_end {
                                     break;
                                 }
+                                if let Some(period_duration) = period.duration {
+                                    if segment_start_time >= period.start_time + period_duration {
+                                        break;
+                                    }
+                                }
                                 if is_before_effective_time_shift_buffer_start(segment_start_time) {
                                     continue;
                                 }
@@ -278,12 +283,6 @@ impl MPDTimeline {
                                     stream_id: stream_id as u64,
                                     time: Some(segment_start_point),
                                 });
-
-                                if let Some(period_duration) = period.duration {
-                                    if segment_start_time > period.start_time + period_duration {
-                                        break;
-                                    }
-                                }
                             }
                         }
                     }
@@ -324,16 +323,22 @@ impl MPDTimeline {
                             number += 1;
 
                             let segment_start_point =
-                                ((number - start_number) as f64 * duration) as u64;
+                                ((segment_number - start_number) as f64 * duration) as u64;
                             let segment_start_time =
                                 sample_timeline.map_time(period.start_time, segment_start_point)?;
 
                             if segment_start_time > effective_time_shift_buffer_end {
                                 break;
                             }
+                            if let Some(period_duration) = period.duration {
+                                if (segment_start_time - period.start_time) >= period_duration {
+                                    break;
+                                }
+                            }
                             if is_before_effective_time_shift_buffer_start(segment_start_time) {
                                 continue;
                             }
+
                             last_time = Some(segment_start_time);
 
                             template
@@ -375,12 +380,6 @@ impl MPDTimeline {
                                 stream_id: stream_id as u64,
                                 time: Some(segment_start_point),
                             });
-
-                            if let Some(period_duration) = period.duration {
-                                if (segment_start_time - period.start_time) > period_duration {
-                                    break;
-                                }
-                            }
                         }
                     }
                     DashRepresentation::SegmentList {
@@ -421,6 +420,11 @@ impl MPDTimeline {
                             if segment_start_time > effective_time_shift_buffer_end {
                                 break;
                             }
+                            if let Some(period_duration) = period.duration {
+                                if segment_start_time >= period.start_time + period_duration {
+                                    break;
+                                }
+                            }
                             if is_before_effective_time_shift_buffer_start(segment_start_time) {
                                 continue;
                             }
@@ -447,12 +451,6 @@ impl MPDTimeline {
                                 stream_id: stream_id as u64,
                                 time: Some(segment_start_point),
                             });
-
-                            if let Some(period_duration) = period.duration {
-                                if segment_start_time > period.start_time + period_duration {
-                                    break;
-                                }
-                            }
                         }
                     }
                 }
