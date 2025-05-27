@@ -1,4 +1,5 @@
 mod dash_mpd_rs;
+mod r#static;
 
 use wiremock::{
     matchers::{method, path},

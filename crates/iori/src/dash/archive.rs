@@ -17,6 +17,8 @@ use crate::{
 
 use super::{template::Template, url::merge_baseurls};
 
+// TODO: mark as deprecated
+// #[deprecated(note = "Use `CommonDashLiveSource` instead")]
 pub struct CommonDashArchiveSource {
     client: HttpClient,
     mpd: Url,
