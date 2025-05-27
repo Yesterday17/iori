@@ -1,6 +1,6 @@
 use crate::{decrypt::IoriKey, ByteRange, HttpClient, IoriResult, StreamingSegment};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum InitialSegment {
     Encrypted(std::sync::Arc<Vec<u8>>),
     Clear(std::sync::Arc<Vec<u8>>),

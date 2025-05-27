@@ -80,7 +80,11 @@ impl MPDTimeline {
         };
 
         let mut periods: Vec<DashPeriod> = Vec::with_capacity(mpd.periods.len());
-        for period in mpd.periods {
+        for mut period in mpd.periods {
+            if presentation.is_static() && periods.is_empty() && period.start.is_none() {
+                period.start = Some(std::time::Duration::ZERO);
+            }
+
             let last_mut = periods.last_mut();
             let period = DashPeriod::from_mpd(&base_url, period, last_mut)?;
             periods.push(period);
@@ -103,11 +107,11 @@ impl MPDTimeline {
     }
 
     pub fn is_static(&self) -> bool {
-        matches!(self.presentation, DashPresentation::Static)
+        self.presentation.is_static()
     }
 
     pub fn is_dynamic(&self) -> bool {
-        !self.is_static()
+        self.presentation.is_dynamic()
     }
 
     /// Return all segments available in the dash timeline > the given time
@@ -118,6 +122,7 @@ impl MPDTimeline {
         since: Option<DateTime<Utc>>,
         key: Option<Arc<IoriKey>>,
     ) -> IoriResult<(Vec<DashSegment>, Option<DateTime<Utc>>)> {
+        let include_since = since.is_none();
         let since = since.unwrap_or_default();
 
         // https://dashif.org/Guidelines-TimingModel/#availability-window
@@ -158,6 +163,14 @@ impl MPDTimeline {
             };
             // override effective_time_shift_buffer_start to be >= since
             let effective_time_shift_buffer_start = effective_time_shift_buffer_start.max(since);
+
+            let is_before_effective_time_shift_buffer_start = move |time: DateTime<Utc>| {
+                if include_since {
+                    time < effective_time_shift_buffer_start
+                } else {
+                    time <= effective_time_shift_buffer_start
+                }
+            };
 
             // skip periods ends before <since>
             if let Some(duration) = period.duration {
@@ -220,7 +233,7 @@ impl MPDTimeline {
                                 if segment_start_time > effective_time_shift_buffer_end {
                                     break;
                                 }
-                                if segment_start_time <= effective_time_shift_buffer_start {
+                                if is_before_effective_time_shift_buffer_start(segment_start_time) {
                                     continue;
                                 }
                                 last_time = Some(segment_start_time);
@@ -318,7 +331,7 @@ impl MPDTimeline {
                             if segment_start_time > effective_time_shift_buffer_end {
                                 break;
                             }
-                            if segment_start_time <= effective_time_shift_buffer_start {
+                            if is_before_effective_time_shift_buffer_start(segment_start_time) {
                                 continue;
                             }
                             last_time = Some(segment_start_time);
@@ -408,7 +421,7 @@ impl MPDTimeline {
                             if segment_start_time > effective_time_shift_buffer_end {
                                 break;
                             }
-                            if segment_start_time <= effective_time_shift_buffer_start {
+                            if is_before_effective_time_shift_buffer_start(segment_start_time) {
                                 continue;
                             }
 
@@ -530,6 +543,14 @@ impl DashPresentation {
         } else {
             DateTime::UNIX_EPOCH
         }
+    }
+
+    pub fn is_dynamic(&self) -> bool {
+        matches!(self, DashPresentation::Dynamic { .. })
+    }
+
+    pub fn is_static(&self) -> bool {
+        matches!(self, DashPresentation::Static)
     }
 }
 
