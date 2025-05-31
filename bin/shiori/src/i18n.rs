@@ -14,8 +14,10 @@ fn init_i18n() -> FluentLanguageLoader {
     let loader: FluentLanguageLoader = fluent_language_loader!();
     let mut references = DesktopLanguageRequester::requested_languages();
     references.push(loader.fallback_language().clone());
+
+    let languages = i18n_embed::select(&loader, &Localizations, &references).expect("msg");
     loader
-        .load_languages(&Localizations, &references)
+        .load_languages(&Localizations, &languages)
         .expect("Failed to load localization.");
     loader
 }
