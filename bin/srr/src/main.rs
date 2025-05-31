@@ -127,7 +127,12 @@ async fn record_room(
     let client = HttpClient::default();
     let source = HlsLiveSource::new(client, stream.url.clone(), None, None);
 
-    let cache = IoriCache::opendal(operator.clone(), prefix, false);
+    let cache = IoriCache::opendal(
+        operator.clone(),
+        prefix,
+        false,
+        Some("application/octet-stream".to_string()),
+    );
     let merger = IoriMerger::skip();
 
     log::info!("Start recording room {room_slug}, id = {room_id}, live_id = {live_id}");

@@ -262,7 +262,7 @@ impl CacheOptions {
                 let cache_dir = cache_dir.to_str().expect("Invalid cache directory");
                 let builder = services::Fs::default().root(cache_dir);
                 let op = Operator::new(builder)?.finish();
-                IoriCache::opendal(op, "shiori", true)
+                IoriCache::opendal(op, "shiori", true, None)
             } else {
                 IoriCache::file(cache_dir)?
             }

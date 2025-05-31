@@ -8,15 +8,22 @@ pub use opendal::*;
 pub struct OpendalCacheSource {
     operator: Operator,
     prefix: String,
+    content_type: Option<String>,
 
     with_internal_prefix: bool,
 }
 
 impl OpendalCacheSource {
-    pub fn new(operator: Operator, prefix: impl Into<String>, with_internal_prefix: bool) -> Self {
+    pub fn new(
+        operator: Operator,
+        prefix: impl Into<String>,
+        with_internal_prefix: bool,
+        content_type: Option<String>,
+    ) -> Self {
         Self {
             operator,
             prefix: prefix.into(),
+            content_type,
             with_internal_prefix,
         }
     }
@@ -46,9 +53,11 @@ impl CacheSource for OpendalCacheSource {
             return Ok(None);
         }
 
-        let writer = self
-            .operator
-            .writer_with(&key)
+        let mut writer = self.operator.writer_with(&key);
+        if let Some(content_type) = &self.content_type {
+            writer = writer.content_type(content_type);
+        }
+        let writer = writer
             .chunk(5 * 1024 * 1024)
             .await?
             .into_futures_async_write()

@@ -97,11 +97,13 @@ impl IoriCache {
         operator: ::opendal::Operator,
         prefix: impl Into<String>,
         with_internal_prefix: bool,
+        content_type: Option<String>,
     ) -> Self {
         Self::Opendal(opendal::OpendalCacheSource::new(
             operator,
             prefix,
             with_internal_prefix,
+            content_type,
         ))
     }
 }
