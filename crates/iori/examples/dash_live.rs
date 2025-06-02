@@ -1,6 +1,6 @@
 use iori::{
-    cache::file::FileCacheSource, dash::live::CommonDashLiveSource,
-    download::ParallelDownloaderBuilder, merge::SkipMerger, HttpClient,
+    cache::file::FileCacheSource, dash::live::CommonDashLiveSource, download::ParallelDownloader,
+    merge::SkipMerger, HttpClient,
 };
 use tracing::level_filters::LevelFilter;
 
@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let cache = FileCacheSource::new(cache_dir)?;
     let merger = SkipMerger;
 
-    let downloader = ParallelDownloaderBuilder::new().cache(cache).merger(merger);
+    let downloader = ParallelDownloader::builder().cache(cache).merger(merger);
 
     tracing::info!("Starting download for live stream: {}", mpd_url);
     match downloader.download(source).await {

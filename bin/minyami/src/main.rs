@@ -13,7 +13,7 @@ use fake_user_agent::get_chrome_rua;
 use iori::{
     cache::IoriCache,
     dash::archive::CommonDashArchiveSource,
-    download::ParallelDownloaderBuilder,
+    download::ParallelDownloader,
     hls::{CommonM3u8ArchiveSource, HlsLiveSource, SegmentRange},
     merge::IoriMerger,
     HttpClient, StreamingSource,
@@ -273,7 +273,7 @@ impl MinyamiArgs {
     where
         S: StreamingSource + Send + Sync + 'static,
     {
-        ParallelDownloaderBuilder::new()
+        ParallelDownloader::builder()
             .cache(cache)
             .merger(self.merger())
             .concurrency(self.threads)

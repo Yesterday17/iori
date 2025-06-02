@@ -12,9 +12,8 @@ use std::{
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, Semaphore};
 
-struct ParallelDownloader<S, M, C>
+pub struct ParallelDownloader<S, M, C>
 where
-    S: StreamingSource,
     M: Merger,
     C: CacheSource,
 {
@@ -31,6 +30,16 @@ where
     merger: Arc<Mutex<M>>,
 
     retries: u32,
+}
+
+impl<M, C> ParallelDownloader<(), M, C>
+where
+    M: Merger + Send + Sync + 'static,
+    C: CacheSource + Send + Sync + 'static,
+{
+    pub fn builder() -> ParallelDownloaderBuilder<M, C, M::Result> {
+        ParallelDownloaderBuilder::new()
+    }
 }
 
 impl<S, M, C> ParallelDownloader<S, M, C>

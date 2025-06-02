@@ -2,4 +2,4 @@ mod sequencial;
 pub use sequencial::SequencialDownloader;
 
 mod parallel;
-pub use parallel::ParallelDownloaderBuilder;
+pub use parallel::ParallelDownloader;

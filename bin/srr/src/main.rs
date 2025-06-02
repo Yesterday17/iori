@@ -14,7 +14,7 @@ use iori::{
         opendal::{Configurator, Operator},
         IoriCache,
     },
-    download::ParallelDownloaderBuilder,
+    download::ParallelDownloader,
     hls::HlsLiveSource,
     merge::IoriMerger,
     HttpClient,
@@ -136,7 +136,7 @@ async fn record_room(
     let merger = IoriMerger::skip();
 
     log::info!("Start recording room {room_slug}, id = {room_id}, live_id = {live_id}");
-    ParallelDownloaderBuilder::new()
+    ParallelDownloader::builder()
         .cache(cache)
         .merger(merger)
         .download(source)

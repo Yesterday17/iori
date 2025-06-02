@@ -4,7 +4,7 @@ use std::{
 };
 
 use iori::{
-    cache::file::FileCacheSource, download::ParallelDownloaderBuilder, hls::HlsLiveSource,
+    cache::file::FileCacheSource, download::ParallelDownloader, hls::HlsLiveSource,
     merge::PipeMerger,
 };
 
@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let merger = PipeMerger::stdout(true);
     let cache = FileCacheSource::new(output_dir)?;
 
-    ParallelDownloaderBuilder::new()
+    ParallelDownloader::builder()
         .cache(cache)
         .merger(merger)
         .concurrency(NonZeroU32::new(8).unwrap())

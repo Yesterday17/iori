@@ -13,7 +13,7 @@ use iori::{
         IoriCache,
     },
     dash::live::CommonDashLiveSource,
-    download::ParallelDownloaderBuilder,
+    download::ParallelDownloader,
     hls::HlsLiveSource,
     merge::IoriMerger,
     raw::{HttpFileSource, RawDataSource},
@@ -86,7 +86,7 @@ where
                 })?,
         };
 
-        let downloader = ParallelDownloaderBuilder::new()
+        let downloader = ParallelDownloader::builder()
             .concurrency(self.download.concurrency)
             .retries(self.download.segment_retries)
             .cache(self.cache.into_cache()?)
