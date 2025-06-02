@@ -1,16 +1,38 @@
 use futures::executor::block_on;
 use iori::{
-    InitialSegment, IoriResult, SegmentFormat, SegmentType, StreamingSegment, StreamingSource,
+    InitialSegment, IoriError, IoriResult, SegmentFormat, SegmentType, StreamingSegment,
+    StreamingSource,
 };
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
-struct TestSegment {
-    stream_id: u64,
-    sequence: u64,
-    file_name: String,
+pub struct TestSegment {
+    pub stream_id: u64,
+    pub sequence: u64,
+    pub file_name: String,
+    pub fail_count: Arc<AtomicU8>,
+}
+
+impl TestSegment {
+    async fn write_data<W>(&self, writer: &mut W) -> IoriResult<()>
+    where
+        W: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static,
+    {
+        if self.fail_count.load(Ordering::Relaxed) > 0 {
+            self.fail_count.fetch_sub(1, Ordering::Relaxed);
+            return Err(IoriError::IOError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to write data",
+            )));
+        }
+
+        let data = format!("Segment {} from stream {}", self.sequence, self.stream_id);
+        writer.write_all(data.as_bytes()).await?;
+        Ok(())
+    }
 }
 
 impl StreamingSegment for TestSegment {
@@ -44,12 +66,12 @@ impl StreamingSegment for TestSegment {
 }
 
 #[derive(Clone)]
-struct TestSource {
+pub struct TestSource {
     segments: Vec<TestSegment>,
 }
 
 impl TestSource {
-    fn new(segments: Vec<TestSegment>) -> Self {
+    pub fn new(segments: Vec<TestSegment>) -> Self {
         Self { segments }
     }
 }
@@ -69,13 +91,7 @@ impl StreamingSource for TestSource {
     where
         W: tokio::io::AsyncWrite + Unpin + Send + Sync + 'static,
     {
-        let data = format!(
-            "Segment {} from stream {}",
-            segment.sequence(),
-            segment.stream_id()
-        );
-        writer.write_all(data.as_bytes()).await?;
-        Ok(())
+        segment.write_data(writer).await
     }
 }
 
@@ -86,11 +102,13 @@ fn test_streaming_source_implementation() {
             stream_id: 1,
             sequence: 0,
             file_name: "segment0.ts".to_string(),
+            fail_count: Arc::new(AtomicU8::new(0)),
         },
         TestSegment {
             stream_id: 1,
             sequence: 1,
             file_name: "segment1.ts".to_string(),
+            fail_count: Arc::new(AtomicU8::new(0)),
         },
     ];
 
@@ -119,6 +137,7 @@ fn test_streaming_source_fetch_segment() {
         stream_id: 1,
         sequence: 0,
         file_name: "segment0.ts".to_string(),
+        fail_count: Arc::new(AtomicU8::new(0)),
     };
 
     let source = TestSource::new(vec![segment.clone()]);

@@ -1,5 +1,5 @@
 use super::{CacheSource, CacheSourceReader, CacheSourceWriter};
-use crate::error::IoriResult;
+use crate::{error::IoriResult, IoriError};
 use std::{
     collections::HashMap,
     io::{self, Cursor},
@@ -11,12 +11,17 @@ use std::{
 
 #[derive(Default)]
 pub struct MemoryCacheSource {
-    cache: Arc<Mutex<HashMap<u64, Vec<u8>>>>,
+    cache: Arc<Mutex<HashMap<u64, MemoryEntry>>>,
 }
 
 impl MemoryCacheSource {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[doc(hidden)]
+    pub fn into_inner(self: Arc<Self>) -> Arc<Mutex<HashMap<u64, MemoryEntry>>> {
+        self.cache.clone()
     }
 }
 
@@ -26,11 +31,12 @@ impl CacheSource for MemoryCacheSource {
         segment: &crate::SegmentInfo,
     ) -> IoriResult<Option<CacheSourceWriter>> {
         let key = segment.sequence;
-        let cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap();
         if cache.contains_key(&key) {
-            tracing::warn!("File {} already exists, ignoring.", key);
+            tracing::warn!("Cache for {} already exists, ignoring.", key);
             return Ok(None);
         }
+        cache.insert(key, MemoryEntry::Pending);
 
         let writer = MemoryWriter {
             key,
@@ -47,8 +53,16 @@ impl CacheSource for MemoryCacheSource {
             .unwrap()
             .remove(&segment.sequence)
             .unwrap_or_default();
-        let reader = Cursor::new(data);
-        Ok(Box::new(reader))
+        match data {
+            MemoryEntry::Pending => Err(IoriError::IOError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Cache for {} not found", segment.sequence),
+            ))),
+            MemoryEntry::Data(data) => {
+                let reader = Cursor::new(data);
+                Ok(Box::new(reader))
+            }
+        }
     }
 
     async fn invalidate(&self, segment: &crate::SegmentInfo) -> IoriResult<()> {
@@ -63,9 +77,16 @@ impl CacheSource for MemoryCacheSource {
     }
 }
 
+#[derive(Debug, Default)]
+pub enum MemoryEntry {
+    #[default]
+    Pending,
+    Data(Vec<u8>),
+}
+
 struct MemoryWriter {
     key: u64,
-    cache: Arc<Mutex<HashMap<u64, Vec<u8>>>>,
+    cache: Arc<Mutex<HashMap<u64, MemoryEntry>>>,
     inner: Cursor<Vec<u8>>, // data: Vec<u8>,
 }
 
@@ -95,10 +116,11 @@ impl tokio::io::AsyncWrite for MemoryWriter {
 impl Drop for MemoryWriter {
     fn drop(&mut self) {
         let cursor = mem::take(&mut self.inner);
-        self.cache
-            .lock()
-            .unwrap()
-            .insert(self.key, cursor.into_inner());
+        self.cache.lock().unwrap().entry(self.key).and_modify(|e| {
+            if matches!(e, MemoryEntry::Pending) {
+                *e = MemoryEntry::Data(cursor.into_inner());
+            }
+        });
     }
 }
 
@@ -126,10 +148,8 @@ mod tests {
         assert_eq!(data, b"hello");
 
         cache.invalidate(&segment_info).await?;
-        let mut reader = cache.open_reader(&segment_info).await?;
-        let mut data = Vec::new();
-        reader.read_to_end(&mut data).await?;
-        assert_eq!(data, b"");
+        let result = cache.open_reader(&segment_info).await;
+        assert!(result.is_err());
 
         Ok(())
     }

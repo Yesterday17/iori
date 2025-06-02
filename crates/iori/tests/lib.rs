@@ -1,5 +1,7 @@
 mod dash;
+mod downloader;
 mod hls;
+mod source;
 
 pub trait AssertWrapper {
     type Success;

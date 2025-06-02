@@ -110,18 +110,43 @@ where
                 let source = self.source.clone();
                 let merger = self.merger.clone();
                 let cache = self.cache.clone();
-                let merge_segment = cache.open_writer(&segment_info).await?;
-                let Some(mut writer) = merge_segment else {
-                    segments_downloaded.fetch_add(1, Ordering::Relaxed);
-                    _ = merger.lock().await.update(segment_info, cache).await;
-                    continue;
-                };
 
                 let mut retries = self.retries;
                 tokio::spawn(async move {
                     let filename = segment.file_name();
 
                     loop {
+                        if retries == 0 {
+                            tracing::error!(
+                                "Processing {filename} failed, max retries exceed, drop."
+                            );
+                            failed_segments_name
+                                .lock()
+                                .await
+                                .push(segment.file_name().to_string());
+                            segments_failed.fetch_add(1, Ordering::Relaxed);
+                            _ = merger.lock().await.fail(segment_info, cache).await;
+                            return;
+                        }
+
+                        let writer = cache.open_writer(&segment_info).await.transpose();
+                        let Some(writer) = writer else {
+                            segments_downloaded.fetch_add(1, Ordering::Relaxed);
+                            _ = merger.lock().await.update(segment_info, cache).await;
+                            return;
+                        };
+
+                        let mut writer = match writer {
+                            Ok(writer) => writer,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to open writer for {filename}: {e}. Retrying later."
+                                );
+                                retries -= 1;
+                                continue;
+                            }
+                        };
+
                         // Workaround for `higher-ranked lifetime error`
                         let result = assert_send(source.fetch_segment(&segment, &mut writer)).await;
                         let result = match result {
@@ -129,30 +154,18 @@ where
                             Ok(_) => writer.shutdown().await.map_err(IoriError::IOError),
                             Err(e) => Err(e),
                         };
+                        drop(writer);
                         match result {
                             Ok(_) => break,
                             Err(e) => {
-                                if retries == 0 {
-                                    tracing::error!(
-                                        "Processing {filename} failed, max retries exceed, drop. {e}"
-                                    );
-                                    failed_segments_name
-                                        .lock()
-                                        .await
-                                        .push(segment.file_name().to_string());
-                                    segments_failed.fetch_add(1, Ordering::Relaxed);
-                                    _ = merger.lock().await.fail(segment_info, cache).await;
-                                    return;
-                                }
+                                // invalidate the cache on failure
+                                _ = cache.invalidate(&segment_info).await;
 
-                                retries -= 1;
                                 tracing::warn!("Processing {filename} failed, retry later. {e}");
+                                retries -= 1;
                             }
                         }
                     }
-
-                    // drop writer to flush and save the data
-                    drop(writer);
 
                     // here we can not drop semaphore, because the merger might take some time to process the merging
 
