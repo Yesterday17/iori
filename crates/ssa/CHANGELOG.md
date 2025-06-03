@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-06-04
+
+### Added
+
+- Supported Elementary Audio Stream Setup.
+
 ## [0.1.1] - 2025-02-09
 
 ### Fixed
@@ -18,4 +24,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Sample-AES` decryption support.
 
-[0.1.1]: https://github.com/Yesterday17/iori/tree/ssa-v0.1.1 
+[0.1.1]: https://github.com/Yesterday17/iori/tree/ssa-v0.1.1
+[0.2.1]: https://github.com/Yesterday17/iori/tree/ssa-v0.2.1
