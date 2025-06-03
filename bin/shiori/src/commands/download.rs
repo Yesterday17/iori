@@ -317,7 +317,7 @@ impl OutputOptions {
     pub fn into_merger(self) -> IoriMerger {
         if self.no_merge {
             IoriMerger::skip()
-        } else if self.pipe || self.pipe_to.is_some() {
+        } else if self.pipe || self.pipe_mux || self.pipe_to.is_some() {
             if self.pipe_mux {
                 IoriMerger::pipe_mux(true, self.pipe_to.unwrap_or("-".into()), None)
             } else if let Some(file) = self.pipe_to {

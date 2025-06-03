@@ -11,7 +11,7 @@ use std::{
 
 #[derive(Default)]
 pub struct MemoryCacheSource {
-    cache: Arc<Mutex<HashMap<u64, MemoryEntry>>>,
+    cache: Arc<Mutex<HashMap<(u64, u64), MemoryEntry>>>,
 }
 
 impl MemoryCacheSource {
@@ -20,7 +20,7 @@ impl MemoryCacheSource {
     }
 
     #[doc(hidden)]
-    pub fn into_inner(self: Arc<Self>) -> Arc<Mutex<HashMap<u64, MemoryEntry>>> {
+    pub fn into_inner(self: Arc<Self>) -> Arc<Mutex<HashMap<(u64, u64), MemoryEntry>>> {
         self.cache.clone()
     }
 }
@@ -30,10 +30,10 @@ impl CacheSource for MemoryCacheSource {
         &self,
         segment: &crate::SegmentInfo,
     ) -> IoriResult<Option<CacheSourceWriter>> {
-        let key = segment.sequence;
+        let key = (segment.sequence, segment.stream_id);
         let mut cache = self.cache.lock().unwrap();
         if cache.contains_key(&key) {
-            tracing::warn!("Cache for {} already exists, ignoring.", key);
+            tracing::warn!("Cache for {:?} already exists, ignoring.", key);
             return Ok(None);
         }
         cache.insert(key, MemoryEntry::Pending);
@@ -51,12 +51,15 @@ impl CacheSource for MemoryCacheSource {
             .cache
             .lock()
             .unwrap()
-            .remove(&segment.sequence)
+            .remove(&(segment.sequence, segment.stream_id))
             .unwrap_or_default();
         match data {
             MemoryEntry::Pending => Err(IoriError::IOError(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!("Cache for {} not found", segment.sequence),
+                format!(
+                    "Cache for {:?} not found",
+                    (segment.sequence, segment.stream_id)
+                ),
             ))),
             MemoryEntry::Data(data) => {
                 let reader = Cursor::new(data);
@@ -66,7 +69,10 @@ impl CacheSource for MemoryCacheSource {
     }
 
     async fn invalidate(&self, segment: &crate::SegmentInfo) -> IoriResult<()> {
-        self.cache.lock().unwrap().remove(&segment.sequence);
+        self.cache
+            .lock()
+            .unwrap()
+            .remove(&(segment.sequence, segment.stream_id));
         Ok(())
     }
 
@@ -85,8 +91,8 @@ pub enum MemoryEntry {
 }
 
 struct MemoryWriter {
-    key: u64,
-    cache: Arc<Mutex<HashMap<u64, MemoryEntry>>>,
+    key: (u64, u64),
+    cache: Arc<Mutex<HashMap<(u64, u64), MemoryEntry>>>,
     inner: Cursor<Vec<u8>>, // data: Vec<u8>,
 }
 
