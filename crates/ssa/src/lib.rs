@@ -12,7 +12,7 @@ use mpeg2ts::ts::{
     TsPacketReader, TsPacketWriter, TsPayload, WriteTsPacket,
 };
 use std::collections::HashMap;
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 
 pub struct NALUnit {
     data: Vec<u8>,
@@ -204,6 +204,66 @@ impl Eac3Header {
     }
 }
 
+/// Encrypted_AAC_Frame () {
+///     ADTS_Header                        // 7 or 9 bytes
+///     unencrypted_leader                 // 16 bytes
+///     while (bytes_remaining() >= 16) {
+///         encrypted_block                // 16 bytes
+///     }
+///     unencrypted_trailer                // 0-15 bytes
+/// }
+fn decrypt_aac_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
+    let adts = AdtsHeader::new(input);
+    let data = adts.data(input);
+
+    decrypt_raw_sample(data, key, iv);
+    adts.length
+}
+
+/// Encrypted_AC3_Frame () {
+///     unencrypted_leader                 // 16 bytes
+///     while (bytes_remaining() >= 16) {
+///         encrypted_block                // 16 bytes
+///     }
+///     unencrypted_trailer                // 0-15 bytes
+/// }
+fn decrypt_ac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
+    let ac3 = Ac3Header::new(input);
+    let data = ac3.data(input);
+
+    decrypt_raw_sample(data, key, iv);
+    ac3.length
+}
+
+/// Encrypted_Enhanced_AC3_syncframe () {
+///     unencrypted_leader                 // 16 bytes
+///     while (bytes_remaining() >= 16) {
+///         encrypted_block                // 16 bytes
+///     }
+///     unencrypted_trailer                // 0-15 bytes
+/// }
+fn decrypt_eac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
+    let eac3 = Eac3Header::new(input);
+    let data = eac3.data(input);
+
+    decrypt_raw_sample(data, key, iv);
+    eac3.length
+}
+
+fn decrypt_raw_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) {
+    let mut decryptor = cbc::Decryptor::<aes::Aes128>::new(&key.into(), &iv.into());
+
+    let mut is_first = true;
+    let chunks = input.chunks_mut(16);
+    for chunk in chunks {
+        if chunk.len() < 16 || is_first {
+            is_first = false;
+            continue;
+        }
+        decryptor.decrypt_block_mut(chunk.into());
+    }
+}
+
 struct PESSegment {
     stream_type: StreamType,
 
@@ -317,83 +377,23 @@ impl PESSegment {
             match self.stream_type {
                 // adts
                 StreamType::AdtsAac | StreamType::AdtsAacWithAes128Cbc => {
-                    let size = Self::decrypt_aac_frame(input, key, iv);
+                    let size = decrypt_aac_frame(input, key, iv);
                     input = &mut input[size..];
                 }
                 // ac3
                 StreamType::DolbyDigitalUpToSixChannelAudio
                 | StreamType::DolbyDigitalUpToSixChannelAudioWithAes128Cbc => {
-                    let size = Self::decrypt_ac3_frame(input, key, iv);
+                    let size = decrypt_ac3_frame(input, key, iv);
                     input = &mut input[size..];
                 }
                 // eac3
                 StreamType::DolbyDigitalPlusUpTo16ChannelAudio
                 | StreamType::DolbyDigitalPlusUpToSixChannelAudioWithAes128Cbc => {
-                    let size = Self::decrypt_eac3_frame(input, key, iv);
+                    let size = decrypt_eac3_frame(input, key, iv);
                     input = &mut input[size..];
                 }
                 _ => unimplemented!("Unsupported stream type: {:?}", self.stream_type),
             }
-        }
-    }
-
-    /// Encrypted_AAC_Frame () {
-    ///     ADTS_Header                        // 7 or 9 bytes
-    ///     unencrypted_leader                 // 16 bytes
-    ///     while (bytes_remaining() >= 16) {
-    ///         encrypted_block                // 16 bytes
-    ///     }
-    ///     unencrypted_trailer                // 0-15 bytes
-    /// }
-    fn decrypt_aac_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
-        let adts = AdtsHeader::new(input);
-        let data = adts.data(input);
-
-        Self::decrypt_raw_sample(data, key, iv);
-        adts.length
-    }
-
-    /// Encrypted_AC3_Frame () {
-    ///     unencrypted_leader                 // 16 bytes
-    ///     while (bytes_remaining() >= 16) {
-    ///         encrypted_block                // 16 bytes
-    ///     }
-    ///     unencrypted_trailer                // 0-15 bytes
-    /// }
-    fn decrypt_ac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
-        let ac3 = Ac3Header::new(input);
-        let data = ac3.data(input);
-
-        Self::decrypt_raw_sample(data, key, iv);
-        ac3.length
-    }
-
-    /// Encrypted_Enhanced_AC3_syncframe () {
-    ///     unencrypted_leader                 // 16 bytes
-    ///     while (bytes_remaining() >= 16) {
-    ///         encrypted_block                // 16 bytes
-    ///     }
-    ///     unencrypted_trailer                // 0-15 bytes
-    /// }
-    fn decrypt_eac3_frame(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) -> usize {
-        let eac3 = Eac3Header::new(input);
-        let data = eac3.data(input);
-
-        Self::decrypt_raw_sample(data, key, iv);
-        eac3.length
-    }
-
-    fn decrypt_raw_sample(input: &mut [u8], key: [u8; 16], iv: [u8; 16]) {
-        let mut decryptor = cbc::Decryptor::<aes::Aes128>::new(&key.into(), &iv.into());
-
-        let mut is_first = true;
-        let chunks = input.chunks_mut(16);
-        for chunk in chunks {
-            if chunk.len() < 16 || is_first {
-                is_first = false;
-                continue;
-            }
-            decryptor.decrypt_block_mut(chunk.into());
         }
     }
 }
@@ -454,7 +454,7 @@ fn should_decrypt_stream(id_map: &HashMap<u16, StreamType>, pid: u16) -> bool {
     }
 }
 
-pub fn decrypt<R, W>(input: R, output: W, key: [u8; 16], iv: [u8; 16]) -> Result<()>
+pub fn decrypt_mpegts<R, W>(input: R, output: W, key: [u8; 16], iv: [u8; 16]) -> Result<()>
 where
     R: Read,
     W: Write,
@@ -561,6 +561,110 @@ where
     // handle remaining streams
     for pes in streams.into_values() {
         pes.decrypt_and_write(key, iv, &mut writer)?;
+    }
+
+    Ok(())
+}
+
+enum AudioSetupType {
+    /// AAC-LC
+    AacLc,
+    /// AAC-HEv1
+    AacHeV1,
+    /// AAC-HEv2
+    AacHeV2,
+    /// AC-3
+    Ac3,
+    /// Enhanced AC-3
+    EnhancedAc3,
+}
+
+pub fn decrypt<R, W>(input: R, mut output: W, key: [u8; 16], iv: [u8; 16]) -> Result<()>
+where
+    R: Read,
+    W: Write,
+{
+    let mut input = BufReader::new(input);
+    let magic = input.fill_buf()?;
+
+    if magic.is_empty() {
+        return Ok(());
+    }
+
+    // MPEG-TS
+    if magic[0] == 0x47 {
+        return decrypt_mpegts(input, output, key, iv);
+    }
+
+    let mut audio_format = None;
+    let mut is_id3 = &magic[0..3] == b"ID3";
+    while is_id3 {
+        let tag = id3::Tag::read_from(&mut input)?;
+        tag.write_to(&mut output, tag.version())?;
+
+        // In elementary streams the audio setup information is carried inside an ID3 Private Frame, as defined in ID3 tag version 2.4.0.
+        // The owner identifier is com.apple.streaming.audioDescription.
+        let format = tag.frames().find(|f| f.id() == "PRIV").and_then(|p| {
+            if let id3::Content::Private(p) = p.content() {
+                if p.owner_identifier == "com.apple.streaming.audioDescription" {
+                    // audio_setup_information() {
+                    //     audio_type               // 4 bytes
+                    //     priming                  // 2 bytes
+                    //     version                  // 1 byte
+                    //     setup_data_length        // 1 byte
+                    //     setup_data               // setup_data_length
+                    // }
+                    let data = &p.private_data;
+                    if data.len() >= 4 {
+                        let format = &data[0..4];
+                        return match format {
+                            b"zaac" => Some(AudioSetupType::AacLc),
+                            b"zach" => Some(AudioSetupType::AacHeV1),
+                            b"zacp" => Some(AudioSetupType::AacHeV2),
+                            b"zac3" => Some(AudioSetupType::Ac3),
+                            b"zec3" => Some(AudioSetupType::EnhancedAc3),
+                            _ => None,
+                        };
+                    }
+                }
+            }
+
+            None
+        });
+
+        if let Some(format) = format {
+            audio_format = Some(format);
+        }
+
+        let magic = input.fill_buf()?;
+        is_id3 = magic.len() >= 3 && &magic[0..3] == b"ID3";
+    }
+
+    let Some(audio_format) = audio_format else {
+        return Ok(());
+    };
+
+    let mut buf = Vec::new();
+    input.read_to_end(&mut buf)?;
+
+    let mut data = &mut buf[..];
+    loop {
+        if data.is_empty() {
+            break;
+        }
+
+        let size = match audio_format {
+            AudioSetupType::AacLc | AudioSetupType::AacHeV1 | AudioSetupType::AacHeV2 => {
+                decrypt_aac_frame(data, key, iv)
+            }
+            AudioSetupType::Ac3 => decrypt_ac3_frame(data, key, iv),
+            AudioSetupType::EnhancedAc3 => decrypt_eac3_frame(data, key, iv),
+        };
+
+        let decrypted = &data[..size];
+        output.write_all(decrypted)?;
+
+        data = &mut data[size..];
     }
 
     Ok(())

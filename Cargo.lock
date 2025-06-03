@@ -1726,6 +1726,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "id3"
+version = "1.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "472295f55960dd48e38c89442fa5d5423f5cf0ed2c665485be78e129231a39e9"
+dependencies = [
+ "bitflags",
+ "byteorder",
+ "flate2",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1950,6 +1961,7 @@ dependencies = [
  "aes",
  "cbc",
  "criterion",
+ "id3",
  "log",
  "memchr",
  "mpeg2ts",
