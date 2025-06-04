@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{decrypt::IoriKey, ByteRange, HttpClient, IoriResult, StreamingSegment};
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -16,6 +18,7 @@ pub enum SegmentFormat {
     M4a,
     Cmfv,
     Cmfa,
+    Aac,
     Raw(String),
     Other(String),
 }
@@ -28,6 +31,7 @@ impl SegmentFormat {
             Self::M4a => "m4a",
             Self::Cmfv => "cmfv",
             Self::Cmfa => "cmfa",
+            Self::Aac => "aac",
             Self::Raw(ext) => ext.as_str(),
             Self::Other(ext) => ext.as_str(),
         }
@@ -35,15 +39,28 @@ impl SegmentFormat {
 
     pub fn from_filename(s: &str) -> Self {
         let (_, ext) = s.rsplit_once('.').unwrap_or(("", s));
+        Self::from_ext(ext)
+    }
+
+    fn from_ext(ext: &str) -> Self {
         match ext {
             "ts" => Self::Mpeg2TS,
             "mp4" | "m4s" | "m4f" => Self::Mp4,
             "m4a" => Self::M4a,
             "cmfv" => Self::Cmfv,
             "cmfa" => Self::Cmfa,
+            "aac" => Self::Aac,
             "txt" | "ass" | "srt" | "vtt" | "json" => Self::Raw(ext.to_string()),
             _ => Self::Other(ext.to_string()),
         }
+    }
+}
+
+impl FromStr for SegmentFormat {
+    type Err = crate::IoriError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from_ext(s))
     }
 }
 

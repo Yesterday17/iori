@@ -86,8 +86,10 @@ impl Merger for AutoMerger {
         for (stream_id, segments) in self.segments.iter() {
             let segments: Vec<_> = segments.iter().map(|s| &s.segment).collect();
             let can_concat = segments.iter().all(|s| {
-                matches!(s.format, SegmentFormat::Mpeg2TS | SegmentFormat::Raw(_))
-                    || matches!(s.r#type, SegmentType::Subtitle)
+                matches!(
+                    s.format,
+                    SegmentFormat::Mpeg2TS | SegmentFormat::Aac | SegmentFormat::Raw(_)
+                ) || matches!(s.r#type, SegmentType::Subtitle)
             });
 
             let first_segment = segments[0];

@@ -5,7 +5,7 @@ use clap_handler::handler;
 use iori::{
     cache::CacheSource,
     merge::{IoriMerger, Merger},
-    SegmentInfo,
+    SegmentFormat, SegmentInfo,
 };
 use tokio::{
     fs::{read_dir, File},
@@ -67,6 +67,9 @@ pub struct MergeCommand {
     #[clap(long)]
     pub concat: bool,
 
+    #[clap(long, default_value = "ts")]
+    pub format: SegmentFormat,
+
     #[clap(short, long)]
     pub output: PathBuf,
 
@@ -108,6 +111,7 @@ pub async fn merge_command(me: MergeCommand) -> anyhow::Result<()> {
     for (sequence, input) in files.into_iter().enumerate() {
         let segment = iori::SegmentInfo {
             sequence: sequence as u64,
+            format: me.format.clone(),
             ..Default::default()
         };
         cache.add_file(&segment, input).await;
