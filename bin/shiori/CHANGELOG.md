@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-06-05
+
+### New Features
+
+- Supported decryption of Sample-AES Elementary Audio Stream Setup.
+- Supported concat merge for `aac` format.
+- Added `DashInspector` to match `.mpd` manifests.
+- **Experimental**: Supported download for MPEG-DASH live stream.
+
+### Fixed
+
+- Fixed a crash caused by i18n bundle on windows. ([#16](https://github.com/Yesterday17/iori/issues/16))
+- CacheSource failure can be retried correctly now.
+- Fixed potential segment duplication when using `-m` for in-memory cache.
+
+
 ## [0.2.0] - 2025-05-11
 
 ### Breaking Changes
@@ -45,15 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.4] - 2025-04-16
 
-### Updated
-
-- **NicoLive**: Supported danmaku download.
-- **Showroom**: Supported timeshift download.
-- File extension would be appended to the output file automatically.
-- Improved help messages for inspectors.
-
-### Fixed
-
+### UpdatedRetry now works when 
 - **NicoLive**: `NicoLiveInspector` now extracts the best quality stream.
 - **NicoLive**: `NicoLiveInspector` now always uses `http1` for `WebSocket` connection.
 
@@ -102,3 +110,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.3]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.3
 [0.1.4]: https://github.com/Yesterday17/iori/tree/shiori-v0.1.4
 [0.2.0]: https://github.com/Yesterday17/iori/tree/shiori-v0.2.0
+[0.2.1]: https://github.com/Yesterday17/iori/tree/shiori-v0.2.1
