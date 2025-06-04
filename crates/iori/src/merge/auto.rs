@@ -7,7 +7,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tokio::{fs::File, process::Command};
+use tokio::{fs::File, io::BufWriter, process::Command};
 
 use super::{concat::ConcatSegment, Merger};
 
@@ -140,7 +140,8 @@ where
 {
     segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
 
-    let mut output = File::create(output_path.as_ref()).await?;
+    let output = File::create(output_path.as_ref()).await?;
+    let mut output = BufWriter::new(output);
     for segment in segments {
         let mut reader = cache.open_reader(segment).await?;
         tokio::io::copy(&mut reader, &mut output).await?;
