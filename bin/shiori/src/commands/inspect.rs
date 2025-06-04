@@ -1,5 +1,5 @@
 use crate::inspect::{
-    inspectors::{ExternalInspector, HlsInspector, ShortLinkInspector},
+    inspectors::{DashInspector, ExternalInspector, HlsInspector, ShortLinkInspector},
     Inspectors,
 };
 use clap::Parser;
@@ -29,6 +29,7 @@ pub(crate) fn get_default_external_inspector() -> Inspectors {
         .add(NicoLiveInspector)
         .add(GigafileInspector)
         .add(HlsInspector)
+        .add(DashInspector)
         .add(ExternalInspector);
 
     inspector
