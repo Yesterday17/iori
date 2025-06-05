@@ -86,7 +86,9 @@ impl NicoLiveInspectorImpl {
         let client = DanmakuClient::new(message_server.view_uri).await?;
         let end_time = program_end_time + 30 * 60;
         let backward = client.get_backward_segment(end_time.to_string()).await?;
-        let segment = backward.segment.unwrap();
+        let segment = backward
+            .segment
+            .ok_or_else(|| anyhow::anyhow!("No segment found in the backward segment"))?;
         let start_time = DateTime::<Utc>::from_str(&message_server.vpos_base_time)
             .map(|r| r.timestamp())
             .ok();
