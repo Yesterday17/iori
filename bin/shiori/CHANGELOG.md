@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - Unreleased
+
+### New Features
+
+- Supported Niconico video download.
+
 ## [0.2.1] - 2025-06-05
 
 ### New Features
@@ -19,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a crash caused by i18n bundle on windows. ([#16](https://github.com/Yesterday17/iori/issues/16))
 - CacheSource failure can be retried correctly now.
 - Fixed potential segment duplication when using `-m` for in-memory cache.
-
 
 ## [0.2.0] - 2025-05-11
 
@@ -61,7 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.4] - 2025-04-16
 
-### UpdatedRetry now works when 
+### Updated
+
+- **NicoLive**: Supported danmaku download.
+- **Showroom**: Supported timeshift download.
+- File extension would be appended to the output file automatically.
+- Improved help messages for inspectors.
+
+### Fixed
+
 - **NicoLive**: `NicoLiveInspector` now extracts the best quality stream.
 - **NicoLive**: `NicoLiveInspector` now always uses `http1` for `WebSocket` connection.
 
