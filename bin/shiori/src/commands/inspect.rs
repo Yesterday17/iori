@@ -5,7 +5,7 @@ use crate::inspect::{
 use clap::Parser;
 use clap_handler::handler;
 use iori_gigafile::GigafileInspector;
-use iori_nicolive::inspect::NicoLiveInspector;
+use iori_nicolive::inspect::{NicoLiveInspector, NicoVideoInspector};
 use iori_showroom::inspect::ShowroomInspector;
 use shiori_plugin::{InspectorArguments, InspectorCommand};
 
@@ -27,6 +27,7 @@ pub(crate) fn get_default_external_inspector() -> Inspectors {
         .add(ShortLinkInspector)
         .add(ShowroomInspector)
         .add(NicoLiveInspector)
+        .add(NicoVideoInspector)
         .add(GigafileInspector)
         .add(HlsInspector)
         .add(DashInspector)

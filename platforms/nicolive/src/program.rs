@@ -1,10 +1,14 @@
 use std::sync::LazyLock;
 
+use fake_user_agent::get_chrome_rua;
 use regex::Regex;
-use reqwest::Client;
+use reqwest::{header::SET_COOKIE, Client};
 
 static NICO_METADATA_REGEXP: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"<script id="embedded-data" data-props="([^"]+)""#).unwrap());
+
+static NICO_SERVER_RESPONSE_REGEXP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"<meta name="server-response" content="([^"]+)"#).unwrap());
 
 #[derive(Debug)]
 pub struct NicoEmbeddedData {
@@ -143,8 +147,172 @@ impl NicoEmbeddedData {
     }
 }
 
+pub struct NivoServerResponse {
+    client: Client,
+    data: serde_json::Value,
+}
+
+impl NivoServerResponse {
+    pub async fn new<S>(video_url: S, user_session: Option<&str>) -> anyhow::Result<Self>
+    where
+        S: AsRef<str>,
+    {
+        let mut headers = reqwest::header::HeaderMap::new();
+        let user_session = user_session.unwrap_or_default();
+        headers.insert(
+            reqwest::header::COOKIE,
+            reqwest::header::HeaderValue::from_str(&format!("user_session={user_session}"))?,
+        );
+        let client = Client::builder()
+            .default_headers(headers)
+            .user_agent(get_chrome_rua())
+            .build()?;
+
+        let live_url = if video_url.as_ref().starts_with("so") {
+            &format!("https://www.nicovideo.jp/watch/{}", video_url.as_ref())
+        } else {
+            video_url.as_ref()
+        };
+
+        let response = client.get(live_url).send().await?;
+        let text = response.text().await?;
+        let json = NICO_SERVER_RESPONSE_REGEXP
+            .captures(&text)
+            .and_then(|cap| cap.get(1))
+            .map(|capture| {
+                let capture = capture.as_str();
+                // url decode
+                html_escape::decode_html_entities(capture).to_string()
+            })
+            .unwrap();
+
+        Ok(Self {
+            client,
+            data: serde_json::from_str(&json)?,
+        })
+    }
+
+    pub async fn playlist_url(&self) -> anyhow::Result<(String, String)> {
+        let video_id = self
+            .video_id()
+            .ok_or_else(|| anyhow::anyhow!("no video id"))?;
+        let url = format!("https://nvapi.nicovideo.jp/v1/watch/{video_id}/access-rights/hls",);
+
+        let action_track_id = self
+            .action_track_id()
+            .ok_or_else(|| anyhow::anyhow!("no action track id"))?;
+        let access_right_key = self
+            .access_right_key()
+            .ok_or_else(|| anyhow::anyhow!("no access right key"))?;
+        let video_quality = self
+            .video_quality()
+            .ok_or_else(|| anyhow::anyhow!("no video quality"))?;
+        let audio_quality = self
+            .audio_quality()
+            .ok_or_else(|| anyhow::anyhow!("no audio quality"))?;
+        let json = serde_json::json!({
+            "outputs": [[video_quality, audio_quality]],
+        });
+        let response = self
+            .client
+            .post(url)
+            .query(&[("actionTrackId", action_track_id)])
+            .header("x-access-right-key", access_right_key)
+            .header("x-frontend-id", "6")
+            .header("x-frontend-version", "0")
+            .header("x-niconico-language", "ja-JP")
+            .header("x-request-with", "nicovideo")
+            .json(&json)
+            .send()
+            .await?;
+
+        let cookies = response.headers().get_all(SET_COOKIE);
+        let cookies = cookies
+            .into_iter()
+            .filter_map(|cookie| {
+                let Ok(cookie) = cookie.to_str() else {
+                    return None;
+                };
+                let (kv, _) = cookie.split_once(';')?;
+                Some(kv)
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        let data: serde_json::Value = response.json().await?;
+        let url = data["data"]["contentUrl"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("no url"))?;
+
+        Ok((url.to_string(), cookies))
+    }
+
+    fn response(&self) -> Option<&serde_json::Value> {
+        self.data.get("data").and_then(|data| data.get("response"))
+    }
+
+    fn domand(&self) -> Option<&serde_json::Value> {
+        self.response()
+            .and_then(|r| r.get("media"))
+            .and_then(|m| m.get("domand"))
+    }
+
+    pub fn program_title(&self) -> Option<String> {
+        self.response()
+            .and_then(|r| r.get("video"))
+            .and_then(|video| video.get("title"))
+            .and_then(|title| title.as_str())
+            .map(|title| title.to_string())
+    }
+
+    fn video_id(&self) -> Option<String> {
+        self.response()
+            .and_then(|r| r.get("video"))
+            .and_then(|video| video.get("id"))
+            .and_then(|id| id.as_str())
+            .map(|id| id.to_string())
+    }
+
+    fn access_right_key(&self) -> Option<String> {
+        self.domand()
+            .and_then(|media| media.get("accessRightKey"))
+            .and_then(|key| key.as_str())
+            .map(|key| key.to_string())
+    }
+
+    fn video_quality(&self) -> Option<String> {
+        self.domand()
+            .and_then(|media| media.get("videos"))
+            .and_then(|quality| quality.as_array())
+            .and_then(|quality| quality.first())
+            .and_then(|quality| quality.get("id"))
+            .and_then(|quality| quality.as_str())
+            .map(String::from)
+    }
+
+    fn audio_quality(&self) -> Option<String> {
+        self.domand()
+            .and_then(|media| media.get("audios"))
+            .and_then(|quality| quality.as_array())
+            .and_then(|quality| quality.first())
+            .and_then(|quality| quality.get("id"))
+            .and_then(|quality| quality.as_str())
+            .map(String::from)
+    }
+
+    fn action_track_id(&self) -> Option<String> {
+        self.response()
+            .and_then(|r| r.get("client"))
+            .and_then(|client| client.get("watchTrackId"))
+            .and_then(|id| id.as_str())
+            .map(|id| id.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::program::NivoServerResponse;
+
     use super::NicoEmbeddedData;
 
     #[tokio::test]
@@ -152,6 +320,14 @@ mod tests {
         let data =
             NicoEmbeddedData::new("https://live.nicovideo.jp/watch/lv347149115", None).await?;
         println!("{:?}", data.websocket_url());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_playlist() -> anyhow::Result<()> {
+        let data =
+            NivoServerResponse::new("https://www.nicovideo.jp/watch/so45023417", None).await?;
+        println!("{:?}", data.playlist_url().await?);
         Ok(())
     }
 }

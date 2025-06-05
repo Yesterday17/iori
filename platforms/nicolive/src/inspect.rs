@@ -6,7 +6,7 @@ use shiori_plugin::*;
 use crate::{
     danmaku::{DanmakuClient, DanmakuList},
     model::{WatchMessageMessageServer, WatchMessageStream, WatchResponse},
-    program::NicoEmbeddedData,
+    program::{NicoEmbeddedData, NivoServerResponse},
     watch::WatchClient,
 };
 
@@ -19,7 +19,7 @@ impl InspectorBuilder for NicoLiveInspector {
 
     fn help(&self) -> Vec<String> {
         [
-            "Extracts NicoLive live streams or timeshifts.",
+            "Extracts Niconico live streams or timeshifts.",
             "",
             "Available for URLs starting with:",
             "- https://live.nicovideo.jp/watch/lv*",
@@ -33,7 +33,7 @@ impl InspectorBuilder for NicoLiveInspector {
         command.add_argument(
             "nico-user-session",
             Some("user_session"),
-            "[NicoLive] Your NicoLive user session key.",
+            "[Niconico] Your Niconico user session key.",
         );
         command.add_boolean_argument(
             "nico-download-danmaku",
@@ -193,5 +193,62 @@ impl Inspect for NicoLiveInspectorImpl {
         }
 
         Ok(InspectResult::Playlists(result))
+    }
+}
+
+pub struct NicoVideoInspector;
+
+impl InspectorBuilder for NicoVideoInspector {
+    fn name(&self) -> String {
+        "nicovideo".to_string()
+    }
+
+    fn help(&self) -> Vec<String> {
+        [
+            "Extracts Niconico videos.",
+            "",
+            "Available for URLs starting with:",
+            "- https://www.nicovideo.jp/watch/so*",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    }
+
+    fn arguments(&self, command: &mut dyn InspectorCommand) {
+        command.add_argument(
+            "nico-user-session",
+            Some("user_session"),
+            "[Niconico] Your Niconico user session key.",
+        );
+    }
+
+    fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>> {
+        let user_session = args.get_string("nico-user-session");
+        Ok(Box::new(NicoVideoInspectorImpl { user_session }))
+    }
+}
+
+struct NicoVideoInspectorImpl {
+    user_session: Option<String>,
+}
+
+#[async_trait]
+impl Inspect for NicoVideoInspectorImpl {
+    async fn matches(&self, url: &str) -> bool {
+        url.starts_with("https://www.nicovideo.jp/watch/so")
+    }
+
+    async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
+        let data: NivoServerResponse =
+            NivoServerResponse::new(url, self.user_session.as_deref()).await?;
+        let (playlist_url, cookies) = data.playlist_url().await?;
+        Ok(InspectResult::Playlists(vec![InspectPlaylist {
+            title: data.program_title(),
+            playlist_url,
+            playlist_type: PlaylistType::HLS,
+            headers: vec![format!("Cookie: {cookies}")],
+            ..Default::default()
+        }]))
     }
 }
