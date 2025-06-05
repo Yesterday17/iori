@@ -184,7 +184,9 @@ impl NivoServerResponse {
                 // url decode
                 html_escape::decode_html_entities(capture).to_string()
             })
-            .unwrap();
+            .ok_or_else(|| {
+                anyhow::anyhow!("Failed to extract server response from the web page")
+            })?;
 
         Ok(Self {
             client,
