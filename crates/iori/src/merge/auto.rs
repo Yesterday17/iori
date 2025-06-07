@@ -113,6 +113,9 @@ impl Merger for AutoMerger {
             };
             tokio::fs::rename(&tracks[0], output).await?;
         } else {
+            #[cfg(feature = "ffmpeg")]
+            super::ffmpeg::ffmpeg_merge(tracks, &self.output_file).await?;
+            #[cfg(not(feature = "ffmpeg"))]
             mkvmerge_merge(tracks, &self.output_file).await?;
         }
 
@@ -184,6 +187,7 @@ where
     Ok(())
 }
 
+#[allow(unused)]
 async fn mkvmerge_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
 where
     O: AsRef<Path>,
