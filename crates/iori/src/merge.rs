@@ -1,5 +1,6 @@
 mod auto;
 mod concat;
+mod ffmpeg;
 mod pipe;
 mod skip;
 

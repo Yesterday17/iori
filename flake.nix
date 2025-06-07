@@ -37,6 +37,8 @@
           src = ./.;
           nativeBuildInputs = with pkgs; [
             pkg-config
+            rustPlatform.bindgenHook
+            ffmpeg.dev
           ];
           buildInputs = with pkgs; [
             protobuf
@@ -47,9 +49,12 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             rustToolchain
-            pkg-config
             rust-analyzer
+            pkg-config
+            rustPlatform.bindgenHook
+            ffmpeg.dev
             protobuf
+
             mkvtoolnix-cli
           ];
         };

@@ -82,6 +82,18 @@ pub enum IoriError {
 
     #[error("Invalid date time: {0}")]
     DateTimeParsing(String),
+
+    #[cfg(feature = "ffmpeg")]
+    #[error(transparent)]
+    RsmpegError(#[from] rsmpeg::error::RsmpegError),
+
+    #[cfg(feature = "ffmpeg")]
+    #[error(transparent)]
+    InvalidTrackPath(#[from] std::ffi::NulError),
+
+    #[cfg(feature = "ffmpeg")]
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 pub type IoriResult<T> = Result<T, IoriError>;

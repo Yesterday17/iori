@@ -39,15 +39,19 @@ serde_json.workspace = true
 tokio-util = { version = "0.7.15", features = ["io"] }
 futures = "0.3.31"
 opendal = { version = "0.53.1", optional = true }
+rsmpeg = { version = "0.15.2", optional = true, features = [
+    "link_system_ffmpeg",
+] }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 command-fds = { version = "0.3.0", features = ["tokio"] }
 
 [features]
-default = []
+default = ["ffmpeg"]
 opendal = ["dep:opendal", "tokio-util/compat"]
 opendal-fs = ["opendal/services-fs"]
 opendal-s3 = ["opendal/services-s3"]
+ffmpeg = ["dep:rsmpeg"]
 
 [dev-dependencies]
 anyhow.workspace = true
