@@ -29,22 +29,36 @@ where
             input_contexts.push(input_context);
         }
 
+        // [track][stream] -> output_stream_index
+        let mut total_stream_count = 0;
+        let mut stream_mapping = Vec::new();
         for input_context in &input_contexts {
+            let mut mapping = Vec::new();
             for input_stream in input_context.streams() {
+                let codec_type = input_stream.codecpar().codec_type();
+                if !codec_type.is_video() && !codec_type.is_audio() {
+                    mapping.push(None);
+                    continue;
+                }
+
                 let mut output_stream = output_format_context.new_stream();
                 output_stream.set_codecpar(input_stream.codecpar().clone());
+                mapping.push(Some(total_stream_count));
+                total_stream_count += 1;
             }
+            stream_mapping.push(mapping);
         }
 
         // output_format_context.dump(0, output.as_path())?;
         output_format_context.write_header(&mut None)?;
 
-        let mut stream_index_offset = 0;
-        for mut input_context in input_contexts {
+        for (mut input_context, mapping) in input_contexts.iter_mut().zip(stream_mapping) {
             let stream_count = input_context.streams().len();
             while let Some(mut packet) = input_context.read_packet()? {
                 let input_stream_index = packet.stream_index as usize;
-                let output_stream_index = stream_index_offset + input_stream_index;
+                let Some(output_stream_index) = mapping[input_stream_index] else {
+                    continue;
+                };
 
                 {
                     let output_stream = &output_format_context.streams()[output_stream_index];
@@ -57,7 +71,6 @@ where
 
                 output_format_context.interleaved_write_frame(&mut packet)?;
             }
-            stream_index_offset += stream_count;
         }
 
         output_format_context.write_trailer()?;
