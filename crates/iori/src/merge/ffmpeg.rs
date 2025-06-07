@@ -4,7 +4,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use rsmpeg::avformat::{AVFormatContextInput, AVFormatContextOutput};
+use rsmpeg::{
+    avformat::{AVFormatContextInput, AVFormatContextOutput},
+    UnsafeDerefMut,
+};
 
 use crate::IoriResult;
 
@@ -42,18 +45,22 @@ where
                 }
 
                 let mut output_stream = output_format_context.new_stream();
-                output_stream.set_codecpar(input_stream.codecpar().clone());
+                let mut codecpar = input_stream.codecpar().clone();
+                {
+                    let codecpar = unsafe { codecpar.deref_mut() };
+                    codecpar.codec_tag = 0;
+                }
+                output_stream.codecpar_mut().copy(&codecpar);
                 mapping.push(Some(total_stream_count));
                 total_stream_count += 1;
             }
             stream_mapping.push(mapping);
         }
 
-        // output_format_context.dump(0, output.as_path())?;
+        output_format_context.dump(0, &c_output)?;
         output_format_context.write_header(&mut None)?;
 
-        for (mut input_context, mapping) in input_contexts.iter_mut().zip(stream_mapping) {
-            let stream_count = input_context.streams().len();
+        for (input_context, mapping) in input_contexts.iter_mut().zip(stream_mapping) {
             while let Some(mut packet) = input_context.read_packet()? {
                 let input_stream_index = packet.stream_index as usize;
                 let Some(output_stream_index) = mapping[input_stream_index] else {
