@@ -4,29 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use rsmpeg::{
-    avcodec::AVPacket,
-    avformat::{AVFormatContextInput, AVFormatContextOutput},
-    ffi,
-};
+use rsmpeg::avformat::{AVFormatContextInput, AVFormatContextOutput};
 
 use crate::IoriResult;
 
-fn rescale_ts(packet: &mut AVPacket, from: ffi::AVRational, to: ffi::AVRational) {
-    unsafe {
-        if packet.pts != ffi::AV_NOPTS_VALUE {
-            packet.set_pts(ffi::av_rescale_q(packet.pts, from, to));
-        }
-        if packet.dts != ffi::AV_NOPTS_VALUE {
-            packet.set_dts(ffi::av_rescale_q(packet.dts, from, to));
-        }
-        if packet.duration > 0 {
-            packet.set_duration(ffi::av_rescale_q(packet.duration, from, to));
-        }
-    }
-}
-
-async fn ffmpeg_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
+pub(crate) async fn ffmpeg_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
@@ -59,16 +41,19 @@ where
 
         let mut stream_index_offset = 0;
         for mut input_context in input_contexts {
-            let stream_count = input_context.streams().len() as i32;
+            let stream_count = input_context.streams().len();
             while let Some(mut packet) = input_context.read_packet()? {
-                let old_index = packet.stream_index;
-                let input_stream = &input_context.streams()[old_index as usize];
-                let output_stream_index = stream_index_offset + old_index;
-                let output_stream = &output_format_context.streams()[output_stream_index as usize];
+                let input_stream_index = packet.stream_index as usize;
+                let output_stream_index = stream_index_offset + input_stream_index;
 
-                packet.set_pos(-1);
-                rescale_ts(&mut packet, input_stream.time_base, output_stream.time_base);
-                packet.set_stream_index(output_stream_index);
+                {
+                    let output_stream = &output_format_context.streams()[output_stream_index];
+                    let input_stream = &input_context.streams()[input_stream_index];
+
+                    packet.rescale_ts(input_stream.time_base, output_stream.time_base);
+                    packet.set_stream_index(output_stream_index as i32);
+                    packet.set_pos(-1);
+                }
 
                 output_format_context.interleaved_write_frame(&mut packet)?;
             }
