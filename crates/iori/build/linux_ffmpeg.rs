@@ -60,7 +60,6 @@ fn main() -> Result<()> {
 
     Command::new("./configure")
         .arg(format!("--prefix={}", build_path))
-        .arg("--disable-avdevice")
         // To workaround `https://github.com/larksuite/rsmpeg/pull/98#issuecomment-1467511193`
         .arg("--disable-decoder=exr,phm")
         .arg("--disable-programs")
