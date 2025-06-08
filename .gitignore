@@ -12,6 +12,8 @@ target/
 # Intellij files
 .idea/
 
+tmp
+
 # Video files
 *.ts
 *.mkv

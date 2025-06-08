@@ -38,7 +38,6 @@
           nativeBuildInputs = with pkgs; [
             pkg-config
             rustPlatform.bindgenHook
-            ffmpeg.dev
           ];
           buildInputs = with pkgs; [
             protobuf
@@ -51,12 +50,24 @@
             rustToolchain
             rust-analyzer
             pkg-config
-            rustPlatform.bindgenHook
-            ffmpeg.dev
+            rustPlatform.bindgenHook # for clang
+            nasm
             protobuf
 
             mkvtoolnix-cli
           ];
+          env = {
+            LC_ALL = "C";
+          };
+          shellHook = ''
+            pushd crates/iori
+            ./build/build.rs
+
+            export FFMPEG_INCLUDE_DIR="$PWD/tmp/ffmpeg_build/include"
+            export FFMPEG_PKG_CONFIG_PATH="$PWD/tmp/ffmpeg_build/lib/pkgconfig"
+            export PKG_CONFIG_PATH_FOR_TARGET="$PKG_CONFIG_PATH_FOR_TARGET:$FFMPEG_PKG_CONFIG_PATH"
+            popd
+          '';
         };
       }
     );
