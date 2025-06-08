@@ -63,13 +63,13 @@ jobs:
         run: |
           brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
 
-      - name: Setup | FFmpeg
+      - name: Build | FFmpeg
         run: |
           pushd crates/iori
           ./build/build.rs ${{ matrix.target }}
           popd
       
-      - name: Make shared [Windows]
+      - name: PostBuild | Make Shared Library [Windows]
         if: matrix.target == 'x86_64-pc-windows-msvc'
         run: |
           cd ./crates/iori/tmp/ffmpeg_build/lib
@@ -98,7 +98,7 @@ jobs:
             -static-libgcc \
             -static-libstdc++
 
-      - name: Upload Cross Compiled FFmpeg
+      - name: Deploy | Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ matrix.target }}
@@ -171,16 +171,22 @@ jobs:
         with:
           version: "10.0"
           directory: ${{ github.workspace }}/clang
+      
+      - name: Setup | Clang Environment [Windows]
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo LIBCLANG_PATH="${{ github.workspace }}/clang/lib" >> $GITHUB_ENV
+          echo LLVM_CONFIG_PATH="${{ github.workspace }}/clang/bin/llvm-config" >> $GITHUB_ENV
+
+      - name: Setup | Environment
+        run: |
+          echo FFMPEG_INCLUDE_DIR="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/include" >> $GITHUB_ENV
+          echo FFMPEG_PKG_CONFIG_PATH="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH_FOR_TARGET="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
+          echo PKG_CONFIG_ALLOW_CROSS=1 >> $GITHUB_ENV
 
       - name: Build | Build
         uses: actions-rs/cargo@v1
-        env:
-          FFMPEG_INCLUDE_DIR: ${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/include
-          FFMPEG_PKG_CONFIG_PATH: ${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib/pkgconfig
-          PKG_CONFIG_PATH_FOR_TARGET: ${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib/pkgconfig
-          PKG_CONFIG_ALLOW_CROSS: 1
-          LIBCLANG_PATH: ${{ github.workspace }}/clang/lib
-          LLVM_CONFIG_PATH: ${{ github.workspace }}/clang/bin/llvm-config
         with:
           command: build
           args: --release --locked --all-features --target ${{ matrix.target }}" --workspace --exclude srr
