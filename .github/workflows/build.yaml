@@ -2,6 +2,108 @@ name: Build
 on: [push]
 
 jobs:
+  ffmpeg-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-pc-windows-msvc
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macOS-latest
+          - target: aarch64-apple-darwin
+            os: macOS-latest
+
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v2.4.0
+
+      # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
+      - name: Setup | FFmpeg Build Tools [Linux]
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -qq && sudo apt-get -y install \
+            autoconf \
+            automake \
+            build-essential \
+            cmake \
+            git-core \
+            libass-dev \
+            libfreetype6-dev \
+            libgnutls28-dev \
+            libsdl2-dev \
+            libtool \
+            libva-dev \
+            libvdpau-dev \
+            libvorbis-dev \
+            libxcb1-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            pkg-config \
+            texinfo \
+            wget \
+            yasm \
+            zlib1g-dev \
+            mingw-w64
+          sudo apt-get -y install nasm
+          sudo apt-get -y install libx264-dev
+          sudo apt-get -y install libx265-dev libnuma-dev
+          sudo apt-get -y install libvpx-dev
+          sudo apt-get -y install libfdk-aac-dev
+          sudo apt-get -y install libmp3lame-dev
+          sudo apt-get -y install libopus-dev
+
+      # https://trac.ffmpeg.org/wiki/CompilationGuide/macOS#Compiling
+      - name: Setup | FFmpeg Build Tools [macOS]
+        if: matrix.os == 'macOS-latest'
+        run: |
+          brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
+
+      - name: Setup | FFmpeg
+        run: |
+          pushd crates/iori
+          ./build/build.rs ${{ matrix.target }}
+          popd
+      
+      - name: Make shared [Windows]
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: |
+          cd ./crates/iori/tmp/ffmpeg_build/lib
+          i686-w64-mingw32-gcc -shared -o libffmpeg.dll \
+            -Wl,--out-implib,libffmpeg.lib \
+            -Wl,--whole-archive *.a -Wl,--no-whole-archive \
+            -lgdi32 \
+            -lpsapi \
+            -lole32 \
+            -lstrmiids \
+            -luuid \
+            -loleaut32 \
+            -lshlwapi \
+            -luser32 \
+            -lws2_32 \
+            -lvfw32 \
+            -luser32 \
+            -lsecur32 \
+            -lbcrypt \
+            -lm \
+            -lpsapi \
+            -ladvapi32 \
+            -lshell32 \
+            -lole32 \
+            -lmfplat \
+            -static-libgcc \
+            -static-libstdc++
+
+      - name: Upload Cross Compiled FFmpeg
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target }}
+          path: crates/iori/tmp/ffmpeg_build
+
   build:
     strategy:
       fail-fast: false
@@ -23,6 +125,7 @@ jobs:
             os: macOS-latest
             name: iori-arm64-apple-darwin.tar.gz
 
+    needs: [ffmpeg-build]
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     steps:
@@ -55,57 +158,19 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
-      - name: Setup | FFmpeg Build Tools [Linux]
-        if: matrix.os == 'ubuntu-latest'
+      
+      - name: Setup | Compiled FFmpeg
+        uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target }}
+          path: ${{ github.workspace }}/crates/iori/tmp/ffmpeg_build
+      
+      - name: Setup | Environment
         run: |
-          sudo apt-get update -qq && sudo apt-get -y install \
-            autoconf \
-            automake \
-            build-essential \
-            cmake \
-            git-core \
-            libass-dev \
-            libfreetype6-dev \
-            libgnutls28-dev \
-            libsdl2-dev \
-            libtool \
-            libva-dev \
-            libvdpau-dev \
-            libvorbis-dev \
-            libxcb1-dev \
-            libxcb-shm0-dev \
-            libxcb-xfixes0-dev \
-            pkg-config \
-            texinfo \
-            wget \
-            yasm \
-            zlib1g-dev
-          sudo apt-get -y install nasm
-          sudo apt-get -y install libx264-dev
-          sudo apt-get -y install libx265-dev libnuma-dev
-          sudo apt-get -y install libvpx-dev
-          sudo apt-get -y install libfdk-aac-dev
-          sudo apt-get -y install libmp3lame-dev
-          sudo apt-get -y install libopus-dev
-
-      # https://trac.ffmpeg.org/wiki/CompilationGuide/macOS#Compiling
-      - name: Setup | FFmpeg Build Tools [macOS]
-        if: matrix.os == 'macOS-latest'
-        run: |
-          brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
-
-      - name: Setup | FFmpeg
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
-        run: |
-          pushd crates/iori
-          ./build/build.rs ${{ matrix.target }}
-          echo FFMPEG_INCLUDE_DIR="$PWD/tmp/ffmpeg_build/include" >> $GITHUB_ENV
-          echo FFMPEG_PKG_CONFIG_PATH="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
-          echo PKG_CONFIG_PATH_FOR_TARGET="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
+          echo FFMPEG_INCLUDE_DIR="$PWD/crates/iori/tmp/ffmpeg_build/include" >> $GITHUB_ENV
+          echo FFMPEG_PKG_CONFIG_PATH="$PWD/crates/iori/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH_FOR_TARGET="$PWD/crates/iori/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
           echo PKG_CONFIG_ALLOW_CROSS=1 >> $GITHUB_ENV
-          popd
 
       - name: Build | Build
         uses: actions-rs/cargo@v1

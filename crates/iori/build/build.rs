@@ -17,7 +17,11 @@ fn main() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("./build/linux_ffmpeg.rs").status()?;
+        if target == "x86_64-pc-windows-msvc" {
+            Command::new("./build/windows_ffmpeg_cross.rs").status()?;
+        } else {
+            Command::new("./build/linux_ffmpeg.rs").status()?;
+        }
     }
 
     // Cross compile on macOS
