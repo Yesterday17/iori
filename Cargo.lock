@@ -3146,8 +3146,7 @@ dependencies = [
 [[package]]
 name = "rsmpeg"
 version = "0.15.2+ffmpeg.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "affc0df87c9691b97b25d3df4fd0ba6a037a0ebc27f37f6a6f0e5682443cf9a9"
+source = "git+https://github.com/Yesterday17/rsmpeg#3bbe229871942830bb6f2e266cd02e6ede2ee73c"
 dependencies = [
  "paste",
  "rusty_ffmpeg",
