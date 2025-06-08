@@ -6,15 +6,69 @@ use std::{
 
 use rsmpeg::{
     avformat::{AVFormatContextInput, AVFormatContextOutput},
+    ffi::{
+        __va_list_tag, av_log_format_line2, av_log_set_callback, AV_LOG_ERROR, AV_LOG_INFO,
+        AV_LOG_WARNING,
+    },
     UnsafeDerefMut,
 };
 
 use crate::IoriResult;
 
+unsafe extern "C" fn ffmpeg_log_callback(
+    ptr: *mut ::std::os::raw::c_void,
+    level: ::std::os::raw::c_int,
+    fmt: *const ::std::os::raw::c_char,
+    vargs: *mut __va_list_tag,
+) {
+    if level > AV_LOG_INFO as i32 {
+        return;
+    }
+
+    let mut buf = [0i8; 1024];
+    let mut print_prefix = 1;
+
+    let buf_len = av_log_format_line2(
+        ptr,
+        level,
+        fmt,
+        vargs,
+        buf.as_mut_ptr(),
+        buf.len() as i32,
+        &mut print_prefix,
+    );
+
+    if buf_len < 0 {
+        tracing::error!("ffmpeg log callback error: {}", buf_len);
+        return;
+    }
+
+    let data = &buf[..buf_len as usize];
+    let data = unsafe { &*(data as *const _ as *const [u8]) };
+    let data = String::from_utf8_lossy(data);
+    let data = data.trim_end_matches(['\r', '\n', ' ']);
+    if data.is_empty() {
+        return;
+    }
+
+    let level = level as u32;
+    if level <= AV_LOG_ERROR {
+        tracing::error!("{data}");
+    } else if level <= AV_LOG_WARNING {
+        tracing::warn!("{data}");
+    } else if level <= AV_LOG_INFO {
+        tracing::info!("{data}");
+    }
+}
+
 pub(crate) async fn ffmpeg_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
+    unsafe {
+        av_log_set_callback(Some(ffmpeg_log_callback));
+    }
+
     let output = output.as_ref().to_path_buf();
     let c_tracks = tracks
         .iter()
@@ -57,7 +111,6 @@ where
             stream_mapping.push(mapping);
         }
 
-        output_format_context.dump(0, &c_output)?;
         output_format_context.write_header(&mut None)?;
 
         for (input_context, mapping) in input_contexts.iter_mut().zip(stream_mapping) {
