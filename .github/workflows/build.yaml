@@ -90,6 +90,7 @@ jobs:
           sudo apt-get -y install libmp3lame-dev
           sudo apt-get -y install libopus-dev
 
+      # https://trac.ffmpeg.org/wiki/CompilationGuide/macOS#Compiling
       - name: Setup | FFmpeg Build Tools [macOS]
         if: matrix.os == 'macOS-latest'
         run: |
@@ -99,7 +100,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           pushd crates/iori
-          ./build/build.rs
+          ./build/build.rs ${{ matrix.target }}
           echo FFMPEG_INCLUDE_DIR="$PWD/tmp/ffmpeg_build/include" >> $GITHUB_ENV
           echo FFMPEG_PKG_CONFIG_PATH="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
           echo PKG_CONFIG_PATH_FOR_TARGET="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV

@@ -7,6 +7,10 @@ use std::io::Result;
 use std::process::Command;
 
 fn main() -> Result<()> {
+    let target = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "x86_64-apple-darwin".to_string());
+
     if fs::metadata("tmp").is_ok() {
         return Ok(());
     }
@@ -16,10 +20,15 @@ fn main() -> Result<()> {
         Command::new("./build/linux_ffmpeg.rs").status()?;
     }
 
-    // Use the same script for macOS
+    // Cross compile on macOS
     #[cfg(target_os = "macos")]
     {
-        Command::new("./build/linux_ffmpeg.rs").status()?;
+        // FIXME: check current arch
+        if target == "x86_64-apple-darwin" {
+            Command::new("./build/macos_ffmpeg_cross.rs").status()?;
+        } else {
+            Command::new("./build/linux_ffmpeg.rs").status()?;
+        }
     }
 
     Ok(())
