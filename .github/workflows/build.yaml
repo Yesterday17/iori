@@ -73,7 +73,7 @@ jobs:
         if: matrix.target == 'x86_64-pc-windows-msvc'
         run: |
           cd ./crates/iori/tmp/ffmpeg_build/lib
-          i686-w64-mingw32-gcc -shared -o libffmpeg.dll \
+          x86_64-w64-mingw32-gcc -shared -o libffmpeg.dll \
             -Wl,--out-implib,libffmpeg.lib \
             -Wl,--whole-archive *.a -Wl,--no-whole-archive \
             -lgdi32 \

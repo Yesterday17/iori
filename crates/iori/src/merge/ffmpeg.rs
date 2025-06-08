@@ -11,14 +11,37 @@ use rsmpeg::{
 
 use crate::IoriResult;
 
-#[cfg(all(target_arch = "x86_64", not(target_os = "windows")))]
+// Reference: https://github.com/YeautyYE/ez-ffmpeg/blob/a249e8ad35196cdf345e3f3dc93c87cfb263bfef/src/core/mod.rs#L434-L463
+#[cfg(any(
+    all(
+        not(target_arch = "aarch64"),
+        not(target_arch = "powerpc"),
+        not(target_arch = "s390x"),
+        not(target_arch = "x86_64")
+    ),
+    all(target_arch = "aarch64", target_vendor = "apple"),
+    target_family = "wasm",
+    target_os = "uefi",
+    windows,
+))]
+type VaListType = *mut ::std::os::raw::c_char;
+
+#[cfg(all(target_arch = "x86_64", not(target_os = "uefi"), not(windows)))]
 type VaListType = *mut rsmpeg::ffi::__va_list_tag;
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-type VaListType = rsmpeg::ffi::va_list;
+#[cfg(all(
+    target_arch = "aarch64",
+    not(target_vendor = "apple"),
+    not(target_os = "uefi"),
+    not(windows),
+))]
+pub type VaListType = *mut rsmpeg::ffi::__va_list_tag_aarch64;
 
-#[cfg(target_os = "windows")]
-type VaListType = rsmpeg::ffi::va_list;
+#[cfg(all(target_arch = "powerpc", not(target_os = "uefi"), not(windows)))]
+pub type VaListType = *mut rsmpeg::ffi::__va_list_tag_powerpc;
+
+#[cfg(target_arch = "s390x")]
+pub type VaListType = *mut rsmpeg::ffi::__va_list_tag_s390x;
 
 unsafe extern "C" fn ffmpeg_log_callback(
     ptr: *mut ::std::os::raw::c_void,
