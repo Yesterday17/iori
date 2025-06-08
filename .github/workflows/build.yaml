@@ -9,7 +9,7 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-          - target: x86_64-pc-windows-msvc
+          - target: x86_64-pc-windows-gnu
             os: ubuntu-latest
           - target: x86_64-apple-darwin
             os: macOS-latest
@@ -70,7 +70,7 @@ jobs:
           popd
       
       - name: PostBuild | Make Shared Library [Windows]
-        if: matrix.target == 'x86_64-pc-windows-msvc'
+        if: matrix.target == 'x86_64-pc-windows-gnu'
         run: |
           cd ./crates/iori/tmp/ffmpeg_build/lib
           x86_64-w64-mingw32-gcc -shared -o libffmpeg.dll \
@@ -115,9 +115,9 @@ jobs:
           # - target: x86_64-unknown-linux-musl
           #   os: ubuntu-latest
           #   name: iori-x86_64-unknown-linux-musl.tar.gz
-          - target: x86_64-pc-windows-msvc
+          - target: x86_64-pc-windows-gnu
             os: windows-latest
-            name: iori-x86_64-pc-windows-msvc.zip
+            name: iori-x86_64-pc-windows-gnu.zip
           - target: x86_64-apple-darwin
             os: macOS-latest
             name: iori-x86_64-apple-darwin.tar.gz
@@ -178,8 +178,8 @@ jobs:
           echo "LIBCLANG_PATH=${{ github.workspace }}\clang\lib" >> $env:GITHUB_ENV
           echo "LLVM_CONFIG_PATH=${{ github.workspace }}\clang\bin\llvm-config" >> $env:GITHUB_ENV
           echo "FFMPEG_INCLUDE_DIR=${{ github.workspace }}\crates\iori\tmp\ffmpeg_build\include" >> $env:GITHUB_ENV
-          # echo "FFMPEG_LIBS_DIR=${{ github.workspace }}\crates\iori\tmp\ffmpeg_build\lib" >> $env:GITHUB_ENV
-          echo "FFMPEG_DLL_PATH=${{ github.workspace }}\crates\iori\tmp\ffmpeg_build\lib\libffmpeg.dll" >> $env:GITHUB_ENV
+          echo "FFMPEG_LIBS_DIR=${{ github.workspace }}\crates\iori\tmp\ffmpeg_build\lib" >> $env:GITHUB_ENV
+          # echo "FFMPEG_DLL_PATH=${{ github.workspace }}\crates\iori\tmp\ffmpeg_build\lib\libffmpeg.dll" >> $env:GITHUB_ENV
 
       - name: Setup | Environment [-nix]
         if: matrix.os != 'windows-latest'
@@ -199,11 +199,11 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.target }}/release
-          cp $FFMPEG_DLL_PATH .
+          # cp $FFMPEG_DLL_PATH .
           strip minyami.exe
           strip ssadecrypt.exe
           strip shiori.exe
-          7z a ../../../${{ matrix.name }} minyami.exe ssadecrypt.exe shiori.exe libffmpeg.dll
+          7z a ../../../${{ matrix.name }} minyami.exe ssadecrypt.exe shiori.exe #libffmpeg.dll
           cd -
       - name: PostBuild | Prepare artifacts [-nix]
         if: matrix.os != 'windows-latest'
