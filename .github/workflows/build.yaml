@@ -129,7 +129,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Setup | Compiled FFmpeg
         uses: actions/download-artifact@v4
         with:
