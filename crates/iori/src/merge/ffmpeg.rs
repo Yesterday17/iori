@@ -6,20 +6,23 @@ use std::{
 
 use rsmpeg::{
     avformat::{AVFormatContextInput, AVFormatContextOutput},
-    ffi::{
-        __va_list_tag, av_log_format_line2, av_log_set_callback, AV_LOG_ERROR, AV_LOG_INFO,
-        AV_LOG_WARNING,
-    },
+    ffi::{av_log_format_line2, av_log_set_callback, AV_LOG_ERROR, AV_LOG_INFO, AV_LOG_WARNING},
     UnsafeDerefMut,
 };
 
 use crate::IoriResult;
 
+#[cfg(target_os = "linux")]
+type VaListType = *mut rsmpeg::ffi::__va_list_tag;
+
+#[cfg(target_os = "macos")]
+type VaListType = rsmpeg::ffi::va_list;
+
 unsafe extern "C" fn ffmpeg_log_callback(
     ptr: *mut ::std::os::raw::c_void,
     level: ::std::os::raw::c_int,
     fmt: *const ::std::os::raw::c_char,
-    vargs: *mut __va_list_tag,
+    vargs: VaListType,
 ) {
     if level > AV_LOG_INFO as i32 {
         return;
