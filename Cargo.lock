@@ -3532,6 +3532,7 @@ dependencies = [
  "shlex",
  "tokio",
  "tracing-subscriber",
+ "winresource",
 ]
 
 [[package]]
@@ -4719,6 +4720,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06928c8748d81b05c9be96aad92e1b6ff01833332f281e8cfca3be4b35fc9ec"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winresource"
+version = "0.1.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a179ac8923651ff1d15efbee760b4dd3679fd85fa5a8b2bb1109b7248f80e30f"
+dependencies = [
+ "toml 0.8.22",
+ "version_check",
 ]
 
 [[package]]
