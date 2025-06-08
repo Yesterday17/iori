@@ -58,6 +58,7 @@ jobs:
 
       # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
       - name: Setup | FFmpeg Build Tools
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update -qq && sudo apt-get -y install \
             autoconf \
@@ -96,7 +97,7 @@ jobs:
           ./build/build.rs
           echo FFMPEG_INCLUDE_DIR="$PWD/tmp/ffmpeg_build/include" >> $GITHUB_ENV
           echo FFMPEG_PKG_CONFIG_PATH="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
-          echo PKG_CONFIG_PATH_FOR_TARGET="$PKG_CONFIG_PATH_FOR_TARGET:$FFMPEG_PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH_FOR_TARGET="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
           popd
 
       - name: Build | Build
