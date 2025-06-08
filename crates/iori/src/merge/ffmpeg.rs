@@ -1,6 +1,5 @@
 use std::{
     ffi::CString,
-    os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
 };
 
@@ -75,11 +74,11 @@ where
     let output = output.as_ref().to_path_buf();
     let c_tracks = tracks
         .iter()
-        .map(|track| CString::new(track.as_os_str().as_bytes()))
+        .map(|track| CString::new(track.as_os_str().as_encoded_bytes()))
         .collect::<Result<Vec<_>, _>>()?;
 
     tokio::task::spawn_blocking(move || -> IoriResult<()> {
-        let c_output = CString::new(output.as_os_str().as_bytes())?;
+        let c_output = CString::new(output.as_os_str().as_encoded_bytes())?;
         let mut output_format_context = AVFormatContextOutput::create(&c_output, None)?;
 
         let mut input_contexts = vec![];
