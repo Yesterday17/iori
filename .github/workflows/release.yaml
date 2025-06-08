@@ -31,6 +31,7 @@ on:
         description: "Suffix for the archive bin filename."
         options:
           - '-'
+          - '-core-'
           - '-ffmpeg-'
 
 jobs:
@@ -107,17 +108,21 @@ jobs:
           path: crates/iori/tmp/ffmpeg_build
 
   create-release:
+    if: inputs.create_release == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/create-gh-release-action@v1
-        if: inputs.create_release == true
         with:
           prefix: ${{ inputs.binary_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
     needs: [create-release, ffmpeg-build]
+    if: |
+      always() &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     strategy:
       matrix:
         include:

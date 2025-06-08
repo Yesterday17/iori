@@ -12,8 +12,13 @@ fn get_commit_hash() -> Result<String, Box<dyn Error>> {
 
 fn main() {
     let version = env!("CARGO_PKG_VERSION");
+    let variant = if cfg!(feature = "ffmpeg") {
+        "ffmpeg"
+    } else {
+        "core"
+    };
     let hash = get_commit_hash().unwrap_or_else(|_| "unknown".to_string());
-    println!("cargo:rustc-env=SHIORI_VERSION={version} ({hash})");
+    println!("cargo:rustc-env=SHIORI_VERSION={version} ({variant}-{hash})");
 
     if let Ok("windows") = std::env::var("CARGO_CFG_TARGET_OS").as_deref() {
         let mut res = winresource::WindowsResource::new();

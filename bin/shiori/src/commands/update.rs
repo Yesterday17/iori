@@ -38,6 +38,11 @@ pub async fn update_command(me: UpdateCommand) -> anyhow::Result<()> {
         .repo_owner("Yesterday17")
         .repo_name("iori")
         .bin_name("shiori")
+        .identifier(if cfg!(feature = "ffmpeg") {
+            "shiori-ffmpeg"
+        } else {
+            "shiori-core"
+        })
         .target(&target)
         .target_version_tag(&target_version_tag)
         .show_download_progress(true)
