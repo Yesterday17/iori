@@ -45,7 +45,7 @@ rsmpeg = { version = "0.15.2", optional = true, git = "https://github.com/Yester
 command-fds = { version = "0.3.0", features = ["tokio"] }
 
 [features]
-default = ["ffmpeg"]
+default = []
 opendal = ["dep:opendal", "tokio-util/compat"]
 opendal-fs = ["opendal/services-fs"]
 opendal-s3 = ["opendal/services-s3"]
