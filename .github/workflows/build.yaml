@@ -191,7 +191,9 @@ jobs:
           echo PKG_CONFIG_ALLOW_CROSS=1 >> $GITHUB_ENV
 
       - name: Build | Build
+        shell: bash
         run: |
+          env
           cargo build --release --locked --all-features --target ${{ matrix.target }} --workspace --exclude srr
 
       - name: PostBuild | Prepare artifacts [Windows]
