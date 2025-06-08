@@ -172,13 +172,18 @@ jobs:
           version: "10.0"
           directory: ${{ github.workspace }}/clang
       
-      - name: Setup | Clang Environment [Windows]
+      - name: Setup | Environment [Windows]
         if: matrix.os == 'windows-latest'
         run: |
-          echo LIBCLANG_PATH="${{ github.workspace }}/clang/lib" >> $GITHUB_ENV
-          echo LLVM_CONFIG_PATH="${{ github.workspace }}/clang/bin/llvm-config" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=${{ github.workspace }}\\clang\\lib" >> $env:GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=${{ github.workspace }}\\clang\\bin\\llvm-config" >> $env:GITHUB_ENV
+          echo "FFMPEG_INCLUDE_DIR=${{ github.workspace }}\\crates\\iori\\tmp\\ffmpeg_build\\include" >> $env:GITHUB_ENV
+          echo "FFMPEG_PKG_CONFIG_PATH=${{ github.workspace }}\\crates\\iori\\tmp\\ffmpeg_build\\lib\\pkgconfig" >> $env:GITHUB_ENV
+          echo "PKG_CONFIG_PATH_FOR_TARGET=${{ github.workspace }}\\crates\\iori\\tmp\\ffmpeg_build\\lib\\pkgconfig" >> $env:GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $env:GITHUB_ENV
 
-      - name: Setup | Environment
+      - name: Setup | Environment [-nix]
+        if: matrix.os != 'windows-latest'
         run: |
           echo FFMPEG_INCLUDE_DIR="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/include" >> $GITHUB_ENV
           echo FFMPEG_PKG_CONFIG_PATH="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
@@ -186,10 +191,8 @@ jobs:
           echo PKG_CONFIG_ALLOW_CROSS=1 >> $GITHUB_ENV
 
       - name: Build | Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --locked --all-features --target ${{ matrix.target }}" --workspace --exclude srr
+        run: |
+          cargo build --release --locked --all-features --target ${{ matrix.target }} --workspace --exclude srr
 
       - name: PostBuild | Prepare artifacts [Windows]
         if: matrix.os == 'windows-latest'
