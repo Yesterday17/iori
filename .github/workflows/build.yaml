@@ -55,12 +55,49 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Setup | FFmpeg
-        if: matrix.os == 'ubuntu-latest'
+
+      # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
+      - name: Setup | FFmpeg Build Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
+          sudo apt-get update -qq && sudo apt-get -y install \
+            autoconf \
+            automake \
+            build-essential \
+            cmake \
+            git-core \
+            libass-dev \
+            libfreetype6-dev \
+            libgnutls28-dev \
+            libsdl2-dev \
+            libtool \
+            libva-dev \
+            libvdpau-dev \
+            libvorbis-dev \
+            libxcb1-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            pkg-config \
+            texinfo \
+            wget \
+            yasm \
+            zlib1g-dev
+          sudo apt-get -y install nasm
+          sudo apt-get -y install libx264-dev
+          sudo apt-get -y install libx265-dev libnuma-dev
+          sudo apt-get -y install libvpx-dev
+          sudo apt-get -y install libfdk-aac-dev
+          sudo apt-get -y install libmp3lame-dev
+          sudo apt-get -y install libopus-dev
+
+      - name: Setup | FFmpeg
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
+        run: |
+          pushd crates/iori
+          ./build/build.rs
+          echo FFMPEG_INCLUDE_DIR="$PWD/tmp/ffmpeg_build/include" >> $GITHUB_ENV
+          echo FFMPEG_PKG_CONFIG_PATH="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH_FOR_TARGET="$PKG_CONFIG_PATH_FOR_TARGET:$FFMPEG_PKG_CONFIG_PATH" >> $GITHUB_ENV
+          popd
 
       - name: Build | Build
         uses: actions-rs/cargo@v1
