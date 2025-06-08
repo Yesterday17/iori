@@ -12,10 +12,10 @@ use rsmpeg::{
 
 use crate::IoriResult;
 
-#[cfg(target_os = "linux")]
+#[cfg(target_arch = "x86_64")]
 type VaListType = *mut rsmpeg::ffi::__va_list_tag;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 type VaListType = rsmpeg::ffi::va_list;
 
 unsafe extern "C" fn ffmpeg_log_callback(

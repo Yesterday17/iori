@@ -103,6 +103,7 @@ jobs:
           echo FFMPEG_INCLUDE_DIR="$PWD/tmp/ffmpeg_build/include" >> $GITHUB_ENV
           echo FFMPEG_PKG_CONFIG_PATH="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
           echo PKG_CONFIG_PATH_FOR_TARGET="$PWD/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
+          echo PKG_CONFIG_ALLOW_CROSS=1 >> $GITHUB_ENV
           popd
 
       - name: Build | Build
