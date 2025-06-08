@@ -90,6 +90,11 @@ jobs:
           sudo apt-get -y install libmp3lame-dev
           sudo apt-get -y install libopus-dev
 
+      - name: Setup | FFmpeg Build Tools
+        if: matrix.os == 'macOS-latest'
+        run: |
+          brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
+
       - name: Setup | FFmpeg
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |

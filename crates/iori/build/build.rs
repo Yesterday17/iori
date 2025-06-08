@@ -16,10 +16,11 @@ fn main() -> Result<()> {
         Command::new("./build/linux_ffmpeg.rs").status()?;
     }
 
-    // #[cfg(target_os = "macos")]
-    // {
-    //     Command::new("./macos_ffmpeg.rs").status()?;
-    // }
+    // Use the same script for macOS
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("./build/linux_ffmpeg.rs").status()?;
+    }
 
     Ok(())
 }
