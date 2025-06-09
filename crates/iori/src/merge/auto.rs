@@ -84,24 +84,36 @@ impl Merger for AutoMerger {
 
         let mut tracks = Vec::new();
         for (stream_id, segments) in self.segments.iter() {
-            let segments: Vec<_> = segments.iter().map(|s| &s.segment).collect();
-            let can_concat = segments.iter().all(|s| {
-                matches!(
-                    s.format,
-                    SegmentFormat::Mpeg2TS | SegmentFormat::Aac | SegmentFormat::Raw(_)
-                ) || matches!(s.r#type, SegmentType::Subtitle)
-            });
+            let mut segments: Vec<_> = segments.iter().map(|s| &s.segment).collect();
 
             let first_segment = segments[0];
             let mut output_path = self.output_file.to_owned();
             output_path.add_suffix(format!("{stream_id:02}"));
             output_path.set_extension(first_segment.format.as_ext());
 
+            segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
+
+            let can_concat = segments.iter().all(|s| {
+                matches!(
+                    s.format,
+                    SegmentFormat::Mpeg2TS | SegmentFormat::Aac | SegmentFormat::Raw(_)
+                ) || matches!(s.r#type, SegmentType::Subtitle)
+            });
             if can_concat {
-                concat_merge(segments, &cache, &output_path).await?;
+                concat_merge(&segments, &cache, &output_path).await?;
             } else {
-                mkvmerge_concat(segments, &cache, &output_path).await?;
+                #[cfg(feature = "ffmpeg")]
+                {
+                    output_path.set_extension("ts");
+                    super::ffmpeg::ffmpeg_concat(&segments, &cache, &output_path).await?;
+                }
+                #[cfg(not(feature = "ffmpeg"))]
+                {
+                    output_path.set_extension("mkv");
+                    mkvmerge_concat(&segments, &cache, &output_path).await?;
+                }
             }
+
             tracks.push(output_path);
         }
 
@@ -113,10 +125,12 @@ impl Merger for AutoMerger {
             };
             tokio::fs::rename(&tracks[0], output).await?;
         } else {
+            let output = self.output_file.with_extension("mkv");
+
             #[cfg(feature = "ffmpeg")]
-            super::ffmpeg::ffmpeg_merge(tracks, &self.output_file).await?;
+            super::ffmpeg::ffmpeg_merge(tracks, &output).await?;
             #[cfg(not(feature = "ffmpeg"))]
-            mkvmerge_merge(tracks, &self.output_file).await?;
+            mkvmerge_merge(tracks, &output).await?;
         }
 
         if !self.keep_segments {
@@ -133,16 +147,15 @@ impl Merger for AutoMerger {
     }
 }
 
+#[allow(unused)]
 async fn concat_merge<O>(
-    mut segments: Vec<&SegmentInfo>,
+    segments: &[&SegmentInfo],
     cache: &impl CacheSource,
     output_path: O,
 ) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
-    segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
-
     let output = File::create(output_path.as_ref()).await?;
     let mut output = BufWriter::new(output);
     for segment in segments {
@@ -152,8 +165,9 @@ where
     Ok(())
 }
 
+#[allow(unused)]
 async fn mkvmerge_concat<O>(
-    mut segments: Vec<&SegmentInfo>,
+    segments: &[&SegmentInfo],
     cache: &impl CacheSource,
     output_path: O,
 ) -> IoriResult<()>
@@ -163,7 +177,6 @@ where
     tracing::debug!("Concatenating with mkvmerge...");
 
     let mkvmerge = which::which("mkvmerge")?;
-    segments.sort_by(|a, b| a.sequence.cmp(&b.sequence));
 
     let mut args = vec!["-q".to_string(), "[".to_string()];
     for segment in segments {

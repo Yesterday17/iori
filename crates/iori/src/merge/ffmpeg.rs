@@ -1,15 +1,23 @@
 use std::{
     ffi::CString,
+    fs::File,
+    io::Write,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use rsmpeg::{
-    avformat::{AVFormatContextInput, AVFormatContextOutput},
+    avformat::{
+        AVFormatContextInput, AVFormatContextOutput, AVIOContextContainer, AVIOContextCustom,
+        AVOutputFormat,
+    },
+    avutil::AVMem,
     ffi::{av_log_format_line2, av_log_set_callback, AV_LOG_ERROR, AV_LOG_INFO, AV_LOG_WARNING},
     UnsafeDerefMut,
 };
+use tokio::io::AsyncReadExt;
 
-use crate::IoriResult;
+use crate::{cache::CacheSource, IoriResult, SegmentInfo};
 
 // Reference: https://github.com/YeautyYE/ez-ffmpeg/blob/a249e8ad35196cdf345e3f3dc93c87cfb263bfef/src/core/mod.rs#L434-L463
 #[cfg(any(
@@ -172,4 +180,139 @@ where
     }
 
     Ok(())
+}
+
+pub(crate) async fn ffmpeg_concat<O>(
+    segments: &[&SegmentInfo],
+    cache: &impl CacheSource,
+    output_path: O,
+) -> IoriResult<()>
+where
+    O: AsRef<Path>,
+{
+    if segments.is_empty() {
+        return Ok(());
+    }
+
+    unsafe {
+        av_log_set_callback(Some(ffmpeg_log_callback));
+    }
+
+    let output_path = output_path.as_ref().to_path_buf();
+
+    let mut output_file = File::create(&output_path)?;
+
+    for segment in segments {
+        let mut input_context = {
+            let mut reader = cache.open_reader(segment).await?;
+            let mut input_data = Vec::new();
+            reader.read_to_end(&mut input_data).await?;
+            open_input_context(input_data)?
+        };
+
+        let buf = Vec::new();
+        let (mut output_context, buf) = open_output_context(buf)?;
+        output_context.set_oformat(
+            AVOutputFormat::guess_format(Some(c"ts"), Some(c"output.ts"), None).unwrap(),
+        );
+
+        let mut total_stream_count = 0;
+        let mut mapping = Vec::new();
+        for input_stream in input_context.streams() {
+            let codec_type = input_stream.codecpar().codec_type();
+            if !codec_type.is_video() && !codec_type.is_audio() {
+                mapping.push(None);
+                continue;
+            }
+
+            let mut output_stream = output_context.new_stream();
+            let mut codecpar = input_stream.codecpar().clone();
+            {
+                let codecpar = unsafe { codecpar.deref_mut() };
+                codecpar.codec_tag = 0;
+            }
+            output_stream.codecpar_mut().copy(&codecpar);
+            mapping.push(Some(total_stream_count));
+            total_stream_count += 1;
+        }
+
+        output_context.write_header(&mut None)?;
+
+        while let Some(mut packet) = input_context.read_packet()? {
+            let input_stream_index = packet.stream_index as usize;
+            let Some(output_stream_index) = mapping[input_stream_index] else {
+                continue;
+            };
+
+            let in_stream = &input_context.streams()[input_stream_index];
+            let out_stream = &output_context.streams()[output_stream_index];
+
+            packet.rescale_ts(in_stream.time_base, out_stream.time_base);
+            packet.set_stream_index(output_stream_index as i32);
+            packet.set_pos(-1);
+
+            output_context.interleaved_write_frame(&mut packet)?;
+        }
+        output_context.write_trailer()?;
+
+        let data = buf.lock().unwrap();
+        output_file.write_all(&data)?;
+    }
+
+    Ok(())
+}
+
+fn open_input_context(input: Vec<u8>) -> IoriResult<AVFormatContextInput> {
+    let mut current: usize = 0;
+
+    let io_context = AVIOContextCustom::alloc_context(
+        AVMem::new(4096),
+        false,
+        vec![],
+        Some(Box::new(move |_, buf| {
+            let right = input.len().min(current + buf.len());
+            if right <= current {
+                return rsmpeg::ffi::AVERROR_EOF;
+            }
+            let read_len = right - current;
+            buf[0..read_len].copy_from_slice(&input[current..right]);
+            current = right;
+            read_len as i32
+        })),
+        None,
+        None,
+    );
+
+    let input_format_context =
+        AVFormatContextInput::from_io_context(AVIOContextContainer::Custom(io_context))?;
+    Ok(input_format_context)
+}
+
+fn open_output_context<W>(writer: W) -> IoriResult<(AVFormatContextOutput, Arc<Mutex<W>>)>
+where
+    W: Write + Send + 'static,
+{
+    let writer = Arc::new(Mutex::new(writer));
+
+    let writer_inner = writer.clone();
+    let io_context = AVIOContextCustom::alloc_context(
+        AVMem::new(4096),
+        true,
+        vec![],
+        None,
+        Some(Box::new(move |_, data| {
+            if let Err(e) = writer_inner.lock().unwrap().write_all(data) {
+                tracing::error!("write error: {}", e);
+                return rsmpeg::ffi::AVERROR_EXTERNAL;
+            }
+            data.len() as i32
+        })),
+        None,
+    );
+
+    let output_format_context = AVFormatContextOutput::create(
+        c"output.ts",
+        Some(AVIOContextContainer::Custom(io_context)),
+    )?;
+    Ok((output_format_context, writer))
 }
