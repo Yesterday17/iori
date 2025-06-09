@@ -12,7 +12,10 @@ use rsmpeg::{
         AVOutputFormat,
     },
     avutil::AVMem,
-    ffi::{av_log_format_line2, av_log_set_callback, AV_LOG_ERROR, AV_LOG_INFO, AV_LOG_WARNING},
+    ffi::{
+        av_log_format_line2, av_log_set_callback, AV_LOG_DEBUG, AV_LOG_ERROR, AV_LOG_INFO,
+        AV_LOG_WARNING,
+    },
     UnsafeDerefMut,
 };
 use tokio::io::AsyncReadExt;
@@ -57,7 +60,7 @@ unsafe extern "C" fn ffmpeg_log_callback(
     fmt: *const ::std::os::raw::c_char,
     vargs: VaListType,
 ) {
-    if level > AV_LOG_INFO as i32 {
+    if level > AV_LOG_DEBUG as i32 {
         return;
     }
 
@@ -94,6 +97,8 @@ unsafe extern "C" fn ffmpeg_log_callback(
         tracing::warn!("{data}");
     } else if level <= AV_LOG_INFO {
         tracing::info!("{data}");
+    } else if level <= AV_LOG_DEBUG {
+        tracing::debug!("{data}");
     }
 }
 
@@ -136,7 +141,8 @@ where
 
                 let mut output_stream = output_format_context.new_stream();
                 let mut codecpar = input_stream.codecpar().clone();
-                {
+                let is_codec_invalid = codecpar.codec_tag.to_be_bytes().iter().any(|c| *c == 0);
+                if is_codec_invalid {
                     let codecpar = unsafe { codecpar.deref_mut() };
                     codecpar.codec_tag = 0;
                 }
@@ -200,7 +206,12 @@ where
 
     let output_path = output_path.as_ref().to_path_buf();
 
-    let mut output_file = File::create(&output_path)?;
+    let output_file = File::create(&output_path)?;
+    let (mut output_context, _) = open_output_context(output_file)?;
+    output_context
+        .set_oformat(AVOutputFormat::guess_format(Some(c"ts"), Some(c"output.ts"), None).unwrap());
+    let mut output_set: bool = false;
+    let mut output_header_written = false;
 
     for segment in segments {
         let mut input_context = {
@@ -209,12 +220,6 @@ where
             reader.read_to_end(&mut input_data).await?;
             open_input_context(input_data)?
         };
-
-        let buf = Vec::new();
-        let (mut output_context, buf) = open_output_context(buf)?;
-        output_context.set_oformat(
-            AVOutputFormat::guess_format(Some(c"ts"), Some(c"output.ts"), None).unwrap(),
-        );
 
         let mut total_stream_count = 0;
         let mut mapping = Vec::new();
@@ -225,18 +230,28 @@ where
                 continue;
             }
 
-            let mut output_stream = output_context.new_stream();
-            let mut codecpar = input_stream.codecpar().clone();
-            {
-                let codecpar = unsafe { codecpar.deref_mut() };
-                codecpar.codec_tag = 0;
+            if !output_set {
+                output_set = true;
+
+                let mut output_stream = output_context.new_stream();
+                let mut codecpar = input_stream.codecpar().clone();
+                {
+                    let codecpar = unsafe { codecpar.deref_mut() };
+                    let is_codec_invalid = codecpar.codec_tag.to_be_bytes().iter().any(|c| *c == 0);
+                    if is_codec_invalid {
+                        codecpar.codec_tag = 0;
+                    }
+                }
+                output_stream.set_codecpar(codecpar);
             }
-            output_stream.codecpar_mut().copy(&codecpar);
             mapping.push(Some(total_stream_count));
             total_stream_count += 1;
         }
 
-        output_context.write_header(&mut None)?;
+        if !output_header_written {
+            output_header_written = true;
+            output_context.write_header(&mut None)?;
+        }
 
         while let Some(mut packet) = input_context.read_packet()? {
             let input_stream_index = packet.stream_index as usize;
@@ -253,11 +268,11 @@ where
 
             output_context.interleaved_write_frame(&mut packet)?;
         }
-        output_context.write_trailer()?;
 
-        let data = buf.lock().unwrap();
-        output_file.write_all(&data)?;
+        drop(input_context);
     }
+
+    output_context.write_trailer()?;
 
     Ok(())
 }
