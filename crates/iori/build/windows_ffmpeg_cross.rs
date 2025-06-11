@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         .arg("--disable-decoder=exr,phm")
         .arg("--disable-programs")
         .arg("--disable-autodetect")
-        .arg("--arch=x86")
+        .arg("--arch=x86_64")
         .arg("--target-os=mingw32")
         .arg("--cross-prefix=x86_64-w64-mingw32-")
         .arg("--pkg-config=pkg-config")
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         .arg("--extra-libs=-lstdc++")
         .arg("--extra-cflags=-static -static-libgcc")
         .arg("--extra-cxxflags=-static -static-libgcc -static-libstdc++")
-        .arg("--extra-ldexeflags=-static -static-libgcc -static-libstdc++")
+        .arg("--extra-ldflags=-static -static-libgcc -static-libstdc++")
         .status()?;
 
     Command::new("make")
