@@ -4950,3 +4950,8 @@ dependencies = [
  "once_cell",
  "simd-adler32",
 ]
+
+[[patch.unused]]
+name = "rusty_ffmpeg"
+version = "0.16.3+ffmpeg.7.1"
+source = "git+https://github.com/Yesterday17/rusty_ffmpeg#157cd89f4b568e6787505ca43fc198d80fb4ac7e"
