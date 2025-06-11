@@ -58,14 +58,6 @@ fn main() -> Result<()> {
         .arg("FETCH_HEAD")
         .status()?;
 
-    let cflags = std::env::var("CFLAGS").unwrap_or_default();
-    let cxxflags = std::env::var("CXXFLAGS").unwrap_or_default();
-    std::env::set_var("CFLAGS", format!("{} -static-libgcc", cflags));
-    std::env::set_var(
-        "CXXFLAGS",
-        format!("{} -static-libgcc -static-libstdc++", cxxflags),
-    );
-
     Command::new("./configure")
         .arg(format!("--prefix={}", build_path))
         // To workaround `https://github.com/larksuite/rsmpeg/pull/98#issuecomment-1467511193`
@@ -78,7 +70,11 @@ fn main() -> Result<()> {
         .arg("--pkg-config=pkg-config")
         .arg("--enable-static")
         .arg("--disable-shared")
-        .arg("--extra-ldflags=-static")
+        // https://github.com/elan-ev/static-ffmpeg/blob/ffb12599ea77149bb91d5ecb37304ee96a546c29/build_ffmpeg.sh#L494C24-L497
+        .arg("--extra-libs=-lstdc++")
+        .arg("--extra-cflags=-static -static-libgcc")
+        .arg("--extra-cxxflags=-static -static-libgcc -static-libstdc++")
+        .arg("--extra-ldexeflags=-static -static-libgcc -static-libstdc++")
         .status()?;
 
     Command::new("make")
