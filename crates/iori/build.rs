@@ -28,8 +28,8 @@ fn main() -> std::io::Result<()> {
     // - or using -gnu target
     //
     // In this case, we need to link libstdc++ statically.
-    if std::env::var_os("CARGO_CFG_WINDOWS").is_some()
-        && (cfg!(not(windows)) || cfg!(target_env = "gnu"))
+    // if std::env::var_os("CARGO_CFG_WINDOWS").is_some()
+    //     && (cfg!(not(windows)) || cfg!(target_env = "gnu"))
     {
         if let Err(e) = find_libcpp_path() {
             println!("cargo:warning=Failed to find libstdc++.a: {}", e);
