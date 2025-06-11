@@ -68,6 +68,9 @@ fn main() -> Result<()> {
         .arg("--target-os=mingw32")
         .arg("--cross-prefix=x86_64-w64-mingw32-")
         .arg("--pkg-config=pkg-config")
+        .arg("--enable-static")
+        .arg("--disable-shared")
+        .arg("--extra-ldflags=-static")
         .status()?;
 
     Command::new("make")

@@ -54,5 +54,5 @@ getrandom = { version = "0.2", features = ["js"] }
 
 dash-mpd = { version = "0.18", default-features = false, features = ["scte35"] }
 
-[patch.crates-io]
-rusty_ffmpeg = { git = "https://github.com/Yesterday17/rusty_ffmpeg" }
+# [patch.crates-io]
+# rusty_ffmpeg = { git = "https://github.com/Yesterday17/rusty_ffmpeg" }
