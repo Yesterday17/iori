@@ -58,6 +58,14 @@ fn main() -> Result<()> {
         .arg("FETCH_HEAD")
         .status()?;
 
+    let cflags = std::env::var("CFLAGS").unwrap_or_default();
+    let cxxflags = std::env::var("CXXFLAGS").unwrap_or_default();
+    std::env::set_var("CFLAGS", format!("{} -static-libgcc", cflags));
+    std::env::set_var(
+        "CXXFLAGS",
+        format!("{} -static-libgcc -static-libstdc++", cxxflags),
+    );
+
     Command::new("./configure")
         .arg(format!("--prefix={}", build_path))
         // To workaround `https://github.com/larksuite/rsmpeg/pull/98#issuecomment-1467511193`
