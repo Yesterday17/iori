@@ -153,6 +153,12 @@ jobs:
           echo FFMPEG_LIBS_DIR="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib" >> $GITHUB_ENV
           echo PKG_CONFIG_PATH_FOR_TARGET="${{ github.workspace }}/crates/iori/tmp/ffmpeg_build/lib/pkgconfig" >> $GITHUB_ENV
           echo PKG_CONFIG_ALLOW_CROSS=1 >> $GITHUB_ENV
+      
+      - name: Setup tmate session
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        uses: mxschmitt/action-tmate@v3
+        with:
+          detached: true
 
       - name: Build | Build
         shell: bash
