@@ -19,7 +19,7 @@ pub enum IoriError {
     InvalidBinaryKey(Vec<u8>),
 
     #[error("mp4decrypt error: {0}")]
-    Mp4DecryptError(String),
+    Mp4DecryptError(#[from] mp4decrypt::Error),
 
     #[error("iori-ssa error: {0:?}")]
     IoriSsaError(#[from] iori_ssa::Error),

@@ -64,10 +64,18 @@ fn main() -> Result<()> {
         .arg("--disable-decoder=exr,phm")
         .arg("--disable-programs")
         .arg("--disable-autodetect")
-        .arg("--arch=x86")
+        .arg("--arch=x86_64")
         .arg("--target-os=mingw32")
         .arg("--cross-prefix=x86_64-w64-mingw32-")
         .arg("--pkg-config=pkg-config")
+        .arg("--enable-static")
+        .arg("--disable-shared")
+        // https://github.com/elan-ev/static-ffmpeg/blob/ffb12599ea77149bb91d5ecb37304ee96a546c29/build_ffmpeg.sh#L494C24-L497
+        .arg("--pkg-config-flags=--static")
+        .arg("--extra-libs=-lstdc++")
+        .arg("--extra-cflags=-static -static-libgcc")
+        .arg("--extra-cxxflags=-static -static-libgcc -static-libstdc++")
+        .arg("--extra-ldflags=-static -static-libgcc -static-libstdc++")
         .status()?;
 
     Command::new("make")

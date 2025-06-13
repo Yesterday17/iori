@@ -249,9 +249,9 @@ dependencies = [
 
 [[package]]
 name = "bento4-src"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf1d8a36a87e77dc45cfe72df3502eef6f69f43b0da18e00c39f6164d2da3b1a"
+checksum = "709cf7e568a0bb209dba34edb901b72b3509172120a505639b92d837d6ed9c39"
 dependencies = [
  "cc",
 ]
@@ -2270,9 +2270,9 @@ dependencies = [
 
 [[package]]
 name = "mp4decrypt"
-version = "0.4.2"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2362bd781fc61817b4ac41511d4a7e3e13ff2a2ab0803e6aa63a94c3796d15ce"
+checksum = "982ae9fe38454d5f48212ad3f14b2a51641d2550e0d74d75a5f37c20d04527c9"
 dependencies = [
  "bento4-src",
 ]
@@ -3145,8 +3145,8 @@ dependencies = [
 
 [[package]]
 name = "rsmpeg"
-version = "0.15.2+ffmpeg.7.1"
-source = "git+https://github.com/Yesterday17/rsmpeg#3bbe229871942830bb6f2e266cd02e6ede2ee73c"
+version = "0.16.0+ffmpeg.7.1"
+source = "git+https://github.com/Yesterday17/rsmpeg#30ceec92095441bc7be397661df2e0eb1e7cc46f"
 dependencies = [
  "paste",
  "rusty_ffmpeg",
@@ -3289,9 +3289,8 @@ checksum = "f7c45b9784283f1b2e7fb61b42047c2fd678ef0960d4f6f1eba131594cc369d4"
 
 [[package]]
 name = "rusty_ffmpeg"
-version = "0.16.2+ffmpeg.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c78663c63c57563d9640318a9e7f6782fa5702caadced83aa57b5a182acd7e4b"
+version = "0.16.3+ffmpeg.7.1"
+source = "git+https://github.com/Yesterday17/rusty_ffmpeg?rev=bb713ce25314c2b21460ee09fe4ab950a194c1ba#bb713ce25314c2b21460ee09fe4ab950a194c1ba"
 dependencies = [
  "bindgen",
  "camino",

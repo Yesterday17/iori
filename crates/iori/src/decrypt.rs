@@ -157,9 +157,7 @@ impl IoriDecryptor {
     pub async fn decrypt(self, data: &[u8]) -> IoriResult<Vec<u8>> {
         Ok(match self {
             IoriDecryptor::Aes128(decryptor) => decryptor.decrypt_padded_vec_mut::<Pkcs7>(data)?,
-            IoriDecryptor::Mp4Decrypt { keys } => {
-                mp4decrypt::mp4decrypt(data, keys, None).map_err(IoriError::Mp4DecryptError)?
-            }
+            IoriDecryptor::Mp4Decrypt { keys } => mp4decrypt::mp4decrypt(data, &keys, None)?,
             IoriDecryptor::ShakaPackager { command, keys } => {
                 let temp_dir = tempfile::tempdir()?;
                 let rand_suffix = rand::random::<u64>();
