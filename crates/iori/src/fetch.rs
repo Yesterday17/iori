@@ -27,7 +27,7 @@ where
         .key()
         .map(|key| key.to_decryptor(shaka_packager_command));
     if let Some(decryptor) = decryptor {
-        let bytes = match segment.initial_segment() {
+        let decrypted_bytes = match segment.initial_segment() {
             crate::InitialSegment::Encrypted(data) => {
                 let mut result = data.to_vec();
                 result.extend_from_slice(&bytes);
@@ -39,9 +39,13 @@ where
             }
             crate::InitialSegment::None => decryptor.decrypt(&bytes).await?,
         };
-        tmp_file.write_all(&bytes).await?;
+        tmp_file.write_all(&decrypted_bytes).await?;
     } else {
-        if let InitialSegment::Clear(initial_segment) = segment.initial_segment() {
+        // If no key is provided, no matter whether the initial segment is encrypted or not,
+        // we should write the initial segment to the file.
+        if let InitialSegment::Clear(initial_segment) | InitialSegment::Encrypted(initial_segment) =
+            segment.initial_segment()
+        {
             tmp_file.write_all(&initial_segment).await?;
         }
         tmp_file.write_all(&bytes).await?;
