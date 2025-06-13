@@ -57,3 +57,13 @@ where
         length: last_byte_pos.map(|last_byte_pos| last_byte_pos - first_byte_pos + 1),
     })
 }
+
+pub trait UriExt {
+    fn filename(&self) -> String;
+}
+
+impl UriExt for Url {
+    fn filename(&self) -> Option<String> {
+        self.path().rsplit_once('/').map(|o| o.1.to_string())
+    }
+}

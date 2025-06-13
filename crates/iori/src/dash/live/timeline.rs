@@ -17,7 +17,7 @@ use crate::{
     dash::{
         segment::DashSegment,
         template::{Template, TemplateUrl},
-        url::{is_absolute_url, merge_baseurls, parse_media_range},
+        url::{is_absolute_url, merge_baseurls, parse_media_range, UriExt},
     },
     decrypt::IoriKey,
     ByteRange, HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
@@ -248,9 +248,9 @@ impl MPDTimeline {
                                     .insert(Template::TIME, segment_start_point.to_string());
 
                                 let segment_url = media.resolve(&template);
+                                let segment_url = Url::parse(&segment_url)?;
                                 let segment_filename = segment_url
-                                    .rsplit_once('/')
-                                    .map(|(_, filename)| filename)
+                                    .filename()
                                     .unwrap_or(&format!(
                                         "{}_{segment_number}.m4s",
                                         id.as_deref().unwrap_or("s"),
@@ -270,7 +270,7 @@ impl MPDTimeline {
                                 }
 
                                 segments.push(DashSegment {
-                                    url: Url::parse(&segment_url)?,
+                                    url: segment_url,
                                     filename: segment_filename,
                                     r#type: adaptation_set.content_type.as_ref().map_or_else(
                                         || SegmentType::from_mime_type(mime_type.as_deref()),
@@ -346,9 +346,9 @@ impl MPDTimeline {
                                 .insert(Template::TIME, segment_start_point.to_string());
 
                             let segment_url = media.resolve(&template);
+                            let segment_url = Url::parse(&segment_url)?;
                             let segment_filename = segment_url
-                                .rsplit_once('/')
-                                .map(|(_, filename)| filename)
+                                .filename()
                                 .unwrap_or(&format!(
                                     "{}_{segment_number}.m4s",
                                     id.as_deref().unwrap_or("s"),
@@ -367,7 +367,7 @@ impl MPDTimeline {
                             }
 
                             segments.push(DashSegment {
-                                url: Url::parse(&segment_url)?,
+                                url: segment_url,
                                 filename: segment_filename,
                                 r#type: adaptation_set.content_type.as_ref().map_or_else(
                                     || SegmentType::from_mime_type(mime_type.as_deref()),
@@ -429,13 +429,8 @@ impl MPDTimeline {
                                 continue;
                             }
 
-                            let segment_filename = segment
-                                .url
-                                .path()
-                                .rsplit_once('/')
-                                .map(|(_, filename)| filename)
-                                .unwrap_or("data.m4s")
-                                .to_string();
+                            let segment_filename =
+                                segment.url.filename().unwrap_or("data.m4s").to_string();
 
                             segments.push(DashSegment {
                                 url: segment.url.clone(),
