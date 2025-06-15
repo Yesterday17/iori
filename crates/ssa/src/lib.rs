@@ -599,6 +599,7 @@ where
     let mut audio_format = None;
     let mut is_id3 = &magic[0..3] == b"ID3";
     while is_id3 {
+        #[allow(deprecated)]
         let tag = id3::Tag::read_from(&mut input)?;
         tag.write_to(&mut output, tag.version())?;
 

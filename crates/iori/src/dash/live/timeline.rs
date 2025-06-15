@@ -251,7 +251,7 @@ impl MPDTimeline {
                                 let segment_url = Url::parse(&segment_url)?;
                                 let segment_filename = segment_url
                                     .filename()
-                                    .unwrap_or(&format!(
+                                    .unwrap_or(format!(
                                         "{}_{segment_number}.m4s",
                                         id.as_deref().unwrap_or("s"),
                                     ))
@@ -349,7 +349,7 @@ impl MPDTimeline {
                             let segment_url = Url::parse(&segment_url)?;
                             let segment_filename = segment_url
                                 .filename()
-                                .unwrap_or(&format!(
+                                .unwrap_or(format!(
                                     "{}_{segment_number}.m4s",
                                     id.as_deref().unwrap_or("s"),
                                 ))
@@ -429,8 +429,11 @@ impl MPDTimeline {
                                 continue;
                             }
 
-                            let segment_filename =
-                                segment.url.filename().unwrap_or("data.m4s").to_string();
+                            let segment_filename = segment
+                                .url
+                                .filename()
+                                .unwrap_or("data.m4s".to_string())
+                                .to_string();
 
                             segments.push(DashSegment {
                                 url: segment.url.clone(),

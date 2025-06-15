@@ -59,7 +59,7 @@ where
 }
 
 pub trait UriExt {
-    fn filename(&self) -> String;
+    fn filename(&self) -> Option<String>;
 }
 
 impl UriExt for Url {
