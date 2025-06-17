@@ -10,6 +10,7 @@ pub mod hls;
 
 pub(crate) mod util;
 pub use crate::util::http::HttpClient;
+pub use reqwest;
 pub mod utils {
     pub use crate::util::detect_manifest_type;
     pub use crate::util::path::DuplicateOutputFileNamer;
@@ -85,4 +86,17 @@ pub trait StreamingSegment {
 
     /// Format hint for the segment
     fn format(&self) -> SegmentFormat;
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Default, Clone)]
+pub enum PlaylistType {
+    /// HTTP Live Streaming
+    HLS,
+    /// Dynamic Adaptive Streaming over HTTP
+    DASH,
+    /// Raw data
+    Raw(String),
+    #[default]
+    /// Unknown playlist type
+    Unknown,
 }

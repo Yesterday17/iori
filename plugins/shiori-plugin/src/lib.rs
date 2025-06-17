@@ -1,5 +1,8 @@
 pub use async_trait::async_trait;
+pub use iori::PlaylistType;
 use serde::{Deserialize, Serialize};
+
+pub use iori;
 
 pub trait InspectorCommand {
     fn add_argument(
@@ -67,14 +70,6 @@ pub struct InspectCandidate {
     pub title: String,
 
     pub playlist_type: Option<PlaylistType>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub enum PlaylistType {
-    #[default]
-    HLS,
-    DASH,
-    Raw(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

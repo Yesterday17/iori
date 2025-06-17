@@ -1,6 +1,7 @@
 use crate::inspect::{Inspect, InspectResult};
 use clap_handler::async_trait;
-use shiori_plugin::{InspectPlaylist, InspectorArguments, InspectorBuilder, PlaylistType};
+use iori::PlaylistType;
+use shiori_plugin::{InspectPlaylist, InspectorArguments, InspectorBuilder};
 
 pub struct DashInspector;
 

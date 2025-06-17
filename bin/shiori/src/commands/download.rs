@@ -2,7 +2,7 @@ use super::inspect::{get_default_external_inspector, InspectorOptions};
 use crate::{
     commands::{update::check_update, ShioriArgs},
     i18n::ClapI18n,
-    inspect::{InspectPlaylist, PlaylistType},
+    inspect::InspectPlaylist,
 };
 use clap::{Args, Parser};
 use clap_handler::handler;
@@ -18,7 +18,7 @@ use iori::{
     merge::IoriMerger,
     raw::{HttpFileSource, RawDataSource},
     utils::{detect_manifest_type, DuplicateOutputFileNamer},
-    HttpClient,
+    HttpClient, PlaylistType,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -93,7 +93,13 @@ where
             .merger(self.output.into_merger());
 
         match playlist_type {
-            PlaylistType::HLS => {
+            PlaylistType::HLS | PlaylistType::Unknown => {
+                if matches!(playlist_type, PlaylistType::Unknown) {
+                    log::warn!(
+                        "Unknown playlist type detected, attempting to download as HLS playlist..."
+                    );
+                }
+
                 let source = HlsLiveSource::new(
                     client,
                     self.url,
