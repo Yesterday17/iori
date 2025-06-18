@@ -262,8 +262,9 @@ impl MPDTimeline {
                                         let url = initialization.resolve(&template);
                                         let data =
                                             self.client.get(url).send().await?.bytes().await?;
-                                        initial_segment =
-                                            Some(InitialSegment::Clear(Arc::new(data.to_vec())));
+                                        initial_segment = Some(InitialSegment::Encrypted(
+                                            Arc::new(data.to_vec()),
+                                        ));
                                     } else {
                                         initial_segment = Some(InitialSegment::None);
                                     }
@@ -360,7 +361,7 @@ impl MPDTimeline {
                                     let url = initialization.resolve(&template);
                                     let data = self.client.get(url).send().await?.bytes().await?;
                                     initial_segment =
-                                        Some(InitialSegment::Clear(Arc::new(data.to_vec())));
+                                        Some(InitialSegment::Encrypted(Arc::new(data.to_vec())));
                                 } else {
                                     initial_segment = Some(InitialSegment::None);
                                 }
@@ -394,7 +395,7 @@ impl MPDTimeline {
                         );
 
                         let initial_segment = if let Some(initialization) = initialization {
-                            InitialSegment::Clear(Arc::new(
+                            InitialSegment::Encrypted(Arc::new(
                                 self.client
                                     .get(initialization.url.clone())
                                     // TODO: support range
