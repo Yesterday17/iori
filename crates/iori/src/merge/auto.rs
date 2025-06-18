@@ -117,6 +117,7 @@ impl Merger for AutoMerger {
             tracks.push(output_path);
         }
 
+        tracing::info!("Merging streams...");
         if tracks.len() == 1 {
             let track_format = tracks[0].extension();
             let output = match track_format {

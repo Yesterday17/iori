@@ -11,7 +11,7 @@ use rsmpeg::{
         AVFormatContextInput, AVFormatContextOutput, AVIOContextContainer, AVIOContextCustom,
         AVOutputFormat,
     },
-    avutil::AVMem,
+    avutil::{AVDictionary, AVMem},
     ffi::{
         av_log_format_line2, av_log_set_callback, AV_LOG_DEBUG, AV_LOG_ERROR, AV_LOG_INFO,
         AV_LOG_WARNING,
@@ -241,8 +241,12 @@ where
                     if is_codec_invalid {
                         codecpar.codec_tag = 0;
                     }
+                    if codec_type.is_audio() {
+                        codecpar.frame_size = 1000;
+                    }
                 }
                 output_stream.set_codecpar(codecpar);
+                output_stream.set_time_base(input_stream.time_base);
             }
             mapping.push(Some(total_stream_count));
             total_stream_count += 1;
@@ -250,7 +254,13 @@ where
 
         if !output_header_written {
             output_header_written = true;
-            output_context.write_header(&mut None)?;
+            let mut dict = Some(AVDictionary::new(c"analyzeduration", c"100M", 0).set(
+                c"probesize",
+                c"100M",
+                0,
+            ));
+
+            output_context.write_header(&mut dict)?;
         }
 
         while let Some(mut packet) = input_context.read_packet()? {
