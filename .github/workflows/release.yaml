@@ -169,6 +169,7 @@ jobs:
 
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
+          build-tool: cargo
           bin: ${{ inputs.binary_name }}
           archive: '$bin${{ inputs.archive_suffix }}$target'
           target: ${{ matrix.target }}
