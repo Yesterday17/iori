@@ -153,7 +153,9 @@ where
             stream_mapping.push(mapping);
         }
 
-        output_format_context.write_header(&mut None)?;
+        let mut dict =
+            Some(AVDictionary::new(c"analyzeduration", c"100M", 0).set(c"probesize", c"100M", 0));
+        output_format_context.write_header(&mut dict)?;
 
         for (input_context, mapping) in input_contexts.iter_mut().zip(stream_mapping) {
             while let Some(mut packet) = input_context.read_packet()? {
