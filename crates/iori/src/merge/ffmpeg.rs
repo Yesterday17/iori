@@ -122,8 +122,13 @@ where
 
         let mut input_contexts = vec![];
         for c_track in c_tracks {
+            let mut input_options = Some(AVDictionary::new(c"analyzeduration", c"100M", 0).set(
+                c"probesize",
+                c"100M",
+                0,
+            ));
             let input_context: AVFormatContextInput =
-                AVFormatContextInput::open(&c_track, None, &mut None)?;
+                AVFormatContextInput::open(&c_track, None, &mut input_options)?;
             input_contexts.push(input_context);
         }
 

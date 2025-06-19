@@ -126,12 +126,16 @@ impl Merger for AutoMerger {
             };
             tokio::fs::rename(&tracks[0], output).await?;
         } else {
-            let output = self.output_file.with_extension("mkv");
-
             #[cfg(feature = "ffmpeg")]
-            super::ffmpeg::ffmpeg_merge(tracks, &output).await?;
+            {
+                let output = self.output_file.with_extension("mp4");
+                super::ffmpeg::ffmpeg_merge(tracks, &output).await?;
+            }
             #[cfg(not(feature = "ffmpeg"))]
-            mkvmerge_merge(tracks, &output).await?;
+            {
+                let output = self.output_file.with_extension("mkv");
+                mkvmerge_merge(tracks, &output).await?;
+            }
         }
 
         if !self.keep_segments {
