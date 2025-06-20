@@ -12,6 +12,7 @@ iori = { workspace = true, features = ["opendal-fs"] }
 iori-nicolive.workspace = true
 iori-showroom.workspace = true
 iori-gigafile.workspace = true
+uri-match.workspace = true
 
 tokio = { workspace = true, features = ["full"] }
 reqwest.workspace = true

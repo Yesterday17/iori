@@ -17,6 +17,8 @@ iori-showroom = { path = "platforms/showroom" }
 iori-gigafile = { path = "platforms/gigafile" }
 shiori-plugin = { path = "plugins/shiori-plugin" }
 
+uri-match = { path = "crates/uri-match" }
+
 regex = "1.9.3"
 base64 = "0.22.1"
 tokio = { version = "1", features = ["signal", "process", "net", "io-std"] }

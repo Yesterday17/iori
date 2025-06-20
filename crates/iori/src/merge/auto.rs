@@ -25,21 +25,26 @@ use super::{concat::ConcatSegment, Merger};
 pub struct AutoMerger {
     segments: HashMap<u64, Vec<ConcatSegment>>,
 
-    /// Final output file path.
-    output_file: PathBuf,
     /// Keep downloaded segments after merging.
     keep_segments: bool,
 
     has_failed: bool,
+
+    /// Final output file path. It may not have an extension.
+    output_file: PathBuf,
+    /// A list of file extensions which should skip adding an auto extension.
+    allowed_extensions: Vec<&'static str>,
 }
 
 impl AutoMerger {
     pub fn new(output_file: PathBuf, keep_segments: bool) -> Self {
         Self {
             segments: HashMap::new(),
-            output_file,
             keep_segments,
             has_failed: false,
+
+            output_file,
+            allowed_extensions: vec!["mkv", "mp4", "ts"],
         }
     }
 }
@@ -118,25 +123,35 @@ impl Merger for AutoMerger {
         }
 
         tracing::info!("Merging streams...");
-        if tracks.len() == 1 {
-            let track_format = tracks[0].extension();
+
+        let output_path = if tracks.len() == 1 {
+            let track_format = tracks[0].extension().and_then(|e| e.to_str());
             let output = match track_format {
-                Some(ext) => self.output_file.with_extension(ext),
+                Some(ext) => self
+                    .output_file
+                    .with_replaced_extension(ext, &self.allowed_extensions),
                 None => self.output_file.clone(),
             };
-            tokio::fs::rename(&tracks[0], output).await?;
+            tokio::fs::rename(&tracks[0], &output).await?;
+            output
         } else {
             #[cfg(feature = "ffmpeg")]
             {
-                let output = self.output_file.with_extension("mp4");
+                let output = self
+                    .output_file
+                    .with_replaced_extension("mp4", &self.allowed_extensions);
                 super::ffmpeg::ffmpeg_merge(tracks, &output).await?;
+                output
             }
             #[cfg(not(feature = "ffmpeg"))]
             {
-                let output = self.output_file.with_extension("mkv");
+                let output = self
+                    .output_file
+                    .with_replaced_extension("mkv", &self.allowed_extensions);
                 mkvmerge_merge(tracks, &output).await?;
+                output
             }
-        }
+        };
 
         if !self.keep_segments {
             tracing::info!("End of merging.");
@@ -146,7 +161,7 @@ impl Merger for AutoMerger {
 
         tracing::info!(
             "All finished. Please checkout your files at {}",
-            self.output_file.display()
+            output_path.display()
         );
         Ok(())
     }

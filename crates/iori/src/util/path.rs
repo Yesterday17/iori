@@ -53,6 +53,16 @@ pub trait IoriPathExt {
     /// Note this function does not handle multiple suffixes.
     /// For example, `test.tar.gz` with `_suffix` will be `test.tar_suffix.gz`.
     fn add_suffix<T: AsRef<OsStr>>(&mut self, suffix: T);
+
+    /// Set extension of current filename.
+    ///
+    /// If the extension is in the list of extensions allowed to replace,
+    /// the extension will be replaced.
+    ///
+    /// Otherwise, the new extension will be appended to the current extension.
+    fn replace_extension(&mut self, new_extension: &str, replace_list: &[&str]) -> bool;
+
+    fn with_replaced_extension(&self, new_extension: &str, replace_list: &[&str]) -> PathBuf;
 }
 
 impl IoriPathExt for PathBuf {
@@ -72,6 +82,35 @@ impl IoriPathExt for PathBuf {
         }
 
         self.set_file_name(filename);
+    }
+
+    fn replace_extension(&mut self, new_extension: &str, replace_list: &[&str]) -> bool {
+        let current_extension = self.extension().map(|e| e.to_os_string());
+        match current_extension {
+            // if extension exists, check if it is in the replace list
+            Some(mut ext) => {
+                let should_replace = ext
+                    .to_str()
+                    .map(|ext_str| replace_list.contains(&ext_str))
+                    .unwrap_or(false);
+
+                if should_replace {
+                    self.set_extension(new_extension)
+                } else {
+                    ext.push(".");
+                    ext.push(new_extension);
+                    self.set_extension(ext)
+                }
+            }
+            // if extension does not exist, just set the new extension
+            None => self.set_extension(new_extension),
+        }
+    }
+
+    fn with_replaced_extension(&self, new_extension: &str, replace_list: &[&str]) -> PathBuf {
+        let mut path = self.clone();
+        path.replace_extension(new_extension, replace_list);
+        path
     }
 }
 
@@ -100,5 +139,26 @@ mod tests {
         let mut path = PathBuf::from("test.raw.mp4");
         path.add_suffix("suffix");
         assert_eq!(path.to_string_lossy(), "test.raw_suffix.mp4");
+    }
+
+    #[test]
+    fn test_replace_extension_in_replace_list() {
+        let mut path = PathBuf::from("test.mp4");
+        path.replace_extension("ts", &["mp4"]);
+        assert_eq!(path.to_string_lossy(), "test.ts");
+    }
+
+    #[test]
+    fn test_replace_extension_for_none_extension() {
+        let mut path = PathBuf::from("test");
+        path.replace_extension("ts", &["mp4"]);
+        assert_eq!(path.to_string_lossy(), "test.ts");
+    }
+
+    #[test]
+    fn test_replace_extension_not_in_replace_list() {
+        let mut path = PathBuf::from("test.aws");
+        path.replace_extension("ts", &["mkv"]);
+        assert_eq!(path.to_string_lossy(), "test.aws.ts");
     }
 }
