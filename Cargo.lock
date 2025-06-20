@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "shiori"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "anyhow",
  "async-recursion",
