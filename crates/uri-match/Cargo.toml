@@ -1,0 +1,12 @@
+[package]
+name = "uri-match"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+matchit = "0.8"
+url = "2.5"
+thiserror = "1.0"
