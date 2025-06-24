@@ -10,22 +10,25 @@ impl<T> VecMix for Vec<Vec<T>> {
     fn mix(self) -> Vec<Self::Item> {
         // Merge vectors by interleaving their elements
         // For example: [[a1, a2, a3], [b1, b2, b3]] -> [a1, b1, a2, b2, a3, b3]
-        let max_len = self.iter().map(|v| v.len()).max().unwrap_or(0);
         let total_len = self.iter().map(|v| v.len()).sum();
         let mut result = Vec::with_capacity(total_len);
 
-        // Consume the input vectors
-        let mut vecs = self;
-        for _ in 0..max_len {
-            for vec in &mut vecs {
-                if !vec.is_empty() {
-                    // TODO: avoid array shift
-                    let item = vec.remove(0);
-                    result.push(item);
-                }
-            }
-        }
+        let mut iters: Vec<_> = self
+            .into_iter()
+            .map(|v| v.into_iter())
+            .filter(|iter| iter.len() > 0)
+            .collect();
 
+        while !iters.is_empty() {
+            iters.retain_mut(|iter| {
+                if let Some(item) = iter.next() {
+                    result.push(item);
+                    true
+                } else {
+                    false
+                }
+            });
+        }
         result
     }
 }
