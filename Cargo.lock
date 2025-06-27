@@ -3550,6 +3550,7 @@ dependencies = [
  "async-trait",
  "iori",
  "serde",
+ "uri-match",
 ]
 
 [[package]]
@@ -4268,6 +4269,7 @@ dependencies = [
  "matchit",
  "thiserror 1.0.69",
  "url",
+ "wildcard",
 ]
 
 [[package]]
@@ -4507,6 +4509,15 @@ dependencies = [
  "env_home",
  "rustix",
  "winsafe",
+]
+
+[[package]]
+name = "wildcard"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9b0540e91e49de3817c314da0dd3bc518093ceacc6ea5327cb0e1eb073e5189"
+dependencies = [
+ "thiserror 2.0.11",
 ]
 
 [[package]]

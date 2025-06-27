@@ -10,3 +10,4 @@ license.workspace = true
 matchit = "0.8"
 url = "2.5"
 thiserror = "1.0"
+wildcard = "0.3.0"
