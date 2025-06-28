@@ -195,14 +195,15 @@ impl<T> Default for HttpRouter<T> {
 
 pub struct UriSchemeMatcher<S = (), H = ()> {
     schemes: HashMap<String, S>,
-    http: HashMap<HostMatcher, HttpRouter<H>>,
+    http: Vec<(HostMatcher, HttpRouter<H>)>,
 }
 
 impl<S, H> UriSchemeMatcher<S, H> {
     pub fn new() -> Self {
         Self {
             schemes: HashMap::new(),
-            http: HashMap::new(),
+            // TODO: use IndexMap
+            http: Vec::new(),
         }
     }
 
@@ -232,8 +233,20 @@ impl<S, H> UriSchemeMatcher<S, H> {
         let host_matcher = host_matcher.try_into().map_err(|e| e.into())?;
         let path_matcher = path_matcher.try_into().map_err(|e| e.into())?;
 
-        let router = self.http.entry(host_matcher).or_default();
-        router.insert(scheme, path_matcher, value)?;
+        let router = self.http.iter_mut().find_map(|h| {
+            if h.0 == host_matcher {
+                Some(&mut h.1)
+            } else {
+                None
+            }
+        });
+        if let Some(router) = router {
+            router.insert(scheme, path_matcher, value)?;
+        } else {
+            let mut router = HttpRouter::default();
+            router.insert(scheme, path_matcher, value)?;
+            self.http.push((host_matcher, router));
+        }
 
         Ok(())
     }
@@ -243,8 +256,8 @@ impl<S, H> UriSchemeMatcher<S, H> {
             scheme @ ("http" | "https") => {
                 let Some(matched) = url
                     .host_str()
-                    .and_then(|h| self.http.keys().find(|m| m.matches(h)))
-                    .and_then(|k| self.http.get(k))
+                    .and_then(|h| self.http.iter().find(|m| m.0.matches(h)))
+                    .map(|k| &k.1)
                     .and_then(|m| m.at(scheme, url.path()).ok())
                 else {
                     return MatchUriResult::NoMatch(url);
