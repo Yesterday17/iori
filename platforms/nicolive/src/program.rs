@@ -206,15 +206,24 @@ impl NivoServerResponse {
         let access_right_key = self
             .access_right_key()
             .ok_or_else(|| anyhow::anyhow!("no access right key"))?;
-        let video_quality = self
-            .video_quality()
+
+        let video_qualities = self
+            .video_qualities()
             .ok_or_else(|| anyhow::anyhow!("no video quality"))?;
-        let audio_quality = self
-            .audio_quality()
+        let audio_qualities = self
+            .audio_qualities()
             .ok_or_else(|| anyhow::anyhow!("no audio quality"))?;
+        let mut outputs = Vec::with_capacity(video_qualities.len() * audio_qualities.len());
+        for video_quality in video_qualities.iter() {
+            for audio_quality in audio_qualities.iter() {
+                outputs.push([video_quality.as_str(), audio_quality.as_str()]);
+            }
+        }
+
         let json = serde_json::json!({
-            "outputs": [[video_quality, audio_quality]],
+            "outputs": outputs,
         });
+
         let response = self
             .client
             .post(url)
@@ -282,24 +291,36 @@ impl NivoServerResponse {
             .map(|key| key.to_string())
     }
 
-    fn video_quality(&self) -> Option<String> {
+    fn video_qualities(&self) -> Option<Vec<String>> {
         self.domand()
             .and_then(|media| media.get("videos"))
             .and_then(|quality| quality.as_array())
-            .and_then(|quality| quality.first())
-            .and_then(|quality| quality.get("id"))
-            .and_then(|quality| quality.as_str())
-            .map(String::from)
+            .and_then(|q| {
+                q.iter()
+                    .filter(|q| {
+                        q.get("isAvailable")
+                            .and_then(|q| q.as_bool())
+                            .unwrap_or_default()
+                    })
+                    .map(|q| q.get("id").and_then(|q| q.as_str()).map(String::from))
+                    .collect::<Option<Vec<_>>>()
+            })
     }
 
-    fn audio_quality(&self) -> Option<String> {
+    fn audio_qualities(&self) -> Option<Vec<String>> {
         self.domand()
             .and_then(|media| media.get("audios"))
             .and_then(|quality| quality.as_array())
-            .and_then(|quality| quality.first())
-            .and_then(|quality| quality.get("id"))
-            .and_then(|quality| quality.as_str())
-            .map(String::from)
+            .and_then(|q| {
+                q.iter()
+                    .filter(|q| {
+                        q.get("isAvailable")
+                            .and_then(|q| q.as_bool())
+                            .unwrap_or_default()
+                    })
+                    .map(|q| q.get("id").and_then(|q| q.as_str()).map(String::from))
+                    .collect::<Option<Vec<_>>>()
+            })
     }
 
     fn action_track_id(&self) -> Option<String> {
