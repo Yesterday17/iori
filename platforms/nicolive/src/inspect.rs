@@ -69,6 +69,7 @@ impl InspectorBuilder for NicoLiveInspector {
     }
 }
 
+#[derive(Clone)]
 struct NicoLiveInspectorImpl {
     user_session: Option<String>,
     download_danmaku: bool,
@@ -100,101 +101,121 @@ impl NicoLiveInspectorImpl {
 
 #[async_trait]
 impl Inspect for NicoLiveInspectorImpl {
-    async fn matches(&self, url: &str) -> bool {
-        url.starts_with("https://live.nicovideo.jp/watch/lv")
-    }
+    async fn register(
+        &self,
+        id: InspectorIdentifier,
+        registry: &mut InspectRegistry,
+    ) -> anyhow::Result<()> {
+        let this = self.clone();
 
-    async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
-        let data = NicoEmbeddedData::new(url, self.user_session.as_deref()).await?;
-        let wss_url = if let Some(wss_url) = data.websocket_url() {
-            wss_url
-        } else if self.reserve_timeshift {
-            data.timeshift_reserve().await?;
-            let data = NicoEmbeddedData::new(url, self.user_session.as_deref()).await?;
-            data.websocket_url()
-                .ok_or_else(|| anyhow::anyhow!("no websocket url"))?
-        } else {
-            anyhow::bail!("no websocket url");
-        };
+        registry.register_http_route(
+            RouterScheme::Https,
+            "live.nicovideo.jp",
+            "/watch/lv{id}",
+            (
+                id,
+                Box::new(move |url, _| {
+                    let this = this.clone();
+                    Box::pin(async move {
+                        let this: NicoLiveInspectorImpl = this.clone();
+                        let data = NicoEmbeddedData::new(url.clone(), this.user_session.as_deref())
+                            .await?;
+                        let wss_url = if let Some(wss_url) = data.websocket_url() {
+                            wss_url
+                        } else if this.reserve_timeshift {
+                            data.timeshift_reserve().await?;
+                            let data =
+                                NicoEmbeddedData::new(url, this.user_session.as_deref()).await?;
+                            data.websocket_url()
+                                .ok_or_else(|| anyhow::anyhow!("no websocket url"))?
+                        } else {
+                            anyhow::bail!("no websocket url");
+                        };
 
-        let best_quality = data.best_quality()?;
-        let chase_play = self.chase_play;
-        let download_danmaku = self.download_danmaku || self.danmaku_only;
+                        let best_quality = data.best_quality()?;
+                        let chase_play = this.chase_play;
+                        let download_danmaku = this.download_danmaku || this.danmaku_only;
 
-        let watcher = WatchClient::new(&wss_url).await?;
-        watcher
-            .start_watching(&best_quality, self.chase_play)
-            .await?;
+                        let watcher = WatchClient::new(&wss_url).await?;
+                        watcher.start_watching(&best_quality, chase_play).await?;
 
-        let mut stream: Option<WatchMessageStream> = None;
-        let mut message_server: Option<WatchMessageMessageServer> = None;
-        loop {
-            let msg = watcher.recv().await?;
-            if let Some(WatchResponse::Stream(got_stream)) = msg {
-                stream = Some(got_stream);
-            } else if let Some(WatchResponse::MessageServer(got_message_server)) = msg {
-                message_server = Some(got_message_server);
-            }
-
-            if stream.is_some() && (!download_danmaku || message_server.is_some()) {
-                break;
-            }
-        }
-        let stream = stream.unwrap();
-
-        // keep seats
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    msg = watcher.recv() => {
-                        if let Err(e) = msg {
-                            log::error!("{e:?}");
-                            if let Err(e) = watcher
-                                .reconnect(&wss_url, &best_quality, chase_play)
-                                .await
+                        let mut stream: Option<WatchMessageStream> = None;
+                        let mut message_server: Option<WatchMessageMessageServer> = None;
+                        loop {
+                            let msg = watcher.recv().await?;
+                            if let Some(WatchResponse::Stream(got_stream)) = msg {
+                                stream = Some(got_stream);
+                            } else if let Some(WatchResponse::MessageServer(got_message_server)) =
+                                msg
                             {
-                                log::error!("Failed to reconnect: {e:?}");
+                                message_server = Some(got_message_server);
+                            }
+
+                            if stream.is_some() && (!download_danmaku || message_server.is_some()) {
                                 break;
                             }
                         }
-                    }
-                    _ = watcher.keep_seat() => (),
-                }
-            }
-            log::info!("watcher disconnected");
-        });
+                        let stream = stream.unwrap();
 
-        let mut result = vec![];
-        if !self.danmaku_only {
-            result.push(InspectPlaylist {
-                title: Some(data.program_title()),
-                playlist_url: stream.uri,
-                playlist_type: PlaylistType::HLS,
-                cookies: stream.cookies.into_cookies(),
-                streams_hint: Some(2),
-                ..Default::default()
-            });
-        }
+                        // keep seats
+                        tokio::spawn(async move {
+                            loop {
+                                tokio::select! {
+                                    msg = watcher.recv() => {
+                                        if let Err(e) = msg {
+                                            log::error!("{e:?}");
+                                            if let Err(e) = watcher
+                                                .reconnect(&wss_url, &best_quality, chase_play)
+                                                .await
+                                            {
+                                                log::error!("Failed to reconnect: {e:?}");
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    _ = watcher.keep_seat() => (),
+                                }
+                            }
+                            log::info!("watcher disconnected");
+                        });
 
-        if let Some(message_server) = message_server {
-            let danmaku = self
-                .download_danmaku(message_server, data.program_end_time())
-                .await?;
-            result.push(InspectPlaylist {
-                title: Some(data.program_title()),
-                playlist_url: danmaku.to_json(true)?,
-                playlist_type: PlaylistType::Raw("json".to_string()),
-                ..Default::default()
-            });
-            result.push(InspectPlaylist {
-                title: Some(data.program_title()),
-                playlist_url: danmaku.to_ass()?,
-                playlist_type: PlaylistType::Raw("ass".to_string()),
-                ..Default::default()
-            });
-        }
+                        let mut result = vec![];
+                        if !this.danmaku_only {
+                            result.push(InspectPlaylist {
+                                title: Some(data.program_title()),
+                                playlist_url: stream.uri,
+                                playlist_type: PlaylistType::HLS,
+                                cookies: stream.cookies.into_cookies(),
+                                streams_hint: Some(2),
+                                ..Default::default()
+                            });
+                        }
 
-        Ok(InspectResult::Playlists(result))
+                        if let Some(message_server) = message_server {
+                            let danmaku = this
+                                .download_danmaku(message_server, data.program_end_time())
+                                .await?;
+                            result.push(InspectPlaylist {
+                                title: Some(data.program_title()),
+                                playlist_url: danmaku.to_json(true)?,
+                                playlist_type: PlaylistType::Raw("json".to_string()),
+                                ..Default::default()
+                            });
+                            result.push(InspectPlaylist {
+                                title: Some(data.program_title()),
+                                playlist_url: danmaku.to_ass()?,
+                                playlist_type: PlaylistType::Raw("ass".to_string()),
+                                ..Default::default()
+                            });
+                        }
+
+                        Ok(InspectResult::Playlists(result))
+                    })
+                }),
+            ),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -237,20 +258,35 @@ struct NicoVideoInspectorImpl {
 
 #[async_trait]
 impl Inspect for NicoVideoInspectorImpl {
-    async fn matches(&self, url: &str) -> bool {
-        url.starts_with("https://www.nicovideo.jp/watch/so")
-    }
+    async fn register(
+        &self,
+        id: InspectorIdentifier,
+        registry: &mut InspectRegistry,
+    ) -> anyhow::Result<()> {
+        let user_session = self.user_session.clone();
+        registry.register_http_route(
+            RouterScheme::Https,
+            "www.nicovideo.jp",
+            "/watch/so{id}",
+            (
+                id,
+                Box::new(move |url, _| {
+                    let user_session = user_session.clone();
+                    Box::pin(async move {
+                        let data = NivoServerResponse::new(url, user_session.as_deref()).await?;
+                        let (playlist_url, cookies) = data.playlist_url().await?;
+                        Ok(InspectResult::Playlists(vec![InspectPlaylist {
+                            title: data.program_title(),
+                            playlist_url,
+                            playlist_type: PlaylistType::HLS,
+                            headers: vec![format!("Cookie: {cookies}")],
+                            ..Default::default()
+                        }]))
+                    })
+                }),
+            ),
+        )?;
 
-    async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
-        let data: NivoServerResponse =
-            NivoServerResponse::new(url, self.user_session.as_deref()).await?;
-        let (playlist_url, cookies) = data.playlist_url().await?;
-        Ok(InspectResult::Playlists(vec![InspectPlaylist {
-            title: data.program_title(),
-            playlist_url,
-            playlist_type: PlaylistType::HLS,
-            headers: vec![format!("Cookie: {cookies}")],
-            ..Default::default()
-        }]))
+        Ok(())
     }
 }

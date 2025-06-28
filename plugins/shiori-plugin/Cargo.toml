@@ -11,3 +11,4 @@ anyhow.workspace = true
 async-trait = "0.1.86"
 serde.workspace = true
 iori.workspace = true
+uri-match.workspace = true

@@ -1,8 +1,12 @@
+use std::{future::Future, pin::Pin, sync::Arc};
+
 pub use async_trait::async_trait;
 pub use iori::PlaylistType;
 use serde::{Deserialize, Serialize};
 
 pub use iori;
+use uri_match::Url;
+pub use uri_match::{HostMatcher, MatchUriResult, RouterScheme, UriParams, UriSchemeMatcher};
 
 pub trait InspectorCommand {
     fn add_argument(
@@ -32,13 +36,30 @@ pub trait InspectorBuilder {
     fn build(&self, args: &dyn InspectorArguments) -> anyhow::Result<Box<dyn Inspect>>;
 }
 
+pub type InspectorIdentifier = Arc<String>;
+
+type InspectRegistryFn<I> = Box<
+    dyn Fn(I) -> Pin<Box<dyn Future<Output = anyhow::Result<InspectResult>> + Send>> + Send + Sync,
+>;
+type InspectRegistryFn2<I1, I2> = Box<
+    dyn Fn(I1, I2) -> Pin<Box<dyn Future<Output = anyhow::Result<InspectResult>> + Send>>
+        + Send
+        + Sync,
+>;
+
+pub type InspectRegistry = UriSchemeMatcher<
+    (InspectorIdentifier, InspectRegistryFn<Url>),
+    (InspectorIdentifier, InspectRegistryFn2<Url, UriParams>),
+>;
+
 #[async_trait]
 pub trait Inspect: Send + Sync {
-    /// Check if this handler can handle the URL
-    async fn matches(&self, url: &str) -> bool;
-
-    /// Inspect the URL and return the result
-    async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult>;
+    /// Register the inspector to the registry
+    async fn register(
+        &self,
+        name: InspectorIdentifier,
+        registry: &mut InspectRegistry,
+    ) -> anyhow::Result<()>;
 
     /// Inspect a previously returned candidate and return the result
     async fn inspect_candidate(
@@ -51,8 +72,6 @@ pub trait Inspect: Send + Sync {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum InspectResult {
-    /// This site handler can not handle this URL
-    NotMatch,
     /// Found multiple available sources to choose
     Candidates(Vec<InspectCandidate>),
     /// Inspect data is found

@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use matchit::InsertError;
 use thiserror::Error;
 use wildcard::WildcardError;
@@ -23,4 +25,7 @@ pub enum UriHandlerError {
 
     #[error("No matching route found for path: {0}")]
     NoMatchingPath(String),
+
+    #[error(transparent)]
+    Infallible(#[from] Infallible),
 }

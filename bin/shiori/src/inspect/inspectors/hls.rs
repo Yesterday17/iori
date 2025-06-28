@@ -1,6 +1,6 @@
 use crate::inspect::{Inspect, InspectResult};
 use clap_handler::async_trait;
-use shiori_plugin::{InspectPlaylist, InspectorArguments, InspectorBuilder, PlaylistType};
+use shiori_plugin::*;
 
 pub struct HlsInspector;
 
@@ -27,15 +27,29 @@ impl InspectorBuilder for HlsInspector {
 
 #[async_trait]
 impl Inspect for HlsInspector {
-    async fn matches(&self, url: &str) -> bool {
-        url.contains(".m3u8")
-    }
+    async fn register(
+        &self,
+        id: InspectorIdentifier,
+        registry: &mut InspectRegistry,
+    ) -> anyhow::Result<()> {
+        registry.register_http_route(
+            RouterScheme::Both,
+            "*".as_bytes(),
+            "*.m3u8".as_bytes(),
+            (
+                id,
+                Box::new(move |url, _| {
+                    Box::pin(async move {
+                        Ok(InspectResult::Playlist(InspectPlaylist {
+                            playlist_url: url.to_string(),
+                            playlist_type: PlaylistType::HLS,
+                            ..Default::default()
+                        }))
+                    })
+                }),
+            ),
+        )?;
 
-    async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
-        Ok(InspectResult::Playlist(InspectPlaylist {
-            playlist_url: url.to_string(),
-            playlist_type: PlaylistType::HLS,
-            ..Default::default()
-        }))
+        Ok(())
     }
 }

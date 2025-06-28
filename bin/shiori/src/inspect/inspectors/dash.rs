@@ -1,7 +1,7 @@
 use crate::inspect::{Inspect, InspectResult};
 use clap_handler::async_trait;
 use iori::PlaylistType;
-use shiori_plugin::{InspectPlaylist, InspectorArguments, InspectorBuilder};
+use shiori_plugin::*;
 
 pub struct DashInspector;
 
@@ -28,15 +28,29 @@ impl InspectorBuilder for DashInspector {
 
 #[async_trait]
 impl Inspect for DashInspector {
-    async fn matches(&self, url: &str) -> bool {
-        url.contains(".mpd")
-    }
+    async fn register(
+        &self,
+        id: InspectorIdentifier,
+        registry: &mut InspectRegistry,
+    ) -> anyhow::Result<()> {
+        registry.register_http_route(
+            RouterScheme::Both,
+            "*".as_bytes(),
+            "*.mpd".as_bytes(),
+            (
+                id,
+                Box::new(move |url, _| {
+                    Box::pin(async move {
+                        Ok(InspectResult::Playlist(InspectPlaylist {
+                            playlist_url: url.to_string(),
+                            playlist_type: PlaylistType::DASH,
+                            ..Default::default()
+                        }))
+                    })
+                }),
+            ),
+        )?;
 
-    async fn inspect(&self, url: &str) -> anyhow::Result<InspectResult> {
-        Ok(InspectResult::Playlist(InspectPlaylist {
-            playlist_url: url.to_string(),
-            playlist_type: PlaylistType::DASH,
-            ..Default::default()
-        }))
+        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 pub mod inspectors;
 
 pub use shiori_plugin::*;
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
 use crate::commands::STYLES;
@@ -78,7 +78,7 @@ impl Inspectors {
         url: &str,
         args: &dyn InspectorArguments,
         choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
-    ) -> anyhow::Result<(String, Vec<InspectPlaylist>)> {
+    ) -> anyhow::Result<(InspectorIdentifier, Vec<InspectPlaylist>)> {
         let inspectors = self
             .front
             .iter()
@@ -86,43 +86,52 @@ impl Inspectors {
             .map(|b| b.build(args).map(|i| (b, i)))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
+        let mut registry = InspectRegistry::new();
+
+        for (builder, inspector) in inspectors.iter() {
+            inspector
+                .register(Arc::new(builder.name()), &mut registry)
+                .await?;
+        }
+
         let mut url = Cow::Borrowed(url);
 
-        for (builder, inspector) in inspectors {
-            if inspector.matches(&url).await {
-                loop {
-                    let result = inspector
-                        .inspect(&url)
-                        .await
-                        .inspect_err(|e| log::error!("Failed to inspect {url}: {:?}", e))
-                        .ok();
-                    let result =
-                        handle_inspect_result(inspector.as_ref(), result, choose_candidate).await;
-                    match result {
-                        InspectBranch::Continue => break,
-                        InspectBranch::Redirect(redirect_url) => {
-                            url = Cow::Owned(redirect_url);
-                            break;
-                        }
-                        InspectBranch::Found(data) => return Ok((builder.name(), data)),
-                        InspectBranch::NotFound => {
-                            if let Some(wait_time) = self.wait {
-                                sleep(Duration::from_secs(wait_time)).await;
-                            } else {
-                                anyhow::bail!("Not found")
-                            }
-                        }
+        loop {
+            let result = registry.try_match(url.parse()?);
+            let (inspector_id, result) = match result {
+                MatchUriResult::Scheme((inspector, f), url) => (inspector, f(url).await.ok()),
+                MatchUriResult::Http((inspector, f), uri_params, url) => {
+                    (inspector, f(url, uri_params).await.ok())
+                }
+                MatchUriResult::NoMatch(_) => {
+                    anyhow::bail!("No inspector matched")
+                }
+            };
+            let inspector = inspectors
+                .iter()
+                .find(|i| i.0.name().as_str() == inspector_id.as_ref())
+                .map(|e| &e.1)
+                .unwrap();
+
+            let result = handle_inspect_result(inspector.as_ref(), result, choose_candidate).await;
+            match result {
+                InspectBranch::Redirect(redirect_url) => {
+                    url = Cow::Owned(redirect_url);
+                }
+                InspectBranch::Found(data) => return Ok((inspector_id.clone(), data)),
+                InspectBranch::NotFound => {
+                    if let Some(wait_time) = self.wait {
+                        sleep(Duration::from_secs(wait_time)).await;
+                    } else {
+                        anyhow::bail!("Not found")
                     }
                 }
             }
         }
-
-        anyhow::bail!("No inspector matched")
     }
 }
 
 enum InspectBranch {
-    Continue,
     Redirect(String),
     Found(Vec<InspectPlaylist>),
     NotFound,
@@ -135,7 +144,6 @@ async fn handle_inspect_result(
     choose_candidate: fn(Vec<InspectCandidate>) -> InspectCandidate,
 ) -> InspectBranch {
     match result {
-        Some(InspectResult::NotMatch) => InspectBranch::Continue,
         Some(InspectResult::Candidates(candidates)) => {
             let candidate = choose_candidate(candidates);
             let result = inspector
