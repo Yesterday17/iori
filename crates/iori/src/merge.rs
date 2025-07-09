@@ -2,6 +2,7 @@ mod auto;
 mod concat;
 #[cfg(feature = "ffmpeg")]
 mod ffmpeg;
+mod ffmpeg_cli;
 mod pipe;
 mod skip;
 
