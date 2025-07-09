@@ -10,8 +10,7 @@ use tokio::process::Command;
 /// This function creates a temporary file list and uses ffmpeg's concat demuxer
 /// to concatenate the segments. This is more efficient than using the concat protocol
 /// for many files.
-#[allow(unused)]
-pub(crate) async fn ffmpeg_cli_concat<O>(
+pub async fn ffmpeg_cli_concat<O>(
     segments: &[&SegmentInfo],
     cache: &impl CacheSource,
     output_path: O,
@@ -50,8 +49,7 @@ where
 ///
 /// This function takes multiple track files and merges them into a single output file,
 /// mapping all streams and using stream copy to avoid re-encoding.
-#[allow(unused)]
-pub(crate) async fn ffmpeg_cli_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
+pub async fn ffmpeg_cli_merge<O>(tracks: Vec<PathBuf>, output: O) -> IoriResult<()>
 where
     O: AsRef<Path>,
 {
