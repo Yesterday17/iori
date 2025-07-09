@@ -2,6 +2,7 @@ mod auto;
 mod concat;
 #[cfg(feature = "ffmpeg")]
 mod ffmpeg;
+mod ffmpeg_cli;
 mod pipe;
 mod skip;
 
@@ -9,6 +10,9 @@ pub use auto::AutoMerger;
 pub use concat::ConcatAfterMerger;
 pub use pipe::PipeMerger;
 pub use skip::SkipMerger;
+
+// Re-export FFmpeg CLI functions for direct usage
+pub use ffmpeg_cli::{ffmpeg_cli_concat, ffmpeg_cli_merge};
 use tokio::io::AsyncWrite;
 
 use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};

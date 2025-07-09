@@ -114,8 +114,14 @@ impl Merger for AutoMerger {
                 }
                 #[cfg(not(feature = "ffmpeg"))]
                 {
-                    output_path.set_extension("mkv");
-                    mkvmerge_concat(&segments, &cache, &output_path).await?;
+                    // Try ffmpeg CLI first, fall back to mkvmerge if not available
+                    if which::which("ffmpeg").is_ok() {
+                        output_path.set_extension("mp4");
+                        super::ffmpeg_cli::ffmpeg_cli_concat(&segments, &cache, &output_path).await?;
+                    } else {
+                        output_path.set_extension("mkv");
+                        mkvmerge_concat(&segments, &cache, &output_path).await?;
+                    }
                 }
             }
 
@@ -145,11 +151,20 @@ impl Merger for AutoMerger {
             }
             #[cfg(not(feature = "ffmpeg"))]
             {
-                let output = self
-                    .output_file
-                    .with_replaced_extension("mkv", &self.allowed_extensions);
-                mkvmerge_merge(tracks, &output).await?;
-                output
+                // Try ffmpeg CLI first, fall back to mkvmerge if not available
+                if which::which("ffmpeg").is_ok() {
+                    let output = self
+                        .output_file
+                        .with_replaced_extension("mp4", &self.allowed_extensions);
+                    super::ffmpeg_cli::ffmpeg_cli_merge(tracks, &output).await?;
+                    output
+                } else {
+                    let output = self
+                        .output_file
+                        .with_replaced_extension("mkv", &self.allowed_extensions);
+                    mkvmerge_merge(tracks, &output).await?;
+                    output
+                }
             }
         };
 
