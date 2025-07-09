@@ -1,3 +1,48 @@
+/// FFmpeg CLI-based merge functions.
+///
+/// This module provides alternatives to the rsmpeg library-based FFmpeg integration
+/// by calling the FFmpeg CLI directly. These functions are useful when:
+/// 
+/// - The `ffmpeg` feature is not enabled/available
+/// - You want to use a specific FFmpeg version installed on the system  
+/// - You prefer simpler dependency management without compiling FFmpeg
+/// - The rsmpeg compilation is problematic in your environment
+///
+/// ## Usage
+/// 
+/// ### Direct Usage
+/// ```rust,no_run
+/// use iori::merge::{ffmpeg_cli_concat, ffmpeg_cli_merge};
+/// use std::path::PathBuf;
+/// 
+/// // Concatenate segments
+/// # async fn example() -> iori::IoriResult<()> {
+/// let segments = vec![/* your segments */];
+/// let cache = /* your cache implementation */;
+/// ffmpeg_cli_concat(&segments, &cache, "output.mp4").await?;
+/// 
+/// // Merge multiple tracks
+/// let tracks = vec![PathBuf::from("track1.mp4"), PathBuf::from("track2.mp4")];
+/// ffmpeg_cli_merge(tracks, "merged.mp4").await?;
+/// # Ok(())
+/// # }
+/// ```
+/// 
+/// ### Automatic Integration
+/// When using `AutoMerger` without the `ffmpeg` feature, it will automatically
+/// try FFmpeg CLI before falling back to mkvmerge:
+/// 
+/// ```rust,no_run  
+/// use iori::merge::{AutoMerger, Merger};
+/// 
+/// # async fn example() -> iori::IoriResult<()> {
+/// let mut merger = AutoMerger::new("output.mp4".into(), false);
+/// // Will automatically use: FFmpeg CLI → mkvmerge (if FFmpeg not available)
+/// merger.finish(cache).await?;
+/// # Ok(())
+/// # }
+/// ```
+
 use crate::{cache::CacheSource, error::IoriResult, SegmentInfo};
 use std::{
     io::Write,
