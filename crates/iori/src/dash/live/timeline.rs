@@ -7,20 +7,20 @@
 /// - https://github.com/emarsden/dash-mpd-rs/blob/main/src/fetch.rs
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 use dash_mpd::{
-    AdaptationSet, Period, Representation, SegmentBase, SegmentList, SegmentTemplate, MPD,
+    AdaptationSet, MPD, Period, Representation, SegmentBase, SegmentList, SegmentTemplate,
 };
 use url::Url;
 
 use std::sync::Arc;
 
 use crate::{
+    ByteRange, HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
     dash::{
         segment::DashSegment,
         template::{Template, TemplateUrl},
-        url::{is_absolute_url, merge_baseurls, parse_media_range, UriExt},
+        url::{UriExt, is_absolute_url, merge_baseurls, parse_media_range},
     },
     decrypt::IoriKey,
-    ByteRange, HttpClient, InitialSegment, IoriError, IoriResult, SegmentType,
 };
 
 use super::{clock::Clock, selector::best_representation};
@@ -642,7 +642,9 @@ impl DashAdaptationSet {
             .representations
             .into_iter()
             .max_by_key(best_representation)
-            .unwrap();
+            .ok_or_else(|| {
+                IoriError::MpdParsing("No representations found in adaptation set".to_string())
+            })?;
 
         let adaptation_set_base_url = adaptation_set.BaseURL.first().map(|u| u.base.as_str());
         let base_url = match adaptation_set_base_url {

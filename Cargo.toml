@@ -3,7 +3,7 @@ members = ["bin/*", "crates/*", "plugins/*", "platforms/*"]
 resolver = "2"
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 repository = "https://github.com/Yesterday17/iori"
 license = "Apache-2.0"

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use dash_mpd::Representation;
 
-pub fn best_representation(representation: &Representation) -> impl Ord {
+pub fn best_representation(representation: &Representation) -> BestRepresentationSelector {
     BestRepresentationSelector {
         width: representation.width,
         height: representation.height,
@@ -11,7 +11,7 @@ pub fn best_representation(representation: &Representation) -> impl Ord {
 }
 
 #[derive(PartialEq, Eq)]
-struct BestRepresentationSelector {
+pub(crate) struct BestRepresentationSelector {
     width: Option<u64>,
     height: Option<u64>,
     bandwidth: Option<u64>,
